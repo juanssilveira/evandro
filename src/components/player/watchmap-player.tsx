@@ -623,20 +623,60 @@ export function WatchMapPlayer({
       {playbackMode === "background_autoplay" && !hasError && (
         <div
           onClick={() => playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current)}
-          className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-black/10 hover:bg-black/20 transition-all group/bgoverlay"
+          className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-gradient-to-b from-black/45 via-black/35 to-black/45 hover:from-black/50 hover:via-black/40 hover:to-black/50 transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
         >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current);
-            }}
-            style={{ backgroundColor: "var(--player-accent)" }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-medium text-xs sm:text-sm shadow-2xl backdrop-blur-sm transition-all hover:scale-105 active:scale-95 border border-white/20 cursor-pointer"
-          >
-            <Volume2 className="size-4 fill-white" />
-            <span>Ativar som e assistir do início</span>
-          </button>
+          <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
+            {/* Subtle External Pulse Ring (Expands & Fades Out) */}
+            <div
+              aria-hidden="true"
+              className="wm-pulse-ring pointer-events-none absolute -inset-1 rounded-full"
+              style={{
+                boxShadow: "0 0 0 3px var(--player-accent)",
+                animation: "wm-pulse-ring 2s cubic-bezier(0.2, 0, 0.4, 1) infinite",
+              }}
+            />
+
+            {/* Main CTA Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current);
+              }}
+              style={{ backgroundColor: "var(--player-accent)" }}
+              className={cn(
+                "relative inline-flex items-center justify-center gap-2 @min-[420px]:gap-2.5",
+                "px-4 py-2.5 @min-[420px]:px-5 @min-[420px]:py-3 rounded-full text-white font-semibold",
+                "text-xs @min-[360px]:text-[13px] @min-[480px]:text-sm",
+                "shadow-2xl backdrop-blur-md transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]",
+                "border border-white/20 select-none cursor-pointer max-w-full"
+              )}
+            >
+              <Volume2 className="size-4 @min-[420px]:size-4.5 shrink-0 fill-white text-white" />
+              <span className="text-center leading-tight @min-[420px]:leading-normal line-clamp-2 max-w-[260px] @min-[420px]:max-w-none">
+                Ativar som e assistir do início
+              </span>
+            </button>
+          </div>
+
+          <style>{`
+            @keyframes wm-pulse-ring {
+              0% {
+                transform: scale(0.96);
+                opacity: 0.8;
+              }
+              65%, 100% {
+                transform: scale(1.08, 1.18);
+                opacity: 0;
+              }
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .wm-pulse-ring {
+                display: none !important;
+                animation: none !important;
+              }
+            }
+          `}</style>
         </div>
       )}
 
