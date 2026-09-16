@@ -6,11 +6,12 @@ Este repositório contém o desenvolvimento do WatchMap.
 
 Antes de implementar ou alterar qualquer funcionalidade:
 
-1. Leia os documentos relevantes em `/docs` (`00-PRODUCT.md`, `01-ARCHITECTURE.md`, `02-MODEL.md`, `03-DESIGN.md`, `ENVIRONMENTS.md`, `WORKFLOW.md`).
+1. Leia os documentos relevantes em `/docs` (`00-PRODUCT.md`, `01-ARCHITECTURE.md`, `02-MODEL.md`, `03-DESIGN.md`, `ENVIRONMENTS.md`, `WORKFLOW.md`, `DEPLOYMENT-CDN.md`).
 2. Leia integralmente a spec da tarefa atual em `/specs`.
 3. Respeite as decisões arquiteturais já existentes.
 4. Implemente somente o que foi solicitado.
 5. Leia `docs/03-DESIGN.md` antes de criar ou modificar interfaces.
+6. Leia `docs/DEPLOYMENT-CDN.md` ao trabalhar com infraestrutura, deploy, CDN ou embed.
 
 ## Princípios de desenvolvimento
 

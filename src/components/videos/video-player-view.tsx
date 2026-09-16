@@ -13,6 +13,7 @@ interface VideoPlayerViewProps {
   initialConfig: PlayerConfig;
   publicId: string;
   baseUrl: string;
+  cdnUrl: string;
 }
 
 export function VideoPlayerView({
@@ -22,6 +23,7 @@ export function VideoPlayerView({
   initialConfig,
   publicId,
   baseUrl,
+  cdnUrl,
 }: VideoPlayerViewProps) {
   const [config, setConfig] = useState<PlayerConfig>(initialConfig);
 
@@ -72,6 +74,7 @@ export function VideoPlayerView({
         <VideoEmbedCard
           publicId={publicId}
           baseUrl={baseUrl}
+          cdnUrl={cdnUrl}
           videoId={videoId}
           config={config}
           onConfigChange={handleConfigChange}

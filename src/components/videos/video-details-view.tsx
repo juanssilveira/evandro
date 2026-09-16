@@ -13,6 +13,7 @@ interface VideoDetailsViewProps {
   playbackUrl: string;
   initialConfig: PlayerConfig;
   baseUrl: string;
+  cdnUrl: string;
 }
 
 export function VideoDetailsView({
@@ -21,6 +22,7 @@ export function VideoDetailsView({
   playbackUrl,
   initialConfig,
   baseUrl,
+  cdnUrl,
 }: VideoDetailsViewProps) {
   const [currentTitle, setCurrentTitle] = useState(video.title);
 
@@ -39,6 +41,7 @@ export function VideoDetailsView({
         initialConfig={initialConfig}
         publicId={video.publicId}
         baseUrl={baseUrl}
+        cdnUrl={cdnUrl}
       />
     </div>
   );

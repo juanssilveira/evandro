@@ -13,6 +13,7 @@ import type { PlayerConfig } from "@/types/player-config";
 interface VideoEmbedCardProps {
   publicId: string;
   baseUrl: string;
+  cdnUrl: string;
   videoId: string;
   config: PlayerConfig;
   onConfigChange: (config: PlayerConfig) => void;
@@ -21,6 +22,7 @@ interface VideoEmbedCardProps {
 export function VideoEmbedCard({
   publicId,
   baseUrl,
+  cdnUrl,
   videoId,
   config,
   onConfigChange,
@@ -30,7 +32,8 @@ export function VideoEmbedCard({
   const [error, setError] = useState<string | null>(null);
 
   const cleanBaseUrl = baseUrl.replace(/\/$/, "");
-  const embedCode = `<script src="${cleanBaseUrl}/embed/v1/watchmap-player.js" defer></script>\n<watchmap-player video-id="${publicId}"></watchmap-player>`;
+  const cleanCdnUrl = cdnUrl.replace(/\/$/, "");
+  const embedCode = `<script src="${cleanCdnUrl}/embed/v1/watchmap-player.js" defer></script>\n<watchmap-player\n  video-id="${publicId}"\n  api-base="${cleanBaseUrl}">\n</watchmap-player>`;
 
   const handleCopy = async () => {
     try {
@@ -173,9 +176,12 @@ export function VideoEmbedCard({
             </Button>
           </div>
 
-          <div className="relative rounded-lg bg-zinc-950 px-3.5 py-2.5 border border-border/50 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed">
-            <div className="text-zinc-400">{`<script src="${cleanBaseUrl}/embed/v1/watchmap-player.js" defer></script>`}</div>
-            <div className="text-zinc-200">{`<watchmap-player video-id="${publicId}"></watchmap-player>`}</div>
+          <div className="relative rounded-lg bg-zinc-950 px-3.5 py-2.5 border border-border/50 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed whitespace-pre">
+            <div className="text-zinc-400">{`<script src="${cleanCdnUrl}/embed/v1/watchmap-player.js" defer></script>`}</div>
+            <div className="text-zinc-200">{`<watchmap-player`}</div>
+            <div className="text-zinc-200">{`  video-id="${publicId}"`}</div>
+            <div className="text-zinc-200">{`  api-base="${cleanBaseUrl}">`}</div>
+            <div className="text-zinc-200">{`</watchmap-player>`}</div>
           </div>
         </div>
 
