@@ -624,7 +624,11 @@ export function WatchMapPlayer({
       {playbackMode === "background_autoplay" && !hasError && (
         <div
           onClick={() => playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current)}
-          className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-gradient-to-b from-black/70 via-black/50 to-black/70 hover:from-black/75 hover:via-black/55 hover:to-black/75 transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
+          style={{
+            background: "linear-gradient(180deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.52) 50%, rgba(0, 0, 0, 0.72) 100%)",
+            backgroundColor: "rgba(0, 0, 0, 0.62)",
+          }}
+          className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
         >
           <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
             {/* Subtle External Pulse Ring (Expands & Fades Out) */}
@@ -699,8 +703,11 @@ export function WatchMapPlayer({
       {/* Top Title Bar */}
       {title && (effectiveConfig.appearance?.showTitle ?? true) && playbackMode !== "background_autoplay" && (
         <div
+          style={{
+            background: "linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0) 100%)",
+          }}
           className={cn(
-            "absolute top-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 pointer-events-none transition-opacity duration-300",
+            "absolute top-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 z-20 pointer-events-none transition-opacity duration-300",
             controlsVisible ? "opacity-100" : "opacity-0"
           )}
         >
@@ -715,8 +722,11 @@ export function WatchMapPlayer({
         <div
           data-no-fullscreen="true"
           onDoubleClick={(e) => e.stopPropagation()}
+          style={{
+            background: "linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0) 100%)",
+          }}
           className={cn(
-            "absolute bottom-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20 transition-opacity duration-300 flex flex-col gap-1.5 @min-[380px]:gap-2.5",
+            "absolute bottom-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 z-20 transition-opacity duration-300 flex flex-col gap-1.5 @min-[380px]:gap-2.5",
             controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
           )}
         >
