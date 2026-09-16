@@ -2,9 +2,9 @@
 
 ## Objetivo
 
-Este documento define a linguagem visual padrão da interface do WatchMap.
+Este documento é a referência prescritiva para qualquer agente ou desenvolvedor construindo interfaces no WatchMap.
 
-Toda nova interface deve seguir estas regras, salvo quando uma spec definir explicitamente uma exceção.
+Toda nova interface deve seguir rigorosamente estas regras para garantir consistência visual, hierarquia de ações e sensação de produto técnico refinado.
 
 O design deve transmitir:
 
@@ -12,427 +12,396 @@ O design deve transmitir:
 * precisão;
 * tecnologia;
 * foco em dados;
-* simplicidade;
-* aparência profissional sem excesso visual.
+* fisicalidade e profundidade discreta;
+* consistência operacional.
 
-O WatchMap é uma ferramenta de trabalho. A interface deve priorizar legibilidade e velocidade de uso.
+O WatchMap é uma ferramenta de trabalho. A interface prioriza legibilidade, densidade adequada e velocidade operacional.
 
 ---
 
 # Direção visual
 
-O produto deve possuir aparência:
-
-* limpa;
-* moderna;
-* minimalista;
-* densa o suficiente para dashboards;
-* sem aparência genérica de template SaaS;
-* sem excesso de gradients;
-* sem glassmorphism;
-* sem sombras pesadas;
-* sem elementos decorativos sem função.
+A linguagem visual do WatchMap combina estética operacional moderna com superfícies limpas, bordas nítidas e sutis toques de profundidade física.
 
 Referência conceitual:
 
 ```text
-produto técnico
+interface técnica operacional
 +
-analytics
+análise e controle de vídeo
 +
-vídeo
+superfícies limpas e físicas
 +
-interface operacional
+hierarquia precisa de ações
 ```
+
+### Características obrigatórias:
+* superfícies limpas com fundo levemente contrastante;
+* separação entre fundo e cards baseada em background e bordas bem definidas;
+* sombras discretas e pequenos efeitos táteis de profundidade;
+* gradientes usados com moderação (principalmente em botões primários);
+* roxo WatchMap como cor de marca e destaque pontual;
+* evitar aparência genérica de template SaaS.
+
+### O que evitar estritamente:
+* glassmorphism / efeitos de vidro excessivos;
+* neon ou brilhos espalhados;
+* gradientes pesados em grandes áreas ou cards;
+* sombras pesadas ou difusas sem função de elevação real;
+* elementos puramente decorativos que não tenham função operacional;
+* excesso de roxo espalhado pela tela;
+* componentes visualmente inconsistentes ou com alturas arbitrárias.
 
 ---
 
-# Tema
+# Tema e superfícies
 
-O tema principal inicial será claro.
+O tema principal é claro, estruturado sobre uma hierarquia de neutros que evita o branco puro no fundo da aplicação.
 
-Dark mode não faz parte da implementação inicial, mas os componentes devem evitar decisões que impossibilitem sua adição futuramente.
+## Hierarquia de superfícies
+
+```text
+App Background     #F7F7F8   (neutro de fundo da aplicação)
+Surface            #FFFFFF   (cards, modais, inputs, tabelas)
+Surface Muted      #F4F4F5   (áreas secundárias, headers de tabela, tags)
+Border             #E4E4E7   (bordas neutras bem definidas)
+Border Subtle      #F0F0F2   (divisores internos secundários)
+Foreground         #09090B   (texto principal, títulos, ícones de destaque)
+Foreground Muted   #71717A   (descrições, legendas, placeholders)
+```
+
+## Regras de superfícies:
+* **Fundo da aplicação**: utilizar `#F7F7F8` para garantir que cards e superfícies brancas (`#FFFFFF`) se destaquem com naturalidade.
+* **Cards e containers**: percebidos pela combinação de `bg-white`, `border border-border`, `rounded-lg` e sombra muito sutil (`shadow-xs` / `shadow-sm`).
+* Nunca depender de sombras fortes ou escuras para separar elementos.
 
 ---
 
-# Cores
+# Cores e tokens de marca
 
-Utilizar CSS variables e tokens semânticos.
+Utilizar tokens semânticos baseados em CSS variables. Não espalhar valores hexadecimais hardcoded nos componentes.
 
-Não espalhar cores hardcoded pelos componentes.
-
-## Cor de marca
-
-A cor principal do WatchMap é roxo.
+## Cor de marca (WatchMap Purple)
 
 ```text
-Primary        #7C3AED
-Primary Hover  #6D28D9
-Primary Soft   #F5F3FF
-Primary Text   #FFFFFF
+Primary              #7C3AED   (roxo principal da marca)
+Primary Hover        #6D28D9   (hover de ações primárias)
+Primary Pressed      #5B21B6   (estado ativo/pressionado)
+Primary Light        #8B5CF6   (highlight superior e gradiente sutil)
+Primary Soft         #F5F3FF   (fundos de destaque, badges selecionados)
+Primary Foreground   #FFFFFF   (texto sobre fundo primário)
 ```
 
-A cor deve ser representada através de tokens semânticos do design system e não aplicada diretamente de forma repetida nos componentes.
+O roxo é utilizado com critério para:
+* ações primárias (`Primary Button`);
+* estado ativo de toggles e seleções;
+* indicadores relevantes e badges ativos;
+* anel de foco (`ring-primary`).
 
-O roxo é utilizado principalmente para:
+A maior parte da interface deve permanecer neutra para preservar a hierarquia visual.
 
-* ações primárias;
-* links importantes;
-* estado ativo;
-* seleção;
-* foco;
-* indicadores relevantes;
-* elementos de identidade do WatchMap.
-
-Não utilizar o roxo indiscriminadamente em grandes áreas da interface.
-
-A maior parte da aplicação deve permanecer neutra para que a cor de marca preserve hierarquia visual.
-
-No sistema baseado em shadcn/ui, utilizar a cor de marca principalmente através de:
+## Tokens de estado
 
 ```text
---primary
---primary-foreground
---ring
+Success   #10B981   (sucesso, conclusões, ativo)
+Warning   #F59E0B   (alertas, processamento, atenção)
+Error     #EF4444   (erros, falhas, campos inválidos)
+Destctive #DC2626   (ações destrutivas e irreversíveis)
+Info      #3B82F6   (informações auxiliares)
 ```
 
-O token semântico `--accent` do shadcn/ui não deve ser confundido obrigatoriamente com a cor de marca; ele pode continuar sendo utilizado para superfícies e estados secundários do sistema.
-
-## Base
-
-```text
-background
-surface
-surface-muted
-border
-foreground
-foreground-muted
-```
-
-## Marca
-
-O WatchMap deve possuir uma cor de destaque única utilizada principalmente para:
-
-* ações primárias;
-* estado ativo;
-* links importantes;
-* indicadores selecionados;
-* elementos de marca.
-
-A cor exata poderá evoluir, mas deve ser centralizada em tokens.
-
-## Estados
-
-Utilizar tokens próprios para:
-
-```text
-success
-warning
-error
-info
-```
-
-Não utilizar cor como única forma de comunicar estado.
-
----
-
-# Tipografia
-
-Utilizar:
-
-```text
-Geist Sans
-```
-
-como fonte principal da interface.
-
-Para valores técnicos, IDs ou conteúdo monoespaçado quando necessário:
-
-```text
-Geist Mono
-```
-
-## Hierarquia
-
-Evitar quantidade excessiva de tamanhos.
-
-Utilizar uma escala consistente para:
-
-```text
-page title
-section title
-card title
-body
-secondary text
-caption
-```
-
-Títulos devem ser fortes, mas não excessivamente grandes.
-
-Interfaces internas não devem parecer landing pages.
-
----
-
-# Espaçamento
-
-Utilizar a escala padrão do Tailwind.
-
-Preferir consistência a valores personalizados.
-
-Layout deve possuir bastante clareza visual, mas evitar espaços exagerados que diminuam a densidade de informação.
-
----
-
-# Radius
-
-Utilizar radius moderado.
-
-Padrão:
-
-```text
-rounded-lg
-```
-
-Cards, inputs e elementos relacionados devem compartilhar linguagem consistente.
-
-Evitar elementos excessivamente arredondados sem necessidade.
-
----
-
-# Bordas e sombras
-
-Utilizar bordas sutis como principal mecanismo de separação.
-
-Sombras devem ser discretas e utilizadas apenas quando ajudarem na hierarquia.
-
-Preferir:
-
-```text
-border
-```
-
-a:
-
-```text
-shadow-xl
-```
-
----
-
-# Layout da aplicação
-
-A aplicação autenticada deve seguir inicialmente:
-
-```text
-┌──────────────┬─────────────────────────────┐
-│              │                             │
-│   Sidebar    │        Main Content         │
-│              │                             │
-│              │                             │
-└──────────────┴─────────────────────────────┘
-```
-
-## Sidebar
-
-Responsável pela navegação principal.
-
-Deve:
-
-* permanecer simples;
-* possuir hierarquia clara;
-* destacar a rota atual;
-* evitar excesso de itens;
-* suportar evolução futura.
-
-## Conteúdo
-
-Cada página deve possuir uma área principal consistente.
-
-Estrutura padrão:
-
-```text
-Page Header
-
-Content
-```
-
-O header pode conter:
-
-```text
-título
-descrição curta
-ações da página
-```
-
----
-
-# Largura
-
-Dashboards e páginas de gerenciamento podem utilizar a largura disponível da aplicação.
-
-Evitar limitar todas as páginas a containers estreitos típicos de sites institucionais.
-
-Conteúdo textual específico pode utilizar largura reduzida quando necessário.
-
----
-
-# Cards
-
-Cards devem representar agrupamentos reais de informação.
-
-Padrão:
-
-* background de superfície;
-* border sutil;
-* radius consistente;
-* padding consistente;
-* pouca ou nenhuma sombra.
-
-Não transformar todo elemento da interface em card.
+Nunca utilizar cor como a única forma de comunicar um estado.
 
 ---
 
 # Botões
 
-Utilizar os componentes do shadcn/ui como base.
+O sistema possui quatro variantes oficiais de botão, além da variante destrutiva:
 
-Hierarquia principal:
+1. **Primary**
+2. **Secondary**
+3. **Ghost**
+4. **Link**
+5. *(Destructive)*
+
+Nenhuma interface deve criar botões com estilos visuais arbitrários fora dessas variantes.
+
+---
+
+## 1. Primary Button
+
+Ação principal da tela, fluxo ou modal.
+
+### Uso:
+* ação principal do Page Header (ex: `[Enviar vídeo]`);
+* confirmação principal de modal ou dialog;
+* submit principal de formulário.
+
+### Visual e profundidade física:
+* fundo roxo com gradiente vertical discreto;
+* borda externa/inferior levemente mais escura para ancoragem;
+* highlight interno superior muito sutil (`inset 0 1px 0 rgba(255, 255, 255, 0.2)`);
+* texto branco em peso médio/semibold;
+* pequena sensação tátil de profundidade física.
+
+### Estados:
+* **Default**: gradiente vertical `linear-gradient(180deg, #8B5CF6 0%, #7C3AED 100%)`, borda `1px solid #6D28D9`, leve sombra inferior (`0 1px 2px rgba(0,0,0,0.08), 0 2px 0 #6D28D9`).
+* **Hover**: levemente mais claro, sem exagero na elevação.
+* **Active (Pressed)**: botão parece pressionado fisicamente, reduzindo a sombra inferior e aplicando pequeno `translate-y-[1px]`.
+* **Focus**: `ring-2 ring-primary/40 ring-offset-2`.
+* **Disabled**: contraste reduzido, sem sombra 3D, cursor não permitido.
+
+### Regra de hierarquia:
+* **No máximo UM botão Primary por página ou contexto principal**.
+* Nunca posicionar dois botões Primary lado a lado para ações concorrentes.
+* Se existem duas ações: a ação principal é **Primary**, a alternativa é **Secondary**.
+
+---
+
+## 2. Secondary Button
+
+Ação alternativa, secundária ou auxiliar.
+
+### Uso:
+* cancelar em modais (quando não destrutivo);
+* voltar ou fechar;
+* ações secundárias da página (ex: `[Filtros]`, `[Exportar]`);
+* botões de configuração auxiliar.
+
+### Visual:
+* surface branca (`bg-white`);
+* borda neutra bem definida (`border border-zinc-200 dark:border-zinc-800`);
+* texto em `foreground` padrão;
+* sensação física com sombra muito discreta (`shadow-xs` ou borda inferior sutilmente mais marcada).
+
+### Estados:
+* **Hover**: `bg-zinc-50` / `border-zinc-300`.
+* **Active**: pequena sensação de pressão (`translate-y-[0.5px]`).
+* **Disabled**: opacidade moderada e fundo desativado.
+
+---
+
+## 3. Ghost Button
+
+Ações de baixa prioridade ou integradas a barras de ferramentas.
+
+### Uso:
+* botões dentro de toolbars ou controles de mídia;
+* ações icon-only em listas e tabelas (ex: três pontos, editar item);
+* navegação discreta e menus de cabeçalho.
+
+### Visual:
+* fundo transparente e sem borda visível por padrão;
+* texto/ícone em `foreground` ou `foreground-muted`.
+
+### Estados:
+* **Hover**: `bg-zinc-100` (`bg-muted/80`).
+* **Active**: `bg-zinc-200/80`.
+* Nunca utilizar Ghost para a ação principal de um formulário ou tela.
+
+---
+
+## 4. Link Button
+
+Ações textuais ou links sem container de botão.
+
+### Uso:
+* navegação textual ("Voltar para vídeos", "Ver documentação");
+* ações terciárias ("Esqueci minha senha");
+* links contextuais.
+
+### Visual:
+* sem container ou padding de botão;
+* texto com peso médio e sublinhado no hover.
+
+---
+
+## 5. Destructive Button
+
+Ações com impacto destrutivo ou irreversível.
+
+### Uso:
+* excluir vídeo;
+* revogar credencial;
+* apagar conta;
+* cancelar permanentemente.
+
+### Regras:
+* Ações destrutivas **nunca** utilizam o roxo Primary.
+* Em diálogos de confirmação destrutiva:
+  * Ação de exclusão: **Destructive** (vermelho).
+  * Ação de cancelar: **Secondary** ou **Ghost**.
+
+---
+
+# Tamanhos de botões
+
+Todos os botões devem utilizar alturas e paddings padronizados:
+
+| Tamanho | Altura | Padding X | Tipografia | Tamanho do Ícone |
+| :--- | :--- | :--- | :--- | :--- |
+| **sm** | `h-8` (32px) | `px-3` | `text-xs font-medium` | `size-3.5` |
+| **default** | `h-9` (36px) | `px-4` | `text-sm font-medium` | `size-4` |
+| **lg** | `h-10` (40px) | `px-5` | `text-sm font-semibold` | `size-4.5` |
+| **icon** | `h-9 w-9` (quadrado) | `p-0` | — | `size-4` |
+
+Botões da mesma área operacional devem compartilhar a mesma altura.
+
+---
+
+# Inputs e formulários
+
+## Estrutura padrão de campo
+
+Todo campo de formulário deve seguir a ordem vertical:
 
 ```text
-Primary
-Secondary
-Ghost
-Destructive
+1. Label (obrigatória quando exige identificação)
+2. Input / Select / Textarea
+3. Helper text ou Mensagem de Erro
 ```
 
-Cada tela deve possuir uma ação primária visualmente evidente quando existir uma ação principal.
+* Placeholder **nunca** substitui a Label.
+* A mensagem de erro deve aparecer imediatamente abaixo do campo correspondente sem causar quebras bruscas de layout.
 
-Evitar múltiplos botões competindo pela atenção.
+## Visual dos inputs:
+* surface branca (`bg-white`);
+* borda neutra nítida (`border border-zinc-200`);
+* altura consistente (`h-9` como padrão, igual aos botões);
+* raio `rounded-md` ou `rounded-lg`;
+* tipografia clara com `text-sm`.
 
----
+## Estados dos inputs:
+* **Default**: `bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400`.
+* **Hover**: `border-zinc-300`.
+* **Focus**: `border-primary ring-2 ring-primary/20 outline-none`.
+* **Disabled**: `bg-zinc-100 border-zinc-200 text-zinc-400 cursor-not-allowed`.
+* **Error**: `border-destructive ring-2 ring-destructive/20 text-foreground`.
 
-# Inputs
+## Inputs com ícones:
+* Ícones de busca, prefixos ou visibilidade de senha devem ter tamanho proporcional (`size-4`).
+* Ações clicáveis dentro do input (ex: toggle de senha) devem ter área de clique confortável (`size-7` a `size-8`).
 
-Inputs devem possuir:
-
-* label explícita quando necessária;
-* estado de foco claro;
-* mensagem de erro próxima;
-* disabled state evidente;
-* tamanho consistente.
-
-Placeholder não substitui label.
-
----
-
-# Tabelas e listas
-
-Dados operacionais devem favorecer leitura rápida.
-
-Utilizar:
-
-* alinhamento consistente;
-* headers discretos;
-* separação visual leve;
-* ações secundárias pouco intrusivas;
-* estados hover apenas quando tiverem função.
+## Formulários:
+* alinhamento vertical previsível;
+* espaçamento consistente entre campos (`space-y-4` ou `gap-4`);
+* botão de submit deve exibir spinner e feedback de loading (`isPending`), prevenindo cliques duplicados;
+* **Footer de formulário**: `[Cancelar (Secondary/Ghost)]` `[Salvar/Confirmar (Primary)]`.
 
 ---
 
-# Empty states
+# Switch e Toggles
 
-Toda listagem que possa estar vazia deve possuir estado vazio específico.
+O switch representa uma configuração binária ou estado operacional.
 
-Estrutura preferida:
+### Regras:
+* deve possuir `Label` clara e clicável;
+* deve possuir descrição concisa sempre que o efeito não for autoexplicativo;
+* estado ativo sempre utiliza a cor de marca (`bg-primary`);
+* focus visível e acessível;
+* quando duas opções forem mutuamente exclusivas, a ativação de uma deve desativar explicitamente a outra;
+* opções dependentes devem ser desabilitadas ou exibidas em subseções com clara hierarquia.
+
+---
+
+# Cards e agrupamentos
+
+Cards representam unidades de informação ou configuração coesas.
+
+### Visual:
+* `bg-white`;
+* borda sutil `border border-border`;
+* raio `rounded-lg`;
+* sombra mínima `shadow-xs`;
+* padding interno consistente (`p-4` a `p-6`).
+
+### Regras:
+* Não transformar cada linha avulsa em um card separado.
+* Cards não devem ter cores chamativas ou competir visualmente com os botões primários.
+
+---
+
+# Hierarquia de ações e Layout
+
+Toda tela deve possuir uma ordem hierárquica clara e inequívoca:
 
 ```text
-ícone simples
-título
-explicação curta
-ação principal, quando existir
+Hierarquia:
+1. Primary Action    (no máximo 1 por contexto)
+2. Secondary Action  (alternativas, filtros, configurações)
+3. Ghost / Icon      (ações por linha, toolbars)
+4. Link              (ações terciárias, navegação textual)
 ```
 
-Não utilizar ilustrações decorativas complexas por padrão.
-
----
-
-# Loading
-
-Preferir skeletons para conteúdo que possui estrutura previsível.
-
-Evitar spinners em páginas inteiras quando skeleton puder representar melhor o conteúdo esperado.
-
----
-
-# Feedback
-
-Ações do usuário devem possuir feedback claro.
-
-Exemplos:
+## Page Header padrão:
 
 ```text
-loading
-success
-error
-disabled
+┌──────────────────────────────────────────────────────────┐
+│ Título da Página                       [ Primary Action ]│
+│ Descrição curta opcional                                 │
+└──────────────────────────────────────────────────────────┘
 ```
 
-Evitar ações aparentemente silenciosas.
+Exemplo:
+```text
+Vídeos                                       [ Enviar vídeo ]
+Gerencie sua biblioteca de vídeos e configurações.
+```
+
+## Modais e Diálogos:
+
+```text
+Fluxo padrão:      [ Cancelar (Secondary) ] [ Confirmar (Primary) ]
+Fluxo destrutivo:  [ Cancelar (Secondary) ] [ Excluir (Destructive) ]
+```
+
+Nunca usar dois botões Primary no rodapé de um modal.
+
+## Tabelas e Listagens:
+* Ações em linhas de tabela devem ser discretas: botões **Ghost**, botões de **ícone** ou **Dropdown Menu**.
+* Nunca repetir múltiplos botões Primary em cada linha de uma tabela.
 
 ---
 
-# Ícones
+# Profundidade visual física
 
-Utilizar Lucide Icons.
+A profundidade no WatchMap é **técnica, física e moderada**.
 
-Regras:
+### Onde aplicar profundidade:
+* **Primary Buttons**: gradiente vertical suave + borda inferior escura + highlight superior.
+* **Secondary Buttons principais**: leve sensação de tecla física.
+* **Modais e Popovers**: elevação nítida com `shadow-xl` e borda sutil.
+* **Badges e Switches ativos**: preenchimento contrastante limpo.
 
-* mesmo estilo visual;
-* tamanhos consistentes;
-* ícones devem complementar texto;
-* não usar ícones apenas como decoração.
+### Onde NÃO aplicar profundidade:
+* Em todos os cards de forma repetitiva;
+* Em todos os inputs e labels;
+* Em fundos de páginas inteiras.
 
----
-
-# Responsividade
-
-Desktop é a principal superfície operacional do WatchMap, mas todas as interfaces devem continuar funcionais em telas menores.
-
-Evitar layouts que dependam de largura fixa.
-
-Componentes devem degradar de forma previsível em mobile.
+A profundidade existe para comunicar interatividade e hierarquia, não como adorno.
 
 ---
 
-# Motion
+# Tipografia
 
-Animações devem possuir função.
+* **Fonte Principal**: `Geist Sans`
+* **Fonte Monoespaçada**: `Geist Mono` (para valores técnicos, IDs, código, estatísticas numéricas quando apropriado).
 
-Utilizar apenas para:
-
-* transições;
-* feedback;
-* abertura e fechamento;
-* mudanças de estado.
-
-Evitar animações decorativas ou demoradas.
-
----
-
-# Componentização
-
-Antes de criar um componente visual novo:
-
-1. verificar se shadcn/ui já oferece uma base adequada;
-2. verificar se já existe componente equivalente no projeto;
-3. adaptar antes de duplicar.
-
-Componentes recorrentes devem ser reutilizáveis.
+### Escala tipográfica:
+* **Page Title**: `text-xl font-bold tracking-tight text-foreground`
+* **Section Title**: `text-base font-semibold text-foreground`
+* **Card Title**: `text-sm sm:text-base font-semibold text-foreground`
+* **Body / Label**: `text-sm font-medium text-foreground`
+* **Secondary / Description**: `text-xs text-muted-foreground`
+* **Caption / Badges**: `text-[10px] ou text-[11px] font-medium tracking-wide`
 
 ---
 
-# Regra principal
+# Consistência e disciplina
 
-Consistência é mais importante que criatividade isolada.
+Antes de criar qualquer elemento visual novo:
+1. Verifique se o `shadcn/ui` já disponibiliza o componente base correspondente.
+2. Verifique se uma variante existente (`Primary`, `Secondary`, `Ghost`, `Link`) atende ao caso.
+3. Utilize sempre os tokens semânticos (`primary`, `border`, `muted`, `foreground`, etc.).
 
-Uma nova tela deve parecer parte do mesmo produto sem depender de instruções adicionais no prompt.
+A interface deve parecer parte da mesma peça de engenharia, independentemente de quem a implementou.
