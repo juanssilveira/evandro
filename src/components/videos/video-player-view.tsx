@@ -45,7 +45,7 @@ export function VideoPlayerView({
             </span>
           </div>
 
-          <div className="relative w-full aspect-video max-h-[380px] rounded-2xl border border-border/80 bg-zinc-950/5 dark:bg-zinc-950/40 p-2 sm:p-3 flex items-center justify-center overflow-hidden shadow-xs">
+          <div className="relative w-full rounded-2xl border border-border/80 bg-zinc-950/5 dark:bg-zinc-950/40 p-3.5 sm:p-4 flex items-center justify-center overflow-hidden shadow-xs">
             {/* Subtle technical background grid */}
             <div
               className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
@@ -55,14 +55,16 @@ export function VideoPlayerView({
               }}
             />
 
-            {/* Centered Constrained Player */}
-            <WatchMapPlayer
-              src={playbackUrl}
-              videoId={videoId}
-              title={title}
-              config={config}
-              className="h-full max-h-full max-w-full w-auto"
-            />
+            {/* Inner Stable Viewport: ensures equal padding on all 4 sides */}
+            <div className="w-full aspect-video flex items-center justify-center">
+              <WatchMapPlayer
+                src={playbackUrl}
+                videoId={videoId}
+                title={title}
+                config={config}
+                className="h-full max-h-full max-w-full w-auto"
+              />
+            </div>
           </div>
         </div>
 
