@@ -29,6 +29,7 @@ import {
   DEFAULT_PLAYER_CONFIG,
   PLAYER_ACCENT_PRESETS,
 } from "@/types/player-config";
+import { calculateFakeProgress } from "@/lib/player/fake-progress-engine";
 
 interface WatchMapPlayerProps {
   src: string;
@@ -84,11 +85,27 @@ export function WatchMapPlayer({
       },
       playback: {
         ...config.playback,
-        autoplay: autoPlay ?? config.playback.autoplay,
+        autoplay: autoPlay ?? config.playback?.autoplay ?? false,
+      },
+      controls: {
+        ...config.controls,
+        hidden: config.controls?.hidden ?? false,
+        fullscreen: {
+          enabled: config.controls?.fullscreen?.enabled ?? true,
+          button: config.controls?.fullscreen?.button ?? true,
+          doubleClick: config.controls?.fullscreen?.doubleClick ?? true,
+          keyboardF: config.controls?.fullscreen?.keyboardF ?? true,
+        },
+      },
+      progress: {
+        fake: {
+          enabled: config.progress?.fake?.enabled ?? false,
+          height: config.progress?.fake?.height ?? 4,
+        },
       },
       development: {
         ...config.development,
-        debug: debugEnabled ?? config.development.debug,
+        debug: debugEnabled ?? config.development?.debug ?? false,
       },
     }),
     [config, autoPlay, debugEnabled]
@@ -116,6 +133,25 @@ export function WatchMapPlayer({
 
   // Playback mode state (derived from controller/runtime)
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("foreground");
+
+  // Playback state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [bufferedEnd, setBufferedEnd] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // UI state
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isDraggingSeek, setIsDraggingSeek] = useState(false);
+  const lastVolumeRef = useRef(1);
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Keep effectiveConfig ref fresh
   const effectiveConfigRef = useRef(effectiveConfig);
@@ -159,9 +195,15 @@ export function WatchMapPlayer({
     onRuntimeReady?.(runtime);
 
     // If metadata is already ready, attempt initial resolution
-    if (video.readyState >= 1 && !hasResolvedInitialPlaybackRef.current) {
-      hasResolvedInitialPlaybackRef.current = true;
-      controller.resolveInitialPlayback();
+    if (video.readyState >= 1) {
+      if (video.duration && Number.isFinite(video.duration)) {
+        setDuration(video.duration);
+      }
+      setIsLoading(false);
+      if (!hasResolvedInitialPlaybackRef.current) {
+        hasResolvedInitialPlaybackRef.current = true;
+        controller.resolveInitialPlayback();
+      }
     }
 
     return () => {
@@ -172,25 +214,6 @@ export function WatchMapPlayer({
       runtime.destroy();
     };
   }, [videoId, effectiveDebug, onEvent, onRuntimeReady]);
-
-  // Playback state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [bufferedEnd, setBufferedEnd] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // UI state
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
-  const [controlsVisible, setControlsVisible] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
-  const [isDraggingSeek, setIsDraggingSeek] = useState(false);
-  const lastVolumeRef = useRef(1);
-  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 60fps smooth linear progress animation loop
   useEffect(() => {
@@ -468,16 +491,27 @@ export function WatchMapPlayer({
   }, [duration, showControlsTemporarily, toggleMute, togglePlay, toggleFullscreen]);
 
   // Video event handlers
-  const handleTimeUpdate = () => {
-    if (videoRef.current && !isDraggingSeek) {
-      setCurrentTime(videoRef.current.currentTime);
+  const handleDurationChange = () => {
+    if (videoRef.current && videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
+      setDuration(videoRef.current.duration);
     }
-    if (videoRef.current && videoRef.current.buffered.length > 0) {
-      try {
-        const end = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
-        setBufferedEnd(end);
-      } catch {
-        // ignore index errors
+  };
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      if (!isDraggingSeek) {
+        setCurrentTime(videoRef.current.currentTime);
+      }
+      if (videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
+        setDuration((prev) => (prev === 0 ? videoRef.current!.duration : prev));
+      }
+      if (videoRef.current.buffered.length > 0) {
+        try {
+          const end = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
+          setBufferedEnd(end);
+        } catch {
+          // ignore index errors
+        }
       }
     }
   };
@@ -491,7 +525,9 @@ export function WatchMapPlayer({
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration || 0);
+      if (videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
+        setDuration(videoRef.current.duration);
+      }
       setIsLoading(false);
       if (!hasResolvedInitialPlaybackRef.current && playbackControllerRef.current) {
         hasResolvedInitialPlaybackRef.current = true;
@@ -501,6 +537,10 @@ export function WatchMapPlayer({
   };
 
   const handleCanPlay = () => {
+    if (videoRef.current && videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
+      setDuration((prev) => (prev === 0 ? videoRef.current!.duration : prev));
+    }
+    setIsLoading(false);
     if (!hasResolvedInitialPlaybackRef.current && playbackControllerRef.current) {
       hasResolvedInitialPlaybackRef.current = true;
       playbackControllerRef.current.resolveInitialPlayback();
@@ -535,9 +575,19 @@ export function WatchMapPlayer({
     setHasError(false);
   };
 
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  // Real progress for native timeline (always currentTime / duration)
+  const realProgressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedPercent = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
   const effectiveVolume = isMuted ? 0 : volume;
+
+  // Fake Progress Bar (isolated layer, 0% during background autoplay)
+  const isFakeProgressEnabled = Boolean(effectiveConfig.progress?.fake?.enabled);
+  const fakeProgress =
+    isFakeProgressEnabled && playbackMode !== "background_autoplay"
+      ? calculateFakeProgress({ currentTime, duration })
+      : 0;
+  const fakeProgressPercent = fakeProgress * 100;
+  const fakeBarHeight = Math.max(2, Math.min(10, effectiveConfig.progress?.fake?.height ?? 4));
 
   const isVertical = effectiveConfig.appearance?.aspectRatio === "9:16";
 
@@ -569,6 +619,7 @@ export function WatchMapPlayer({
         onClick={togglePlay}
         onLoadStart={handleLoadStart}
         onCanPlay={handleCanPlay}
+        onDurationChange={handleDurationChange}
         onTimeUpdate={handleTimeUpdate}
         onVolumeChange={handleVolumeSync}
         onLoadedMetadata={handleLoadedMetadata}
@@ -716,6 +767,27 @@ export function WatchMapPlayer({
         </div>
       )}
 
+      {/* Standalone Fake Progress Bar (Independent layer on bottom of video) */}
+      {isFakeProgressEnabled && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 z-10 pointer-events-none overflow-hidden select-none"
+          style={{
+            height: `${fakeBarHeight}px`,
+            backgroundColor: "rgba(255, 255, 255, 0.2)",
+          }}
+        >
+          <div
+            className="h-full rounded-r-full"
+            style={{
+              width: `${fakeProgressPercent}%`,
+              backgroundColor: "var(--player-accent, #7C3AED)",
+              transition: isPlaying ? "none" : "width 0.15s ease-out",
+            }}
+          />
+        </div>
+      )}
+
       {/* Bottom Adaptive Controls Overlay */}
       {!isControlsHidden && playbackMode !== "background_autoplay" && (
         <div
@@ -746,8 +818,8 @@ export function WatchMapPlayer({
               <div
                 className="absolute left-0 top-0 bottom-0 rounded-full"
                 style={{
-                  width: `${progressPercent}%`,
-                  backgroundColor: "var(--player-accent)",
+                  width: `${realProgressPercent}%`,
+                  backgroundColor: "var(--player-accent, #7C3AED)",
                 }}
               />
             </div>
@@ -756,9 +828,9 @@ export function WatchMapPlayer({
             <div
               className="absolute size-3.5 rounded-full bg-white shadow-md opacity-0 group-hover/track:opacity-100 pointer-events-none border transition-opacity"
               style={{
-                left: `${progressPercent}%`,
+                left: `${realProgressPercent}%`,
                 transform: "translateX(-50%)",
-                borderColor: "var(--player-accent)",
+                borderColor: "var(--player-accent, #7C3AED)",
               }}
             />
           </div>

@@ -19,6 +19,8 @@ import {
   EyeOff,
   MousePointerClick,
   Keyboard,
+  Sparkles,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -154,6 +156,8 @@ export function VideoSettings({
   const currentAccent = config.appearance?.accentColor ?? "purple";
   const currentAspectRatio = config.appearance?.aspectRatio ?? "16:9";
   const isFullscreenEnabled = config.controls?.fullscreen?.enabled ?? true;
+  const currentFakeHeight = config.progress?.fake?.height ?? 4;
+  const isFakeProgressEnabled = config.progress?.fake?.enabled ?? false;
 
   return (
     <div className="space-y-6">
@@ -730,6 +734,203 @@ export function VideoSettings({
           {error && (
             <p className="text-xs text-destructive font-medium pt-1">{error}</p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Category: Barra de progresso */}
+      <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Activity className="size-4 text-muted-foreground" />
+              Barra de progresso
+            </CardTitle>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground border border-border/60 uppercase tracking-wide">
+              Timeline
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Configure o comportamento visual da timeline e o motor de progresso inteligente.
+          </p>
+        </CardHeader>
+
+        <CardContent className="pt-4 space-y-3.5">
+          {/* Block 1: Barra de progresso inteligente */}
+          <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-2.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="size-8 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0">
+                  <Sparkles className="size-4 text-primary" />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor={`fake-progress-switch-${videoId}`}
+                      className="text-xs font-semibold text-foreground cursor-pointer"
+                    >
+                      Barra de progresso inteligente
+                    </Label>
+                    <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                      Automático
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {isPending && pendingField === "fakeProgress" && (
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                )}
+                <Switch
+                  id={`fake-progress-switch-${videoId}`}
+                  checked={isFakeProgressEnabled}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    handleConfigUpdate(
+                      {
+                        progress: {
+                          fake: {
+                            enabled: checked,
+                          },
+                        },
+                      },
+                      "fakeProgress"
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Nosso motor calcula automaticamente uma curva de progresso adaptada à duração do vídeo, acelerando o avanço visual no início e suavizando ao longo da reprodução.
+            </p>
+          </div>
+
+          {/* Recommendation Banner: Clean experience with fake bar */}
+          {isFakeProgressEnabled && !(config.controls?.hidden ?? false) && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Para uma experiência mais limpa com a Barra de progresso inteligente, recomendamos desativar os controles do player.
+              </p>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() =>
+                  handleConfigUpdate(
+                    {
+                      controls: {
+                        hidden: true,
+                      },
+                    },
+                    "controlsHidden"
+                  )
+                }
+                className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-pressed transition-colors shrink-0 shadow-xs cursor-pointer"
+              >
+                Desativar controles
+              </button>
+            </div>
+          )}
+
+          {/* Block 2: Altura da barra */}
+          <div
+            className={cn(
+              "rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3 transition-opacity",
+              !isFakeProgressEnabled && "opacity-50 pointer-events-none select-none"
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor={`progress-height-range-${videoId}`}
+                  className={cn(
+                    "text-xs font-semibold text-foreground",
+                    isFakeProgressEnabled && "cursor-pointer"
+                  )}
+                >
+                  Altura da barra
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Define a espessura visual da barra inteligente na borda inferior do player.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {isPending && pendingField === "fakeHeight" && (
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                )}
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-muted text-foreground border border-border/70">
+                  {currentFakeHeight} px
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-mono text-muted-foreground w-6 text-right">2px</span>
+                <input
+                  id={`progress-height-range-${videoId}`}
+                  type="range"
+                  min={2}
+                  max={10}
+                  step={1}
+                  value={currentFakeHeight}
+                  disabled={isPending || !isFakeProgressEnabled}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!isNaN(val) && val >= 2 && val <= 10) {
+                      handleConfigUpdate(
+                        {
+                          progress: {
+                            fake: {
+                              height: val,
+                            },
+                          },
+                        },
+                        "fakeHeight"
+                      );
+                    }
+                  }}
+                  className={cn(
+                    "flex-1 h-2 bg-muted rounded-lg appearance-none accent-primary focus:outline-none focus:ring-2 focus:ring-primary/20",
+                    isFakeProgressEnabled ? "cursor-pointer" : "cursor-not-allowed"
+                  )}
+                />
+                <span className="text-[11px] font-mono text-muted-foreground w-7">10px</span>
+              </div>
+
+              {/* Quick presets */}
+              <div className="grid grid-cols-5 gap-1.5 pt-1">
+                {[2, 4, 6, 8, 10].map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    disabled={isPending || !isFakeProgressEnabled}
+                    onClick={() => {
+                      if (currentFakeHeight === h) return;
+                      handleConfigUpdate(
+                        {
+                          progress: {
+                            fake: {
+                              height: h,
+                            },
+                          },
+                        },
+                        "fakeHeight"
+                      );
+                    }}
+                    className={cn(
+                      "py-1 px-1 text-[11px] font-mono rounded-md border transition-all text-center",
+                      isFakeProgressEnabled ? "cursor-pointer" : "cursor-not-allowed",
+                      currentFakeHeight === h
+                        ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
+                        : "border-border/70 bg-card hover:bg-muted/40 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {h}px{h === 4 ? " (padrão)" : ""}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

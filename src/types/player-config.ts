@@ -136,20 +136,17 @@ export const playerConfigSchema = z.object({
       fake: z
         .object({
           enabled: z.boolean().default(false),
-          targetPercent: z.number().default(0.85),
-          targetSeconds: z.number().default(10),
+          height: z.number().min(2).max(10).default(4),
         })
         .default({
           enabled: false,
-          targetPercent: 0.85,
-          targetSeconds: 10,
+          height: 4,
         }),
     })
     .default({
       fake: {
         enabled: false,
-        targetPercent: 0.85,
-        targetSeconds: 10,
+        height: 4,
       },
     }),
 
@@ -197,8 +194,7 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
   progress: {
     fake: {
       enabled: false,
-      targetPercent: 0.85,
-      targetSeconds: 10,
+      height: 4,
     },
   },
 

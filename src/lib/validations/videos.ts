@@ -53,8 +53,7 @@ export const updatePlayerConfigActionSchema = z.object({
         fake: z
           .object({
             enabled: z.boolean().optional(),
-            targetPercent: z.number().optional(),
-            targetSeconds: z.number().optional(),
+            height: z.number().min(2).max(10).optional(),
           })
           .optional(),
       })
