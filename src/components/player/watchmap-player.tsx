@@ -341,7 +341,7 @@ export function WatchMapPlayer({
         showControlsTemporarily();
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
-        toggleFullscreen("button");
+        toggleFullscreen("keyboard");
       } else if (e.key === "m" || e.key === "M") {
         e.preventDefault();
         toggleMute();

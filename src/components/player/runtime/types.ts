@@ -19,7 +19,11 @@ export const PlayerEventType = {
 export type PlayerEventType =
   (typeof PlayerEventType)[keyof typeof PlayerEventType];
 
-export type FullscreenInitiator = "button" | "double_click" | "system";
+export type FullscreenInitiator =
+  | "button"
+  | "double_click"
+  | "keyboard"
+  | "system";
 
 export interface PlayerSnapshot {
   videoId: string;
