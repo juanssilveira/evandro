@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Film, HardDrive, Calendar, User } from "lucide-react";
+import { ArrowLeft, Film, HardDrive, Calendar } from "lucide-react";
 import { VideoIdBadge } from "./video-id-badge";
 import { VideoHeaderActions } from "./video-header-actions";
 import type { Video } from "@/db/schema";
@@ -32,7 +32,9 @@ function formatDate(date: Date | string): string {
 
 export function VideoPageHeader({
   video,
-  accountName,
+  // accountName is kept in props interface for API compatibility but not displayed per spec 015
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  accountName: _accountName,
   onTitleChange,
 }: VideoPageHeaderProps) {
   const [title, setTitle] = useState(video.title);
@@ -87,12 +89,7 @@ export function VideoPageHeader({
             <span>{formatDate(video.createdAt)}</span>
           </div>
 
-          <span className="text-border hidden sm:inline">•</span>
 
-          <div className="flex items-center gap-1.5">
-            <User className="size-3.5 text-muted-foreground shrink-0" />
-            <span>Conta: <strong className="font-semibold text-foreground">{accountName}</strong></span>
-          </div>
         </div>
 
         {/* Action Buttons aligned with metadata */}

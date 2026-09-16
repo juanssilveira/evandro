@@ -3,11 +3,10 @@ import { getCurrentAccount } from "@/lib/accounts";
 import { getVideosForAccount } from "@/lib/videos";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { LogoutButton } from "@/components/auth/logout-button";
 import { UploadDialog } from "@/components/videos/upload-dialog";
 import { VideoCardMenu } from "@/components/videos/video-card-menu";
-import { Card, CardContent } from "@/components/ui/card";
-import { Video, HardDrive, Calendar, Play } from "lucide-react";
+import { AppHeader } from "@/components/app-header";
+import { Video, HardDrive, Calendar } from "lucide-react";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 Bytes";
@@ -20,7 +19,6 @@ function formatBytes(bytes: number): string {
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
-    timeStyle: "short",
   }).format(date);
 }
 
@@ -37,110 +35,109 @@ export default async function VideosPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Top Navigation Header */}
-      <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4 sm:px-6 sticky top-0 z-20">
-        <div className="flex items-center gap-2.5 font-bold text-foreground">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-b from-violet-500 to-[#7C3AED] text-white text-xs font-bold shadow-[0_1px_2px_rgba(0,0,0,0.1),0_1px_0_#6D28D9] border border-[#6D28D9]">
-            <Play className="size-3.5 fill-white ml-0.5" />
-          </div>
-          <span className="text-sm font-bold tracking-tight">WatchMap</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden sm:inline-block text-xs font-medium text-muted-foreground">
-            {session?.user.email}
-          </span>
-          <LogoutButton />
-        </div>
-      </header>
+      <AppHeader
+        currentPath="/videos"
+        user={{
+          name: session?.user.name,
+          email: session?.user.email,
+        }}
+      />
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full space-y-6">
-        {/* Page Header with Single Primary Action */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-border/60">
+      <main className="flex-1 mx-auto w-full max-w-[1240px] px-4 sm:px-6 py-8 space-y-6">
+
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <h1 className="text-xl font-bold tracking-tight text-foreground">
               Vídeos
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Conta: <strong className="font-semibold text-foreground">{account?.name || "..."}</strong>
+            <p className="text-sm text-muted-foreground">
+              Gerencie e configure seus vídeos.
             </p>
           </div>
-          <UploadDialog />
+          <div className="shrink-0">
+            <UploadDialog />
+          </div>
         </div>
 
         {/* Video List or Empty State */}
         {videoList.length === 0 ? (
-          <Card className="border-border border-dashed py-14 text-center bg-card/60 rounded-xl shadow-none">
-            <CardContent className="flex flex-col items-center justify-center space-y-4">
-              <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+          /* ── Empty State ── */
+          <div className="rounded-xl border border-border bg-card shadow-xs">
+            <div className="flex flex-col items-center justify-center gap-4 py-16 px-6 text-center">
+              {/* Icon */}
+              <div className="flex size-12 items-center justify-center rounded-xl bg-primary-soft border border-primary/20 text-primary">
                 <Video className="size-6" />
               </div>
-              <div className="space-y-1 max-w-sm">
-                <h2 className="text-base font-semibold text-foreground">
+
+              {/* Text */}
+              <div className="space-y-1.5 max-w-xs">
+                <h2 className="text-sm font-semibold text-foreground">
                   Nenhum vídeo ainda
                 </h2>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Envie seu primeiro arquivo de vídeo MP4 para começar a visualizar e configurar sua reprodução.
+                  Envie seu primeiro vídeo para começar a configurar o player e
+                  acompanhar seus dados.
                 </p>
               </div>
+
+              {/* CTA */}
               <UploadDialog />
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          /* ── Video List ── */
+          <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden divide-y divide-border/60">
             {videoList.map((video) => (
               <div
                 key={video.id}
-                className="relative group rounded-xl"
+                className="relative group flex items-center gap-4 px-4 py-3.5 hover:bg-muted/30 transition-colors"
               >
-                <Card className="border-border group-hover:border-primary/40 group-hover:shadow-sm transition-all flex flex-col justify-between overflow-hidden h-full rounded-xl bg-card">
-                  {/* Stretched Navigation Link */}
-                  <Link
-                    href={`/videos/${video.id}`}
-                    className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-xl"
-                    aria-label={`Abrir vídeo ${video.title}`}
-                  />
+                {/* Stretched link */}
+                <Link
+                  href={`/videos/${video.id}`}
+                  className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+                  aria-label={`Abrir vídeo ${video.title}`}
+                />
 
-                  <CardContent className="p-4 space-y-3 relative z-10 pointer-events-none">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors mt-0.5 border border-primary/20 group-hover:border-primary">
-                          <Play className="size-4 fill-current ml-0.5" />
-                        </div>
-                        <div className="overflow-hidden min-w-0 flex-1">
-                          <h3
-                            className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm leading-tight truncate"
-                            title={video.title}
-                          >
-                            {video.title}
-                          </h3>
-                          <p
-                            className="text-xs text-muted-foreground truncate mt-0.5 font-mono text-[11px]"
-                            title={video.originalFilename}
-                          >
-                            {video.originalFilename}
-                          </p>
-                        </div>
-                      </div>
+                {/* Icon */}
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary border border-primary/15 group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary transition-colors z-10 pointer-events-none">
+                  <Video className="size-4" />
+                </div>
 
-                      {/* Interactive Context Menu */}
-                      <div className="pointer-events-auto shrink-0">
-                        <VideoCardMenu video={video} />
-                      </div>
-                    </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0 z-10 pointer-events-none">
+                  <p
+                    className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate"
+                    title={video.title}
+                  >
+                    {video.title}
+                  </p>
+                  <p
+                    className="text-[11px] font-mono text-muted-foreground truncate mt-0.5"
+                    title={video.originalFilename}
+                  >
+                    {video.originalFilename}
+                  </p>
+                  {/* Metadata row — visible on sm+ inline, stacked below on xs */}
+                  <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono">
+                    <span className="flex items-center gap-1">
+                      <HardDrive className="size-3 shrink-0" />
+                      {formatBytes(video.sizeBytes)}
+                    </span>
+                    <span className="text-border" aria-hidden="true">·</span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="size-3 shrink-0" />
+                      {formatDate(video.createdAt)}
+                    </span>
+                  </div>
+                </div>
 
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-2.5 border-t border-border/70">
-                      <span className="flex items-center gap-1.5 font-mono text-[11px]">
-                        <HardDrive className="size-3 text-muted-foreground" />
-                        {formatBytes(video.sizeBytes)}
-                      </span>
-                      <span className="flex items-center gap-1.5 font-mono text-[11px]">
-                        <Calendar className="size-3 text-muted-foreground" />
-                        {formatDate(video.createdAt)}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* Context menu */}
+                <div className="relative z-10">
+                  <VideoCardMenu video={video} />
+                </div>
               </div>
             ))}
           </div>
