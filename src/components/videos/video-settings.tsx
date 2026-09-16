@@ -6,7 +6,8 @@ import { updatePlayerConfigAction } from "@/app/actions/videos";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { PlayCircle, Code2, Loader2 } from "lucide-react";
+import { PlayCircle, Code2, Loader2, Volume2, VolumeX } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { PlayerConfig, PlayerConfigPatch } from "@/types/player-config";
 
 interface VideoSettingsProps {
@@ -74,31 +75,86 @@ export function VideoSettings({
     });
   };
 
+  const handleAutoplayToggle = (checked: boolean) => {
+    handleConfigUpdate(
+      {
+        playback: {
+          autoplay: checked,
+          // Se ativar autoplay, desativa backgroundAutoplay obrigatoriamente
+          backgroundAutoplay: checked ? false : config.playback.backgroundAutoplay,
+        },
+      },
+      "autoplay"
+    );
+  };
+
+  const handleBackgroundAutoplayToggle = (checked: boolean) => {
+    handleConfigUpdate(
+      {
+        playback: {
+          backgroundAutoplay: checked,
+          // Se ativar backgroundAutoplay, desativa autoplay obrigatoriamente
+          autoplay: checked ? false : config.playback.autoplay,
+        },
+      },
+      "backgroundAutoplay"
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Category: Reprodução */}
       <Card className="border-border bg-card shadow-xs">
         <CardHeader className="p-4 sm:p-6 pb-3">
-          <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-            <PlayCircle className="size-4 text-primary" />
-            Reprodução
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+              <PlayCircle className="size-4 text-primary" />
+              Reprodução
+            </CardTitle>
+            <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
+              Modos Exclusivos
+            </span>
+          </div>
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0 space-y-3">
           {/* Autoplay Toggle */}
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
-            <div className="space-y-1">
-              <Label
-                htmlFor={`autoplay-switch-${videoId}`}
-                className="text-sm font-medium text-foreground cursor-pointer"
+          <div
+            className={cn(
+              "flex items-start justify-between gap-4 rounded-lg border p-4 transition-colors",
+              config.playback.autoplay
+                ? "border-primary/50 bg-primary/5"
+                : "border-border bg-muted/20 hover:bg-muted/30"
+            )}
+          >
+            <div className="flex gap-3">
+              <div
+                className={cn(
+                  "size-8 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                  config.playback.autoplay
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
               >
-                Autoplay
-              </Label>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Inicia o vídeo automaticamente como uma reprodução normal. Alguns navegadores podem bloquear autoplay com áudio.
-              </p>
+                <Volume2 className="size-4" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor={`autoplay-switch-${videoId}`}
+                    className="text-sm font-semibold text-foreground cursor-pointer"
+                  >
+                    Autoplay
+                  </Label>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    Com áudio
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+                  Inicia o vídeo automaticamente como uma reprodução normal. Alguns navegadores podem bloquear autoplay com áudio.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 pt-0.5">
               {isPending && pendingField === "autoplay" && (
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               )}
@@ -106,34 +162,49 @@ export function VideoSettings({
                 id={`autoplay-switch-${videoId}`}
                 checked={config.playback.autoplay}
                 disabled={isPending}
-                onCheckedChange={(checked) =>
-                  handleConfigUpdate(
-                    {
-                      playback: {
-                        autoplay: checked,
-                      },
-                    },
-                    "autoplay"
-                  )
-                }
+                onCheckedChange={handleAutoplayToggle}
               />
             </div>
           </div>
 
           {/* Background Autoplay Toggle */}
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
-            <div className="space-y-1">
-              <Label
-                htmlFor={`background-autoplay-switch-${videoId}`}
-                className="text-sm font-medium text-foreground cursor-pointer"
+          <div
+            className={cn(
+              "flex items-start justify-between gap-4 rounded-lg border p-4 transition-colors",
+              config.playback.backgroundAutoplay
+                ? "border-primary/50 bg-primary/5"
+                : "border-border bg-muted/20 hover:bg-muted/30"
+            )}
+          >
+            <div className="flex gap-3">
+              <div
+                className={cn(
+                  "size-8 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                  config.playback.backgroundAutoplay
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
               >
-                Background Autoplay
-              </Label>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Mantém o vídeo reproduzindo automaticamente no mudo como fundo antes da interação do espectador. Essa reprodução não representa uma visualização real.
-              </p>
+                <VolumeX className="size-4" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor={`background-autoplay-switch-${videoId}`}
+                    className="text-sm font-semibold text-foreground cursor-pointer"
+                  >
+                    Background Autoplay
+                  </Label>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    Mudo em Loop
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+                  Mantém o vídeo reproduzindo automaticamente no mudo como fundo antes da interação do espectador. Essa reprodução não representa uma visualização real.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 pt-0.5">
               {isPending && pendingField === "backgroundAutoplay" && (
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               )}
@@ -141,16 +212,7 @@ export function VideoSettings({
                 id={`background-autoplay-switch-${videoId}`}
                 checked={config.playback.backgroundAutoplay}
                 disabled={isPending}
-                onCheckedChange={(checked) =>
-                  handleConfigUpdate(
-                    {
-                      playback: {
-                        backgroundAutoplay: checked,
-                      },
-                    },
-                    "backgroundAutoplay"
-                  )
-                }
+                onCheckedChange={handleBackgroundAutoplayToggle}
               />
             </div>
           </div>
