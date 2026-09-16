@@ -12,7 +12,6 @@ interface VideoPlayerViewProps {
   title: string;
   initialConfig: PlayerConfig;
   publicId: string;
-  baseUrl: string;
   cdnUrl: string;
 }
 
@@ -22,7 +21,6 @@ export function VideoPlayerView({
   title,
   initialConfig,
   publicId,
-  baseUrl,
   cdnUrl,
 }: VideoPlayerViewProps) {
   const [config, setConfig] = useState<PlayerConfig>(initialConfig);
@@ -73,7 +71,6 @@ export function VideoPlayerView({
         {/* Embed Code Snippet Card */}
         <VideoEmbedCard
           publicId={publicId}
-          baseUrl={baseUrl}
           cdnUrl={cdnUrl}
           videoId={videoId}
           config={config}

@@ -3,33 +3,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { EmbedPlayer } from "./embed-player";
 import EMBED_CSS from "./embed-styles.generated.css";
 
-function getScriptOrigin(): string {
-  if (typeof document === "undefined") return "";
-  const currentScript = document.currentScript as HTMLScriptElement | null;
-  if (currentScript?.src) {
-    try {
-      const url = new URL(currentScript.src);
-      return url.origin;
-    } catch {
-      // fallback
-    }
-  }
-  const scripts = document.querySelectorAll<HTMLScriptElement>("script[src*='watchmap-player']");
-  if (scripts.length > 0) {
-    try {
-      const lastScript = scripts[scripts.length - 1];
-      const url = new URL(lastScript.src, window.location.href);
-      return url.origin;
-    } catch {
-      // fallback
-    }
-  }
-  return typeof window !== "undefined" ? window.location.origin : "";
-}
+// Build-time injected constant
+declare const __WATCHMAP_API_BASE__: string;
+const API_BASE: string =
+  typeof __WATCHMAP_API_BASE__ !== "undefined" ? __WATCHMAP_API_BASE__ : "";
 
 export class WatchMapPlayerElement extends HTMLElement {
   public static get observedAttributes(): string[] {
-    return ["video-id", "api-base"];
+    return ["video-id"];
   }
 
   private _root: Root | null = null;
@@ -79,14 +60,13 @@ export class WatchMapPlayerElement extends HTMLElement {
     if (!this._mountContainer) return;
 
     const videoId = this.getAttribute("video-id") || "";
-    const apiBase = this.getAttribute("api-base") || getScriptOrigin();
 
     if (!this._root) {
       this._root = createRoot(this._mountContainer);
     }
 
     this._root.render(
-      <EmbedPlayer videoId={videoId} apiBase={apiBase} />
+      <EmbedPlayer videoId={videoId} apiBase={API_BASE} />
     );
   }
 }

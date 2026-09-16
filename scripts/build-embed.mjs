@@ -2,8 +2,27 @@ import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as esbuild from "esbuild";
+import * as dotenv from "dotenv";
 
 const rootDir = process.cwd();
+dotenv.config({ path: path.join(rootDir, ".env.local") });
+dotenv.config({ path: path.join(rootDir, ".env") });
+
+let apiBaseUrl = process.env.BASE_URL;
+
+// In Vercel or CI remote build, fail explicitly if BASE_URL is missing
+if (!apiBaseUrl) {
+  if (process.env.VERCEL) {
+    throw new Error(
+      "[Build Embed] BASE_URL environment variable is required during remote build (Stage/Production)."
+    );
+  }
+  // Local development fallback
+  apiBaseUrl = "http://localhost:3000";
+}
+
+apiBaseUrl = apiBaseUrl.replace(/\/$/, "");
+
 const publicEmbedDir = path.join(rootDir, "public", "embed", "v1");
 const generatedCssPath = path.join(
   rootDir,
@@ -31,7 +50,7 @@ execSync(`npx @tailwindcss/cli -i "${inputCssPath}" -o "${generatedCssPath}" --m
   cwd: rootDir,
 });
 
-console.log("[Build Embed] 2/3 Bundling Standalone Web Component with esbuild...");
+console.log(`[Build Embed] 2/3 Bundling Standalone Web Component with esbuild (API Base: ${apiBaseUrl})...`);
 
 // Plugin to resolve '@/...' path aliases to 'src/...'
 const pathAliasPlugin = {
@@ -90,6 +109,7 @@ await esbuild.build({
   },
   define: {
     "process.env.NODE_ENV": '"production"',
+    "__WATCHMAP_API_BASE__": JSON.stringify(apiBaseUrl),
   },
   plugins: [pathAliasPlugin],
 });

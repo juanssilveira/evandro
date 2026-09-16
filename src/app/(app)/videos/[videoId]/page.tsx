@@ -37,8 +37,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
   const playerConfig = (await getPlayerConfig(video.id, account.id)) ?? DEFAULT_PLAYER_CONFIG;
   const playbackUrl = await generatePresignedPlaybackUrl(video.storageKey, 3600);
 
-  const baseUrl = process.env.BASE_URL || "http://localhost:3000";
-  const cdnUrl = process.env.CDN_URL || baseUrl;
+  const cdnUrl = process.env.CDN_URL || process.env.BASE_URL || "http://localhost:3000";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -57,7 +56,6 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
           accountName={account.name}
           playbackUrl={playbackUrl}
           initialConfig={playerConfig}
-          baseUrl={baseUrl}
           cdnUrl={cdnUrl}
         />
       </main>
