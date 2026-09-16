@@ -22,6 +22,13 @@
       "when": 1789576256890,
       "tag": "0002_whole_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789578423254,
+      "tag": "0003_slimy_lizard",
+      "breakpoints": true
     }
   ]
 }

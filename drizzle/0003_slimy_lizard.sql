@@ -1,0 +1,1 @@
+ALTER TABLE "videos" ADD COLUMN "debug_enabled" boolean DEFAULT false NOT NULL;

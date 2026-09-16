@@ -18,3 +18,10 @@ export const finalizeUploadSchema = z.object({
 });
 
 export type FinalizeUploadInput = z.infer<typeof finalizeUploadSchema>;
+
+export const updateVideoDebugSchema = z.object({
+  videoId: z.string().uuid("ID de vídeo inválido"),
+  debugEnabled: z.boolean(),
+});
+
+export type UpdateVideoDebugInput = z.infer<typeof updateVideoDebugSchema>;

@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
-import { WatchMapPlayer } from "@/components/player/watchmap-player";
+import { VideoPlayerView } from "@/components/videos/video-player-view";
 import { ArrowLeft, HardDrive, Calendar, Film } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -92,14 +92,13 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
           </div>
         </div>
 
-        {/* WatchMap Custom Player */}
-        <div className="w-full">
-          <WatchMapPlayer
-            src={playbackUrl}
-            videoId={video.id}
-            title={video.title}
-          />
-        </div>
+        {/* Video Player & Settings */}
+        <VideoPlayerView
+          videoId={video.id}
+          playbackUrl={playbackUrl}
+          title={video.title}
+          initialDebugEnabled={video.debugEnabled}
+        />
 
         {/* Video Info Card */}
         <Card className="border-border bg-card">

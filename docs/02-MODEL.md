@@ -289,6 +289,7 @@ storage_key
 original_filename
 mime_type
 size_bytes
+debug_enabled
 created_at
 updated_at
 ```
@@ -338,6 +339,14 @@ Obrigatório.
 ### size_bytes
 
 Tamanho do arquivo em bytes.
+
+Obrigatório.
+
+### debug_enabled
+
+Indica se os logs de debug do Player Runtime estão habilitados para o vídeo no console do navegador.
+
+Booleano. Default: `false`.
 
 Obrigatório.
 

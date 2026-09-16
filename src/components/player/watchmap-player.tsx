@@ -25,6 +25,7 @@ interface WatchMapPlayerProps {
   title?: string;
   className?: string;
   autoPlay?: boolean;
+  debugEnabled?: boolean;
   onEvent?: PlayerEventListener;
   onRuntimeReady?: (runtime: PlayerRuntime) => void;
 }
@@ -49,6 +50,7 @@ export function WatchMapPlayer({
   title,
   className,
   autoPlay = false,
+  debugEnabled = false,
   onEvent,
   onRuntimeReady,
 }: WatchMapPlayerProps) {
@@ -64,7 +66,7 @@ export function WatchMapPlayer({
 
     const runtime = new PlayerRuntime(video, {
       videoId,
-      debug: process.env.NODE_ENV !== "production",
+      debug: debugEnabled,
     });
 
     let unsubscribe: (() => void) | undefined;
@@ -78,7 +80,7 @@ export function WatchMapPlayer({
       unsubscribe?.();
       runtime.destroy();
     };
-  }, [videoId, onEvent, onRuntimeReady]);
+  }, [videoId, debugEnabled, onEvent, onRuntimeReady]);
 
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);

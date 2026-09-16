@@ -43,9 +43,7 @@ export class PlayerRuntime {
   constructor(video: HTMLVideoElement, options: PlayerRuntimeOptions) {
     this.video = video;
     this.videoId = options.videoId;
-    this.debug =
-      options.debug ??
-      (typeof process !== "undefined" && process.env.NODE_ENV !== "production");
+    this.debug = Boolean(options.debug);
 
     this.previousTime = video.currentTime || 0;
     this.previousRate = video.playbackRate || 1;
