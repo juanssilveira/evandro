@@ -22,6 +22,11 @@ export type FinalizeUploadInput = z.infer<typeof finalizeUploadSchema>;
 export const updatePlayerConfigActionSchema = z.object({
   videoId: z.string().uuid("ID de vídeo inválido"),
   config: z.object({
+    appearance: z
+      .object({
+        accentColor: z.enum(["purple", "blue", "emerald", "orange", "rose"]).optional(),
+      })
+      .optional(),
     playback: z
       .object({
         autoplay: z.boolean().optional(),

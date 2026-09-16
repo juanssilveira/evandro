@@ -30,6 +30,11 @@
   --input: #27272A;
   --ring: #7C3AED;
   --radius: 0.625rem;
+  --player-accent: #7C3AED;
+  --player-accent-hover: #6D28D9;
+  --player-accent-active: #5B21B6;
+  --player-accent-soft: rgba(124, 58, 237, 0.15);
+  --player-accent-foreground: #FFFFFF;
 }
 
 *, *::before, *::after {

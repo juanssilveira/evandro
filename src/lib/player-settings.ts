@@ -53,6 +53,10 @@ export async function updatePlayerConfig(
   const merged = {
     ...current,
     ...patch,
+    appearance: {
+      ...current.appearance,
+      ...(patch.appearance || {}),
+    },
     playback: {
       ...current.playback,
       ...(patch.playback || {}),

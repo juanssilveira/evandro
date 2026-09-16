@@ -24,7 +24,11 @@ import {
   type PlaybackMode,
 } from "./runtime";
 import { PlaybackController } from "./controllers/playback-controller";
-import { type PlayerConfig, DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
+import {
+  type PlayerConfig,
+  DEFAULT_PLAYER_CONFIG,
+  PLAYER_ACCENT_PRESETS,
+} from "@/types/player-config";
 
 interface WatchMapPlayerProps {
   src: string;
@@ -75,6 +79,9 @@ export function WatchMapPlayer({
   const effectiveConfig = React.useMemo<PlayerConfig>(
     () => ({
       ...config,
+      appearance: {
+        ...config.appearance,
+      },
       playback: {
         ...config.playback,
         autoplay: autoPlay ?? config.playback.autoplay,
@@ -85,6 +92,22 @@ export function WatchMapPlayer({
       },
     }),
     [config, autoPlay, debugEnabled]
+  );
+
+  const accentPreset =
+    PLAYER_ACCENT_PRESETS[effectiveConfig.appearance?.accentColor ?? "purple"] ??
+    PLAYER_ACCENT_PRESETS.purple;
+
+  const accentStyle = React.useMemo<React.CSSProperties>(
+    () =>
+      ({
+        "--player-accent": accentPreset.tokens.base,
+        "--player-accent-hover": accentPreset.tokens.hover,
+        "--player-accent-active": accentPreset.tokens.active,
+        "--player-accent-soft": accentPreset.tokens.soft,
+        "--player-accent-foreground": accentPreset.tokens.foreground,
+      } as React.CSSProperties),
+    [accentPreset]
   );
 
   const effectiveDebug = effectiveConfig.development.debug;
@@ -518,6 +541,7 @@ export function WatchMapPlayer({
   return (
     <div
       ref={containerRef}
+      style={accentStyle}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleContainerDoubleClick}
@@ -552,8 +576,8 @@ export function WatchMapPlayer({
       {/* Loading Buffering Indicator */}
       {isLoading && !hasError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 bg-black/20">
-          <div className="flex size-14 items-center justify-center rounded-full bg-black/60 backdrop-blur-md text-primary shadow-lg">
-            <Loader2 className="size-8 animate-spin" />
+          <div className="flex size-14 items-center justify-center rounded-full bg-black/60 backdrop-blur-md shadow-lg">
+            <Loader2 className="size-8 animate-spin" style={{ color: "var(--player-accent)" }} />
           </div>
         </div>
       )}
@@ -601,7 +625,8 @@ export function WatchMapPlayer({
               e.stopPropagation();
               playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current);
             }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary/95 hover:bg-primary text-white font-medium text-xs sm:text-sm shadow-2xl backdrop-blur-sm transition-all hover:scale-105 active:scale-95 border border-white/20"
+            style={{ backgroundColor: "var(--player-accent)" }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-medium text-xs sm:text-sm shadow-2xl backdrop-blur-sm transition-all hover:scale-105 active:scale-95 border border-white/20"
           >
             <Volume2 className="size-4 fill-white" />
             <span>Ativar som e assistir do início</span>
@@ -615,7 +640,10 @@ export function WatchMapPlayer({
           onClick={togglePlay}
           className="absolute inset-0 flex items-center justify-center z-10 cursor-pointer bg-black/20 transition-opacity"
         >
-          <div className="flex size-16 items-center justify-center rounded-full bg-primary/90 hover:bg-primary text-white shadow-xl transition-transform hover:scale-105">
+          <div
+            style={{ backgroundColor: "var(--player-accent)" }}
+            className="flex size-16 items-center justify-center rounded-full text-white shadow-xl transition-transform hover:scale-105"
+          >
             <Play className="size-8 ml-1 fill-white" />
           </div>
         </div>
@@ -660,17 +688,21 @@ export function WatchMapPlayer({
               />
               {/* Played progress */}
               <div
-                className="absolute left-0 top-0 bottom-0 bg-primary rounded-full"
-                style={{ width: `${progressPercent}%` }}
+                className="absolute left-0 top-0 bottom-0 rounded-full"
+                style={{
+                  width: `${progressPercent}%`,
+                  backgroundColor: "var(--player-accent)",
+                }}
               />
             </div>
 
             {/* Scrubber thumb */}
             <div
-              className="absolute size-3.5 rounded-full bg-white shadow-md border border-primary opacity-0 group-hover/track:opacity-100 pointer-events-none"
+              className="absolute size-3.5 rounded-full bg-white shadow-md opacity-0 group-hover/track:opacity-100 pointer-events-none border"
               style={{
                 left: `${progressPercent}%`,
                 transform: "translateX(-50%)",
+                borderColor: "var(--player-accent)",
               }}
             />
           </div>
@@ -718,8 +750,11 @@ export function WatchMapPlayer({
                 >
                   <div className="relative w-full h-1 bg-white/30 rounded-full overflow-hidden">
                     <div
-                      className="absolute left-0 top-0 bottom-0 bg-primary rounded-full"
-                      style={{ width: `${effectiveVolume * 100}%` }}
+                      className="absolute left-0 top-0 bottom-0 rounded-full"
+                      style={{
+                        width: `${effectiveVolume * 100}%`,
+                        backgroundColor: "var(--player-accent)",
+                      }}
                     />
                   </div>
                 </div>
@@ -740,9 +775,10 @@ export function WatchMapPlayer({
                 <button
                   type="button"
                   onClick={() => setShowSettings(!showSettings)}
+                  style={playbackRate !== 1 ? { color: "var(--player-accent)" } : undefined}
                   className={cn(
                     "px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 hover:bg-white/15 transition-colors focus:outline-none",
-                    playbackRate !== 1 && "text-primary"
+                    playbackRate !== 1 && "font-semibold"
                   )}
                   title="Velocidade de reprodução"
                 >
@@ -761,13 +797,16 @@ export function WatchMapPlayer({
                         key={rate}
                         type="button"
                         onClick={() => handleRateChange(rate)}
+                        style={playbackRate === rate ? { color: "var(--player-accent)" } : undefined}
                         className={cn(
                           "w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-white/10 text-left transition-colors",
-                          playbackRate === rate ? "text-primary font-semibold" : "text-white/80"
+                          playbackRate === rate ? "font-semibold" : "text-white/80"
                         )}
                       >
                         <span>{rate}x</span>
-                        {playbackRate === rate && <Check className="size-3.5 text-primary" />}
+                        {playbackRate === rate && (
+                          <Check className="size-3.5" style={{ color: "var(--player-accent)" }} />
+                        )}
                       </button>
                     ))}
                   </div>
