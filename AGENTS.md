@@ -39,51 +39,226 @@ Antes de considerar uma tarefa concluída:
 
 Uma feature só está concluída quando todos os critérios de aceite definidos em sua spec forem atendidos.
 
-## Git e Milestones
+## Git Workflow and Environments
 
-Cada spec representa um milestone de desenvolvimento.
+### Branches oficiais
 
-### Git Workflow e Ambientes
+Existem apenas três branches permanentes do produto:
 
-* Toda implementação de specs ocorre na branch `development`.
-* Commits de milestone são criados na branch `development`.
-* O agente pode fazer push apenas para `development` durante o desenvolvimento normal.
-* A branch `stage` recebe código somente por promoção/merge de `development`.
-* A branch `main` (production) recebe código somente por promoção/merge de `stage`.
-* Nunca fazer push direto para `stage` ou `main` como parte da implementação de uma spec.
-* Nunca realizar merge entre ambientes automaticamente sem instrução explícita.
-* Production (`main`) deve receber exatamente o código previamente validado em `stage`.
+* `development`
+* `stage`
+* `main`
 
-### Finalização de Milestones
+#### development
 
-Ao concluir integralmente uma spec:
+É a branch padrão de trabalho do projeto. Todo desenvolvimento normal deve acontecer nela.
 
-1. validar todos os critérios de aceite;
-2. executar os checks de qualidade do projeto;
-3. revisar os arquivos alterados;
-4. criar um único commit na branch `development` representando a conclusão da spec;
-5. enviar o commit para o repositório remoto (`development`).
+Inclui:
+* implementação de specs;
+* correções;
+* refactors;
+* ajustes visuais;
+* manutenção;
+* novas funcionalidades.
 
-Utilizar o padrão:
+O agente deve assumir `development` como branch padrão para qualquer trabalho de implementação. O repositório no GitHub também deve utilizar `development` como default branch.
+
+Ambiente associado:
+* Aplicação: `http://localhost:3000`
+* Banco de dados: Neon development
+* Storage: `watchmap-videos-development`
+
+#### stage
+
+É exclusivamente a branch de homologação.
+
+Ambiente associado:
+* Aplicação: `https://stage.evandro.watch`
+* Banco de dados: Neon stage
+* Storage: `watchmap-videos-stage`
+
+`stage` recebe código somente através de promoção explícita de `development`. Nunca implementar funcionalidades ou criar commits normais de desenvolvimento diretamente em `stage`.
+
+#### main
+
+É exclusivamente a branch de produção.
+
+Ambiente associado:
+* Aplicação: `https://evandro.watch`
+* Banco de dados: Neon production
+* Storage: `watchmap-videos-production`
+
+`main` recebe código somente através de promoção explícita de `stage`. Nunca implementar funcionalidades ou criar commits normais de desenvolvimento diretamente em `main`.
+
+---
+
+### Fluxo oficial
+
+O único fluxo de promoção permitido é:
 
 ```text
-spec(XXX): descrição curta
+development → stage → main
 ```
 
-Exemplos:
+* Nunca promover diretamente `development → main`.
+* Production (`main`) deve receber exatamente uma versão que tenha sido previamente validada em `stage`.
+
+---
+
+### Regra antes de iniciar qualquer implementação
+
+Antes de modificar código, o agente deve verificar a branch atual. O estado esperado para desenvolvimento normal é `development`.
+
+* Se estiver em `stage` ou `main`, não iniciar implementação diretamente nessa branch.
+* Se o working tree estiver limpo, mudar para `development`.
+* Se existirem alterações não commitadas que tornem a troca de branch insegura ou ambígua, não descartar, sobrescrever ou fazer stash automaticamente: parar e informar o estado encontrado.
+
+---
+
+### Specs e milestones
+
+Toda spec deve ser implementada na branch `development`.
+
+Ciclo de vida de milestone:
+1. Ler `AGENTS.md`;
+2. Ler documentação relevante em `/docs` (`00-PRODUCT.md`, `01-ARCHITECTURE.md`, `02-MODEL.md`, `03-DESIGN.md`, `ENVIRONMENTS.md`);
+3. Ler a spec atual em `/specs`;
+4. Implementar somente o escopo solicitado;
+5. Validar completamente todos os critérios de aceite;
+6. Executar os checks exigidos pelo projeto (migrations, typecheck, lint, build);
+7. Criar um único commit da milestone;
+8. Fazer push somente para `development`.
+
+Formato do commit:
 
 ```text
-spec(001): project foundation
-spec(002): authentication
-spec(003): account domain
-spec(004): video library
+spec(XXX): short description
 ```
 
-O commit de milestone só deve ser criado quando a spec estiver concluída e validada.
+Durante a implementação normal de uma spec:
+* nunca fazer merge para `stage`;
+* nunca fazer merge para `main`;
+* nunca fazer push para `stage`;
+* nunca fazer push para `main`.
 
-Não incluir alterações não relacionadas à spec no commit.
+A conclusão de uma spec significa apenas que ela está validada e publicada em `development`.
 
-Se o push não puder ser realizado por falta de configuração, autenticação ou acesso ao remoto, informar claramente o bloqueio em vez de alterar a configuração Git sem autorização.
+---
+
+### Promoções
+
+Promoções entre ambientes são operações estritamente separadas da implementação.
+
+O agente só pode realizar:
+* `development → stage`
+* `stage → main`
+
+quando receber instrução explícita do usuário para realizar aquela promoção específica.
+
+* Nunca promover automaticamente após finalizar uma spec.
+* Nunca interpretar frases genéricas como "terminou", "está funcionando" ou "pode finalizar" como autorização para promover ambiente. A autorização deve mencionar claramente a promoção ou o ambiente de destino.
+
+#### Promoção para Stage
+
+Quando solicitado explicitamente a promover para Stage:
+1. Confirmar que a origem é `development`;
+2. Confirmar que o working tree está limpo;
+3. Confirmar que as alterações relevantes estão commitadas;
+4. Atualizar referências remotas quando necessário;
+5. Promover `development` para `stage`;
+6. Não alterar `main`;
+7. Publicar `stage` no remote (`origin/stage`);
+8. Deixar claro qual commit/revisão foi promovido.
+
+Não adicionar alterações funcionais durante a promoção. Se houver conflito, não resolver de forma especulativa: parar e reportar o conflito.
+
+#### Promoção para Production
+
+Quando solicitado explicitamente a promover para Production:
+1. Confirmar que a origem da promoção é `stage`;
+2. Confirmar que o working tree está limpo;
+3. Confirmar que a revisão foi previamente validada em Stage;
+4. Promover `stage` para `main`;
+5. Publicar `main` no remote (`origin/main`);
+6. Não introduzir alterações novas durante a promoção;
+7. Deixar claro qual commit/revisão entrou em produção.
+
+Nunca promover `development` diretamente para `main`. Se `main` possuir alterações que não existem em `stage`, parar e informar antes de continuar.
+
+---
+
+### Remote e Git Config
+
+O remote oficial é denominado: `origin`.
+
+Tracking esperado:
+* `development` → `origin/development`
+* `stage` → `origin/stage`
+* `main` → `origin/main`
+
+Durante o desenvolvimento normal, o push padrão é exclusivamente: `origin development`.
+
+* Nunca utilizar `--force` ou `--force-with-lease` nas branches permanentes sem instrução explícita do usuário.
+* Nunca reescrever histórico compartilhado automaticamente.
+
+---
+
+### GitHub Default Branch
+
+A default branch do repositório no GitHub deve ser `development`.
+
+Isso não altera a função da `main` (que continua sendo exclusivamente Production). A escolha de `development` como default branch existe para mitigar riscos de desenvolvimento ou Pull Requests serem direcionados acidentalmente para Production.
+
+---
+
+### Segurança de Secrets
+
+Antes de qualquer primeiro push para um novo remote ou durante auditorias, confirmar que secrets não estão rastreados.
+
+Nunca versionar:
+* `.env`
+* `.env.local`
+* `.env.*.local`
+* Credenciais Neon
+* Credenciais Cloudflare R2
+* `BETTER_AUTH_SECRET`
+* Tokens ou chaves privadas
+* Arquivos locais da Vercel (`.vercel/`)
+
+O arquivo `.env.example` pode ser versionado desde que contenha somente nomes das variáveis e valores fictícios/seguros.
+
+Se um secret for encontrado no histórico Git:
+* não imprimir seu valor;
+* não fazer push;
+* não executar rewrite do histórico automaticamente;
+* informar o arquivo e o tipo de credencial afetada.
+
+---
+
+### Isolamento de Ambientes
+
+Nenhum ambiente pode utilizar recursos de outro ambiente como fallback.
+
+* **Development:** Neon development + R2 development (`watchmap-videos-development`)
+* **Stage:** Neon stage + R2 stage (`watchmap-videos-stage`)
+* **Production:** Neon production + R2 production (`watchmap-videos-production`)
+
+Se uma variável obrigatória estiver ausente, a aplicação deve falhar claramente. Nunca utilizar silenciosamente credenciais ou recursos de outro ambiente.
+
+---
+
+### Conduta do Agente
+
+O agente não deve:
+* criar branches adicionais sem necessidade explícita;
+* trabalhar diretamente em `stage`;
+* trabalhar diretamente em `main`;
+* promover ambientes automaticamente;
+* alterar configuração Git global;
+* usar force push nas branches permanentes;
+* descartar alterações locais do usuário;
+* fazer reset destrutivo sem autorização;
+* reescrever histórico compartilhado sem autorização.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
