@@ -6,26 +6,9 @@ import { DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
 import { generatePresignedPlaybackUrl } from "@/lib/r2";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
-import { VideoPlayerView } from "@/components/videos/video-player-view";
-import { VideoIdBadge } from "@/components/videos/video-id-badge";
-import { ArrowLeft, HardDrive, Calendar, Film, Play, User } from "lucide-react";
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
+import { VideoDetailsView } from "@/components/videos/video-details-view";
+import { Play } from "lucide-react";
 
 interface VideoPageProps {
   params: Promise<{ videoId: string }>;
@@ -75,71 +58,15 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
 
       {/* Main Page Area */}
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto w-full space-y-6">
-        {/* Navigation & Clean Header with Metadata Strip */}
-        <div className="space-y-3 pb-4 border-b border-border/70">
-          <div className="flex items-center justify-between">
-            <Link
-              href="/videos"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
-            >
-              <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
-              <span>Voltar para biblioteca</span>
-            </Link>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground hidden sm:inline">ID público:</span>
-              <VideoIdBadge publicId={video.publicId} />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate" title={video.title}>
-              {video.title}
-            </h1>
-
-            {/* Technical Metadata Strip */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground font-medium">
-              <div className="flex items-center gap-1.5 truncate max-w-xs sm:max-w-md">
-                <Film className="size-3.5 text-muted-foreground shrink-0" />
-                <span className="truncate font-mono text-[11px]" title={video.originalFilename}>
-                  {video.originalFilename}
-                </span>
-              </div>
-
-              <span className="text-border hidden sm:inline">•</span>
-
-              <div className="flex items-center gap-1.5">
-                <HardDrive className="size-3.5 text-muted-foreground shrink-0" />
-                <span>{formatBytes(video.sizeBytes)}</span>
-              </div>
-
-              <span className="text-border hidden sm:inline">•</span>
-
-              <div className="flex items-center gap-1.5">
-                <Calendar className="size-3.5 text-muted-foreground shrink-0" />
-                <span>{formatDate(video.createdAt)}</span>
-              </div>
-
-              <span className="text-border hidden sm:inline">•</span>
-
-              <div className="flex items-center gap-1.5">
-                <User className="size-3.5 text-muted-foreground shrink-0" />
-                <span>Conta: <strong className="font-semibold text-foreground">{account.name}</strong></span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Video Player & Settings (2-Column Layout) */}
-        <VideoPlayerView
-          videoId={video.id}
+        <VideoDetailsView
+          video={video}
+          accountName={account.name}
           playbackUrl={playbackUrl}
-          title={video.title}
           initialConfig={playerConfig}
-          publicId={video.publicId}
           baseUrl={process.env.BASE_URL || "http://localhost:3000"}
         />
       </main>
     </div>
   );
 }
+

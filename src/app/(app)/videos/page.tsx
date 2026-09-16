@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { UploadDialog } from "@/components/videos/upload-dialog";
+import { VideoCardMenu } from "@/components/videos/video-card-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Video, HardDrive, Calendar, Play } from "lucide-react";
 
@@ -95,24 +96,27 @@ export default async function VideosPage() {
               >
                 <Card className="border-border group-hover:border-primary/40 group-hover:shadow-sm transition-all flex flex-col justify-between overflow-hidden h-full rounded-xl bg-card">
                   <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors mt-0.5 border border-primary/20 group-hover:border-primary">
-                        <Play className="size-4 fill-current ml-0.5" />
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors mt-0.5 border border-primary/20 group-hover:border-primary">
+                          <Play className="size-4 fill-current ml-0.5" />
+                        </div>
+                        <div className="overflow-hidden min-w-0 flex-1">
+                          <h3
+                            className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm leading-tight truncate"
+                            title={video.title}
+                          >
+                            {video.title}
+                          </h3>
+                          <p
+                            className="text-xs text-muted-foreground truncate mt-0.5 font-mono text-[11px]"
+                            title={video.originalFilename}
+                          >
+                            {video.originalFilename}
+                          </p>
+                        </div>
                       </div>
-                      <div className="overflow-hidden">
-                        <h3
-                          className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm leading-tight truncate"
-                          title={video.title}
-                        >
-                          {video.title}
-                        </h3>
-                        <p
-                          className="text-xs text-muted-foreground truncate mt-0.5 font-mono text-[11px]"
-                          title={video.originalFilename}
-                        >
-                          {video.originalFilename}
-                        </p>
-                      </div>
+                      <VideoCardMenu video={video} />
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-2.5 border-t border-border/70">

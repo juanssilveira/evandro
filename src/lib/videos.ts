@@ -1,7 +1,12 @@
 import { db } from "@/db";
 import { videos, type Video } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
-import { generatePresignedUploadUrl, getVideoStorageKey, verifyObjectExists } from "@/lib/r2";
+import {
+  generatePresignedUploadUrl,
+  getVideoStorageKey,
+  verifyObjectExists,
+  deleteObjectFromR2,
+} from "@/lib/r2";
 import type { CreateUploadInput, FinalizeUploadInput } from "@/lib/validations/videos";
 
 export async function getVideosForAccount(accountId: string): Promise<Video[]> {
@@ -94,4 +99,48 @@ export async function finalizeVideoUpload(
     .returning();
 
   return { success: true, video: newVideo };
+}
+
+export async function updateVideoTitle(
+  videoId: string,
+  accountId: string,
+  title: string
+): Promise<Video | null> {
+  const [updated] = await db
+    .update(videos)
+    .set({ title })
+    .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)))
+    .returning();
+
+  return updated || null;
+}
+
+export async function deleteVideo(
+  videoId: string,
+  accountId: string
+): Promise<{ success: boolean; error?: string }> {
+  // 1. Verify existence and ownership, retrieving storageKey from DB
+  const video = await getVideoForAccount(videoId, accountId);
+  if (!video) {
+    return {
+      success: false,
+      error: "Vídeo não encontrado ou não pertence a esta conta.",
+    };
+  }
+
+  const storageKey = video.storageKey;
+
+  // 2. Delete database record (cascades to videoPlayerSettings)
+  await db
+    .delete(videos)
+    .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)));
+
+  // 3. Delete object from Cloudflare R2
+  try {
+    await deleteObjectFromR2(storageKey);
+  } catch (error) {
+    console.error(`[R2 Cleanup] Failed to delete object ${storageKey}:`, error);
+  }
+
+  return { success: true };
 }

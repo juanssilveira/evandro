@@ -75,3 +75,21 @@ export const updateVideoDebugSchema = z.object({
 });
 
 export type UpdateVideoDebugInput = z.infer<typeof updateVideoDebugSchema>;
+
+export const updateVideoTitleSchema = z.object({
+  videoId: z.string().uuid("ID de vídeo inválido"),
+  title: z
+    .string()
+    .trim()
+    .min(1, "O título é obrigatório")
+    .max(120, "O título deve ter no máximo 120 caracteres"),
+});
+
+export type UpdateVideoTitleInput = z.infer<typeof updateVideoTitleSchema>;
+
+export const deleteVideoSchema = z.object({
+  videoId: z.string().uuid("ID de vídeo inválido"),
+});
+
+export type DeleteVideoInput = z.infer<typeof deleteVideoSchema>;
+

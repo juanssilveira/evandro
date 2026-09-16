@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -41,7 +42,7 @@ export async function generatePresignedUploadUrl(params: {
   videoId: string;
   mimeType: string;
   expiresIn?: number;
-}): Promise<string> {
+  }): Promise<string> {
   const { bucketName } = getR2Config();
   const s3 = getR2Client();
   const key = getVideoStorageKey(params.accountId, params.videoId);
@@ -86,6 +87,23 @@ export async function verifyObjectExists(key: string): Promise<boolean> {
     await s3.send(command);
     return true;
   } catch {
+    return false;
+  }
+}
+
+export async function deleteObjectFromR2(key: string): Promise<boolean> {
+  const { bucketName } = getR2Config();
+  const s3 = getR2Client();
+
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    });
+    await s3.send(command);
+    return true;
+  } catch (error) {
+    console.error(`[R2] Failed to delete object with key ${key}:`, error);
     return false;
   }
 }
