@@ -72,6 +72,9 @@ export function VideoPlayerView({
         <VideoEmbedCard
           publicId={publicId}
           baseUrl={baseUrl}
+          videoId={videoId}
+          config={config}
+          onConfigChange={handleConfigChange}
         />
       </div>
 
