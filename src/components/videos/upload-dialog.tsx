@@ -189,14 +189,16 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger render={trigger ? (trigger as React.ReactElement) : undefined}>
-        {!trigger && (
-          <Button className="font-medium">
-            <UploadCloud className="size-4 mr-1.5" />
-            Enviar vídeo
-          </Button>
-        )}
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          (trigger as React.ReactElement) || (
+            <Button className="font-medium">
+              <UploadCloud className="size-4 mr-1.5" />
+              Enviar vídeo
+            </Button>
+          )
+        }
+      />
 
       <DialogPopup className="sm:max-w-md">
         <form onSubmit={handleUpload}>
