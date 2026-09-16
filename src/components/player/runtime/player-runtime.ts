@@ -48,6 +48,10 @@ export class PlayerRuntime {
     this.previousTime = video.currentTime || 0;
     this.previousRate = video.playbackRate || 1;
 
+    if (this.debug) {
+      console.log(`[WatchMap Runtime] INITIALIZE videoId=${this.videoId}`);
+    }
+
     this.attachEventListeners();
 
     // Check if video is already ready upon initialization
@@ -84,6 +88,10 @@ export class PlayerRuntime {
 
   public destroy(): void {
     if (this.isDestroyed) return;
+
+    if (this.debug) {
+      console.log(`[WatchMap Runtime] DESTROY videoId=${this.videoId}`);
+    }
 
     this.isDestroyed = true;
     this.abortController.abort();
