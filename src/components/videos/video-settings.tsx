@@ -169,64 +169,8 @@ export function VideoSettings({
         </CardHeader>
 
         <CardContent className="pt-4 space-y-3.5">
-          {/* Accent Color Section */}
-          <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-xs font-semibold text-foreground">
-                  Cor de destaque
-                </Label>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Aplica a cor na barra de progresso, botão de play, volume e indicadores ativos.
-                </p>
-              </div>
-              {isPending && pendingField === "accentColor" && (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground shrink-0" />
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-0.5">
-              {playerAccentColors.map((colorKey) => {
-                const preset = PLAYER_ACCENT_PRESETS[colorKey];
-                const isSelected = currentAccent === colorKey;
-
-                return (
-                  <button
-                    key={colorKey}
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => handleAccentColorSelect(colorKey)}
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-2 py-2.5 px-2 rounded-lg border transition-all text-center cursor-pointer",
-                      isSelected
-                        ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                        : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
-                    )}
-                  >
-                    <div
-                      className="size-4.5 rounded-full shadow-inner ring-2 ring-white/10 shrink-0 flex items-center justify-center"
-                      style={{ backgroundColor: preset.tokens.base }}
-                    >
-                      {isSelected && (
-                        <Check className="size-2.5 text-white stroke-[3]" />
-                      )}
-                    </div>
-                    <span
-                      className={cn(
-                        "text-[11px] font-medium whitespace-nowrap truncate max-w-full px-1",
-                        isSelected ? "text-foreground font-semibold" : "text-muted-foreground"
-                      )}
-                    >
-                      {preset.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Aspect Ratio Section */}
-          <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-3">
+          <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="text-xs font-semibold text-foreground">
@@ -329,6 +273,62 @@ export function VideoSettings({
                   </p>
                 </div>
               </button>
+            </div>
+          </div>
+
+          {/* Accent Color Section */}
+          <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Cor de destaque
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Aplica a cor na barra de progresso, botão de play, volume e indicadores ativos.
+                </p>
+              </div>
+              {isPending && pendingField === "accentColor" && (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground shrink-0" />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-0.5">
+              {playerAccentColors.map((colorKey) => {
+                const preset = PLAYER_ACCENT_PRESETS[colorKey];
+                const isSelected = currentAccent === colorKey;
+
+                return (
+                  <button
+                    key={colorKey}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleAccentColorSelect(colorKey)}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-2 py-2.5 px-2 rounded-lg border transition-all text-center cursor-pointer",
+                      isSelected
+                        ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                        : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                    )}
+                  >
+                    <div
+                      className="size-4.5 rounded-full shadow-inner ring-2 ring-white/10 shrink-0 flex items-center justify-center"
+                      style={{ backgroundColor: preset.tokens.base }}
+                    >
+                      {isSelected && (
+                        <Check className="size-2.5 text-white stroke-[3]" />
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        "text-[11px] font-medium whitespace-nowrap truncate max-w-full px-1",
+                        isSelected ? "text-foreground font-semibold" : "text-muted-foreground"
+                      )}
+                    >
+                      {preset.name}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
