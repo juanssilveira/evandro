@@ -14,6 +14,11 @@ import {
   VolumeX,
   Palette,
   Check,
+  SlidersHorizontal,
+  Maximize2,
+  EyeOff,
+  MousePointerClick,
+  Keyboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -148,6 +153,7 @@ export function VideoSettings({
 
   const currentAccent = config.appearance?.accentColor ?? "purple";
   const currentAspectRatio = config.appearance?.aspectRatio ?? "16:9";
+  const isFullscreenEnabled = config.controls?.fullscreen?.enabled ?? true;
 
   return (
     <div className="space-y-6">
@@ -484,6 +490,240 @@ export function VideoSettings({
                 disabled={isPending}
                 onCheckedChange={handleBackgroundAutoplayToggle}
               />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Category: Controles */}
+      <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <SlidersHorizontal className="size-4 text-muted-foreground" />
+              Controles
+            </CardTitle>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground border border-border/60 uppercase tracking-wide">
+              Interface & Ações
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Configure a visibilidade da barra de controles e as opções de tela cheia.
+          </p>
+        </CardHeader>
+
+        <CardContent className="pt-4 space-y-3.5">
+          {/* Block 1: Controles do player (Hidden) */}
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 py-3 px-3.5 sm:py-3 sm:px-4">
+            <div className="flex items-center gap-3">
+              <div className="size-8 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0">
+                <EyeOff className="size-4" />
+              </div>
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor={`hide-controls-switch-${videoId}`}
+                  className="text-xs font-semibold text-foreground cursor-pointer block"
+                >
+                  Esconder controles do player
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Remove a barra de controles durante a reprodução.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {isPending && pendingField === "controlsHidden" && (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              )}
+              <Switch
+                id={`hide-controls-switch-${videoId}`}
+                checked={config.controls?.hidden ?? false}
+                disabled={isPending}
+                onCheckedChange={(checked) =>
+                  handleConfigUpdate(
+                    {
+                      controls: {
+                        hidden: checked,
+                      },
+                    },
+                    "controlsHidden"
+                  )
+                }
+              />
+            </div>
+          </div>
+
+          {/* Block 2: Fullscreen Section */}
+          <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3">
+            {/* Main Toggle: Permitir fullscreen */}
+            <div className="flex items-center justify-between gap-4 pb-2 border-b border-border/40">
+              <div className="flex items-center gap-3">
+                <div className="size-8 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0">
+                  <Maximize2 className="size-4" />
+                </div>
+                <div className="space-y-0.5">
+                  <Label
+                    htmlFor={`fullscreen-enabled-switch-${videoId}`}
+                    className="text-xs font-semibold text-foreground cursor-pointer block"
+                  >
+                    Permitir fullscreen
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Habilita modos de reprodução em tela cheia no player.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {isPending && pendingField === "fullscreenEnabled" && (
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                )}
+                <Switch
+                  id={`fullscreen-enabled-switch-${videoId}`}
+                  checked={isFullscreenEnabled}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    handleConfigUpdate(
+                      {
+                        controls: {
+                          fullscreen: {
+                            enabled: checked,
+                          },
+                        },
+                      },
+                      "fullscreenEnabled"
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Sub-options: button, doubleClick, keyboardF */}
+            <div className={cn("space-y-2.5 pt-1", !isFullscreenEnabled && "opacity-50 pointer-events-none")}>
+              {/* Option: Exibir botão de fullscreen */}
+              <div className="flex items-center justify-between gap-4 py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <div className="space-y-0.5">
+                  <Label
+                    htmlFor={`fullscreen-button-switch-${videoId}`}
+                    className={cn(
+                      "text-xs font-medium text-foreground block",
+                      isFullscreenEnabled && "cursor-pointer"
+                    )}
+                  >
+                    Exibir botão de fullscreen
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Mostra o ícone de tela cheia na barra de controles.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isPending && pendingField === "fullscreenButton" && (
+                    <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                  )}
+                  <Switch
+                    id={`fullscreen-button-switch-${videoId}`}
+                    checked={config.controls?.fullscreen?.button ?? true}
+                    disabled={isPending || !isFullscreenEnabled}
+                    onCheckedChange={(checked) =>
+                      handleConfigUpdate(
+                        {
+                          controls: {
+                            fullscreen: {
+                              button: checked,
+                            },
+                          },
+                        },
+                        "fullscreenButton"
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Option: Fullscreen com duplo clique */}
+              <div className="flex items-center justify-between gap-4 py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <MousePointerClick className="size-3 text-muted-foreground" />
+                    <Label
+                      htmlFor={`fullscreen-doubleclick-switch-${videoId}`}
+                      className={cn(
+                        "text-xs font-medium text-foreground block",
+                        isFullscreenEnabled && "cursor-pointer"
+                      )}
+                    >
+                      Fullscreen com duplo clique
+                    </Label>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed pl-4.5">
+                    Alterna tela cheia com dois cliques sobre o vídeo.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isPending && pendingField === "fullscreenDoubleClick" && (
+                    <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                  )}
+                  <Switch
+                    id={`fullscreen-doubleclick-switch-${videoId}`}
+                    checked={config.controls?.fullscreen?.doubleClick ?? true}
+                    disabled={isPending || !isFullscreenEnabled}
+                    onCheckedChange={(checked) =>
+                      handleConfigUpdate(
+                        {
+                          controls: {
+                            fullscreen: {
+                              doubleClick: checked,
+                            },
+                          },
+                        },
+                        "fullscreenDoubleClick"
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Option: Fullscreen com tecla F */}
+              <div className="flex items-center justify-between gap-4 py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <Keyboard className="size-3 text-muted-foreground" />
+                    <Label
+                      htmlFor={`fullscreen-keyboardf-switch-${videoId}`}
+                      className={cn(
+                        "text-xs font-medium text-foreground block",
+                        isFullscreenEnabled && "cursor-pointer"
+                      )}
+                    >
+                      Fullscreen com tecla F
+                    </Label>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed pl-4.5">
+                    Permite usar o atalho de teclado F para tela cheia.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isPending && pendingField === "fullscreenKeyboardF" && (
+                    <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                  )}
+                  <Switch
+                    id={`fullscreen-keyboardf-switch-${videoId}`}
+                    checked={config.controls?.fullscreen?.keyboardF ?? true}
+                    disabled={isPending || !isFullscreenEnabled}
+                    onCheckedChange={(checked) =>
+                      handleConfigUpdate(
+                        {
+                          controls: {
+                            fullscreen: {
+                              keyboardF: checked,
+                            },
+                          },
+                        },
+                        "fullscreenKeyboardF"
+                      )
+                    }
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
