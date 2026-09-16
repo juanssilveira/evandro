@@ -71,7 +71,7 @@ export function DeleteVideoDialog({
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 flex items-start gap-2.5 text-xs text-destructive">
           <AlertTriangle className="size-4 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            O arquivo do vídeo no Cloudflare R2 e todas as personalizações vinculadas serão apagados definitivamente.
+            O arquivo de vídeo e todas as personalizações vinculadas serão apagados definitivamente.
           </p>
         </div>
 
@@ -79,13 +79,14 @@ export function DeleteVideoDialog({
           <p className="text-xs text-destructive font-medium">{error}</p>
         )}
 
-        <DialogFooter className="pt-2">
+        <DialogFooter className="pt-2 gap-2 sm:gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={isPending}
             onClick={() => onOpenChange(false)}
+            className="h-8.5 px-4 text-xs font-medium cursor-pointer shadow-2xs"
           >
             Cancelar
           </Button>
@@ -95,7 +96,7 @@ export function DeleteVideoDialog({
             size="sm"
             disabled={isPending}
             onClick={handleDelete}
-            className="gap-1.5"
+            className="h-8.5 px-4 text-xs font-medium gap-1.5 cursor-pointer shadow-2xs"
           >
             {isPending && <Loader2 className="size-3.5 animate-spin" />}
             Excluir vídeo

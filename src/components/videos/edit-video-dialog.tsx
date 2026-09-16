@@ -170,13 +170,14 @@ function EditVideoForm({ video, onClose, onSuccess }: EditVideoFormProps) {
         <p className="text-xs text-destructive font-medium">{error}</p>
       )}
 
-      <DialogFooter>
+      <DialogFooter className="pt-2 gap-2 sm:gap-2">
         <Button
           type="button"
           variant="outline"
           size="sm"
           disabled={isPending}
           onClick={onClose}
+          className="h-8.5 px-4 text-xs font-medium cursor-pointer shadow-2xs"
         >
           Cancelar
         </Button>
@@ -184,7 +185,7 @@ function EditVideoForm({ video, onClose, onSuccess }: EditVideoFormProps) {
           type="submit"
           size="sm"
           disabled={isSaveDisabled}
-          className="gap-1.5"
+          className="h-8.5 px-4 text-xs font-medium gap-1.5 cursor-pointer shadow-2xs"
         >
           {isPending && <Loader2 className="size-3.5 animate-spin" />}
           Salvar alterações

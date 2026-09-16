@@ -60,46 +60,45 @@ export function VideoPageHeader({
         </div>
       </div>
 
-      {/* Main Header Row: Title & Metadata on Left, Action Buttons on Right */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-2 min-w-0 flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate" title={title}>
-            {title}
-          </h1>
+      {/* Title */}
+      <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate" title={title}>
+        {title}
+      </h1>
 
-          {/* Technical Metadata Strip */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground font-medium">
-            <div className="flex items-center gap-1.5 truncate max-w-xs sm:max-w-md">
-              <Film className="size-3.5 text-muted-foreground shrink-0" />
-              <span className="truncate font-mono text-[11px]" title={video.originalFilename}>
-                {video.originalFilename}
-              </span>
-            </div>
+      {/* Metadata Strip & Actions Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-0.5">
+        {/* Technical Metadata Strip */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground font-medium">
+          <div className="flex items-center gap-1.5 truncate max-w-xs sm:max-w-md">
+            <Film className="size-3.5 text-muted-foreground shrink-0" />
+            <span className="truncate font-mono text-[11px]" title={video.originalFilename}>
+              {video.originalFilename}
+            </span>
+          </div>
 
-            <span className="text-border hidden sm:inline">•</span>
+          <span className="text-border hidden sm:inline">•</span>
 
-            <div className="flex items-center gap-1.5">
-              <HardDrive className="size-3.5 text-muted-foreground shrink-0" />
-              <span>{formatBytes(video.sizeBytes)}</span>
-            </div>
+          <div className="flex items-center gap-1.5">
+            <HardDrive className="size-3.5 text-muted-foreground shrink-0" />
+            <span>{formatBytes(video.sizeBytes)}</span>
+          </div>
 
-            <span className="text-border hidden sm:inline">•</span>
+          <span className="text-border hidden sm:inline">•</span>
 
-            <div className="flex items-center gap-1.5">
-              <Calendar className="size-3.5 text-muted-foreground shrink-0" />
-              <span>{formatDate(video.createdAt)}</span>
-            </div>
+          <div className="flex items-center gap-1.5">
+            <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+            <span>{formatDate(video.createdAt)}</span>
+          </div>
 
-            <span className="text-border hidden sm:inline">•</span>
+          <span className="text-border hidden sm:inline">•</span>
 
-            <div className="flex items-center gap-1.5">
-              <User className="size-3.5 text-muted-foreground shrink-0" />
-              <span>Conta: <strong className="font-semibold text-foreground">{accountName}</strong></span>
-            </div>
+          <div className="flex items-center gap-1.5">
+            <User className="size-3.5 text-muted-foreground shrink-0" />
+            <span>Conta: <strong className="font-semibold text-foreground">{accountName}</strong></span>
           </div>
         </div>
 
-        {/* Action Buttons (Right Side - In the location specified in screenshot) */}
+        {/* Action Buttons aligned with metadata */}
         <VideoHeaderActions
           video={video}
           onTitleUpdated={handleTitleUpdated}

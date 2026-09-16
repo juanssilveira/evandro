@@ -24,7 +24,7 @@ Antes de implementar ou alterar qualquer funcionalidade:
 * Segurança e autorização devem ser validadas no servidor.
 * Nunca confiar em IDs ou permissões enviados pelo frontend.
 * Manter componentes pequenos e responsabilidades bem separadas.
-* Preservar a arquitetura existente ao modificar código.
+* Nunca fazer referência a infraestruturas internas ou nomes de serviços e provedores (ex: Cloudflare R2, S3, AWS, PostgreSQL, Drizzle, etc.) em textos de interface, diálogos, alertas ou mensagens voltadas ao usuário final.
 * Toda vez que alterar o banco ou schemas, gerar e aplicar as migrations no ambiente de desenvolvimento (`pnpm db:generate` e `pnpm db:migrate`).
 
 ## Qualidade
