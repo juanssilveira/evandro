@@ -13,6 +13,9 @@ import {
   type FullscreenExitEvent,
   type FullscreenInitiator,
   type ErrorEvent,
+  type PlaybackMode,
+  type PlaybackInitiator,
+  type PlaybackContextChangeEvent,
 } from "./types";
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
@@ -31,6 +34,8 @@ export class PlayerRuntime {
   private readonly containerElement: HTMLElement | null = null;
   private readonly debug: boolean;
 
+  private playbackMode: PlaybackMode = "foreground";
+  private playbackInitiator: PlaybackInitiator = "user";
   private isReady = false;
   private isBuffering = false;
   private isSeeking = false;
@@ -51,6 +56,8 @@ export class PlayerRuntime {
     this.videoId = options.videoId;
     this.containerElement = options.containerElement ?? null;
     this.debug = Boolean(options.debug);
+    this.playbackMode = options.initialPlaybackMode ?? "foreground";
+    this.playbackInitiator = options.initialPlaybackInitiator ?? "user";
 
     this.previousTime = video.currentTime || 0;
     this.previousRate = video.playbackRate || 1;
@@ -69,6 +76,33 @@ export class PlayerRuntime {
     }
   }
 
+  public getPlaybackMode(): PlaybackMode {
+    return this.playbackMode;
+  }
+
+  public getPlaybackInitiator(): PlaybackInitiator {
+    return this.playbackInitiator;
+  }
+
+  public setPlaybackContext(mode: PlaybackMode, initiator: PlaybackInitiator): void {
+    if (this.playbackMode === mode && this.playbackInitiator === initiator) {
+      return;
+    }
+
+    const previousMode = this.playbackMode;
+    const previousInitiator = this.playbackInitiator;
+    this.playbackMode = mode;
+    this.playbackInitiator = initiator;
+
+    this.emit({
+      type: PlayerEventType.PLAYBACK_CONTEXT_CHANGE,
+      previousMode,
+      mode,
+      previousInitiator,
+      initiator,
+    });
+  }
+
   public getSnapshot(): PlayerSnapshot {
     return {
       videoId: this.videoId,
@@ -80,6 +114,8 @@ export class PlayerRuntime {
       volume: typeof this.video.volume === "number" ? this.video.volume : 1,
       ended: Boolean(this.video.ended),
       timestamp: Date.now(),
+      playbackMode: this.playbackMode,
+      playbackInitiator: this.playbackInitiator,
     };
   }
 
@@ -337,10 +373,14 @@ export class PlayerRuntime {
         console.log(`${prefix} PLAYER_READY`);
         break;
       case PlayerEventType.PLAY:
-        console.log(`${prefix} PLAY`);
+        console.log(
+          `${prefix} PLAY mode=${event.snapshot.playbackMode} initiator=${event.snapshot.playbackInitiator}`
+        );
         break;
       case PlayerEventType.PLAYING:
-        console.log(`${prefix} PLAYING`);
+        console.log(
+          `${prefix} PLAYING mode=${event.snapshot.playbackMode} initiator=${event.snapshot.playbackInitiator}`
+        );
         break;
       case PlayerEventType.PAUSE:
         console.log(`${prefix} PAUSE ${event.snapshot.currentTime.toFixed(3)}`);
@@ -412,6 +452,13 @@ export class PlayerRuntime {
       case PlayerEventType.ERROR:
         console.log(`${prefix} ERROR ${(event as ErrorEvent).message}`);
         break;
+      case PlayerEventType.PLAYBACK_CONTEXT_CHANGE: {
+        const ctx = event as PlaybackContextChangeEvent;
+        console.log(
+          `${prefix} PLAYBACK_CONTEXT_CHANGE ${ctx.previousMode} → ${ctx.mode} (${ctx.previousInitiator} → ${ctx.initiator})`
+        );
+        break;
+      }
     }
   }
 }

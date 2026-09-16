@@ -21,7 +21,9 @@ import {
   PlayerRuntime,
   type PlayerEventListener,
   type FullscreenInitiator,
+  type PlaybackMode,
 } from "./runtime";
+import { PlaybackController } from "./controllers/playback-controller";
 import { type PlayerConfig, DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
 
 interface WatchMapPlayerProps {
@@ -66,14 +68,45 @@ export function WatchMapPlayer({
   const progressTrackRef = useRef<HTMLDivElement>(null);
   const volumeTrackRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<PlayerRuntime | null>(null);
+  const playbackControllerRef = useRef<PlaybackController | null>(null);
+  const hasResolvedInitialPlaybackRef = useRef(false);
 
-  // Segmented configuration consumption
-  const effectiveAutoPlay = autoPlay ?? config.playback.autoplay;
-  const effectiveDebug = debugEnabled ?? config.development.debug;
-  const isControlsHidden = config.controls.hidden;
-  const fullscreenConfig = config.controls.fullscreen;
+  // Effective configuration
+  const effectiveConfig = React.useMemo<PlayerConfig>(
+    () => ({
+      ...config,
+      playback: {
+        ...config.playback,
+        autoplay: autoPlay ?? config.playback.autoplay,
+      },
+      development: {
+        ...config.development,
+        debug: debugEnabled ?? config.development.debug,
+      },
+    }),
+    [config, autoPlay, debugEnabled]
+  );
 
-  // Initialize PlayerRuntime lifecycle
+  const effectiveDebug = effectiveConfig.development.debug;
+  const isControlsHidden = effectiveConfig.controls.hidden;
+  const fullscreenConfig = effectiveConfig.controls.fullscreen;
+
+  // Playback mode state (derived from controller/runtime)
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("foreground");
+
+  // Keep effectiveConfig ref fresh
+  const effectiveConfigRef = useRef(effectiveConfig);
+  useEffect(() => {
+    effectiveConfigRef.current = effectiveConfig;
+    playbackControllerRef.current?.updateConfig(effectiveConfig);
+  }, [effectiveConfig]);
+
+  // Reset initial playback resolution on src change
+  useEffect(() => {
+    hasResolvedInitialPlaybackRef.current = false;
+  }, [src]);
+
+  // Initialize PlayerRuntime and PlaybackController lifecycle
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
@@ -85,7 +118,15 @@ export function WatchMapPlayer({
       containerElement: container,
     });
 
+    const controller = new PlaybackController({
+      video,
+      runtime,
+      config: effectiveConfigRef.current,
+      onModeChange: (mode) => setPlaybackMode(mode),
+    });
+
     runtimeRef.current = runtime;
+    playbackControllerRef.current = controller;
 
     let unsubscribe: (() => void) | undefined;
     if (onEvent) {
@@ -94,8 +135,16 @@ export function WatchMapPlayer({
 
     onRuntimeReady?.(runtime);
 
+    // If metadata is already ready, attempt initial resolution
+    if (video.readyState >= 1 && !hasResolvedInitialPlaybackRef.current) {
+      hasResolvedInitialPlaybackRef.current = true;
+      controller.resolveInitialPlayback();
+    }
+
     return () => {
       runtimeRef.current = null;
+      playbackControllerRef.current?.dispose();
+      playbackControllerRef.current = null;
       unsubscribe?.();
       runtime.destroy();
     };
@@ -170,13 +219,16 @@ export function WatchMapPlayer({
 
   // Play / Pause toggle
   const togglePlay = useCallback(() => {
+    if (playbackControllerRef.current) {
+      playbackControllerRef.current.handleUserPlayToggle(lastVolumeRef.current);
+      return;
+    }
+
     const video = videoRef.current;
     if (!video) return;
 
     if (video.paused || video.ended) {
-      video.play().catch(() => {
-        // Autoplay policy or interrupt
-      });
+      video.play().catch(() => {});
     } else {
       video.pause();
     }
@@ -184,6 +236,11 @@ export function WatchMapPlayer({
 
   // Mute toggle
   const toggleMute = useCallback(() => {
+    if (playbackMode === "background_autoplay" && playbackControllerRef.current) {
+      playbackControllerRef.current.startForegroundPlayback(lastVolumeRef.current);
+      return;
+    }
+
     const video = videoRef.current;
     if (!video) return;
 
@@ -198,7 +255,7 @@ export function WatchMapPlayer({
       video.muted = true;
       setIsMuted(true);
     }
-  }, [isMuted]);
+  }, [isMuted, playbackMode]);
 
   // Volume drag/click
   const updateVolumeFromPosition = (clientX: number) => {
@@ -412,6 +469,17 @@ export function WatchMapPlayer({
     if (videoRef.current) {
       setDuration(videoRef.current.duration || 0);
       setIsLoading(false);
+      if (!hasResolvedInitialPlaybackRef.current && playbackControllerRef.current) {
+        hasResolvedInitialPlaybackRef.current = true;
+        playbackControllerRef.current.resolveInitialPlayback();
+      }
+    }
+  };
+
+  const handleCanPlay = () => {
+    if (!hasResolvedInitialPlaybackRef.current && playbackControllerRef.current) {
+      hasResolvedInitialPlaybackRef.current = true;
+      playbackControllerRef.current.resolveInitialPlayback();
     }
   };
 
@@ -465,10 +533,11 @@ export function WatchMapPlayer({
         src={src}
         playsInline
         preload="metadata"
-        autoPlay={effectiveAutoPlay}
+        autoPlay={false}
         controls={false}
         onClick={togglePlay}
         onLoadStart={handleLoadStart}
+        onCanPlay={handleCanPlay}
         onTimeUpdate={handleTimeUpdate}
         onVolumeChange={handleVolumeSync}
         onLoadedMetadata={handleLoadedMetadata}
@@ -520,8 +589,28 @@ export function WatchMapPlayer({
         </div>
       )}
 
+      {/* Background Autoplay Active Overlay */}
+      {playbackMode === "background_autoplay" && !hasError && (
+        <div
+          onClick={() => playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current)}
+          className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-black/10 hover:bg-black/20 transition-all group/bgoverlay"
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current);
+            }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary/95 hover:bg-primary text-white font-medium text-xs sm:text-sm shadow-2xl backdrop-blur-sm transition-all hover:scale-105 active:scale-95 border border-white/20"
+          >
+            <Volume2 className="size-4 fill-white" />
+            <span>Ativar som e assistir do início</span>
+          </button>
+        </div>
+      )}
+
       {/* Big Play Button Overlay on Pause */}
-      {!isPlaying && !isLoading && !hasError && (
+      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && (
         <div
           onClick={togglePlay}
           className="absolute inset-0 flex items-center justify-center z-10 cursor-pointer bg-black/20 transition-opacity"

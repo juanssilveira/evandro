@@ -14,10 +14,15 @@ export const PlayerEventType = {
   BUFFER_END: "BUFFER_END",
   ENDED: "ENDED",
   ERROR: "ERROR",
+  PLAYBACK_CONTEXT_CHANGE: "PLAYBACK_CONTEXT_CHANGE",
 } as const;
 
 export type PlayerEventType =
   (typeof PlayerEventType)[keyof typeof PlayerEventType];
+
+export type PlaybackMode = "foreground" | "background_autoplay";
+
+export type PlaybackInitiator = "autoplay" | "user";
 
 export type FullscreenInitiator =
   | "button"
@@ -35,6 +40,8 @@ export interface PlayerSnapshot {
   volume: number;
   ended: boolean;
   timestamp: number;
+  playbackMode: PlaybackMode;
+  playbackInitiator: PlaybackInitiator;
 }
 
 export interface BasePlayerEvent {
@@ -120,6 +127,14 @@ export interface ErrorEvent extends BasePlayerEvent {
   code?: number;
 }
 
+export interface PlaybackContextChangeEvent extends BasePlayerEvent {
+  type: typeof PlayerEventType.PLAYBACK_CONTEXT_CHANGE;
+  previousMode: PlaybackMode;
+  mode: PlaybackMode;
+  previousInitiator: PlaybackInitiator;
+  initiator: PlaybackInitiator;
+}
+
 export type PlayerRuntimeEvent =
   | PlayerReadyEvent
   | PlayEvent
@@ -135,7 +150,8 @@ export type PlayerRuntimeEvent =
   | BufferStartEvent
   | BufferEndEvent
   | EndedEvent
-  | ErrorEvent;
+  | ErrorEvent
+  | PlaybackContextChangeEvent;
 
 export type PlayerEventListener = (event: PlayerRuntimeEvent) => void;
 
@@ -145,4 +161,6 @@ export interface PlayerRuntimeOptions {
   videoId: string;
   debug?: boolean;
   containerElement?: HTMLElement | null;
+  initialPlaybackMode?: PlaybackMode;
+  initialPlaybackInitiator?: PlaybackInitiator;
 }
