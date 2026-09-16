@@ -54,10 +54,7 @@ export function VideoPageHeader({
           <span>Voltar para biblioteca</span>
         </Link>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground hidden sm:inline">ID público:</span>
-          <VideoIdBadge publicId={video.publicId} />
-        </div>
+        <VideoIdBadge publicId={video.publicId} />
       </div>
 
       {/* Title */}
