@@ -152,34 +152,40 @@ export function VideoSettings({
   return (
     <div className="space-y-6">
       {/* Category: Aparência */}
-      <Card className="border-border bg-card shadow-xs">
-        <CardHeader className="pb-3">
+      <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
+        <CardHeader className="pb-3 border-b border-border/40">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Palette className="size-4 text-muted-foreground" />
               Aparência
             </CardTitle>
-            <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
-              Destaque Visual
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground border border-border/60 uppercase tracking-wide">
+              Personalização
             </span>
           </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Personalize a identidade visual e o formato de exibição do player para o seu conteúdo.
+          </p>
         </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Accent Color */}
-          <div className="space-y-2">
+
+        <CardContent className="pt-4 space-y-3.5">
+          {/* Accent Color Section */}
+          <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-foreground">
-                Cor de destaque
-              </Label>
+              <div className="space-y-0.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Cor de destaque
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Aplica a cor na barra de progresso, botão de play, volume e indicadores ativos.
+                </p>
+              </div>
               {isPending && pendingField === "accentColor" && (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground shrink-0" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Define a cor de elementos como barra de progresso, botão de play, volume e indicadores ativos.
-            </p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-0.5">
               {playerAccentColors.map((colorKey) => {
                 const preset = PLAYER_ACCENT_PRESETS[colorKey];
                 const isSelected = currentAccent === colorKey;
@@ -191,23 +197,23 @@ export function VideoSettings({
                     disabled={isPending}
                     onClick={() => handleAccentColorSelect(colorKey)}
                     className={cn(
-                      "flex flex-col items-center justify-center gap-2 py-3 px-2 rounded-xl border transition-all text-center cursor-pointer",
+                      "flex flex-col items-center justify-center gap-2 py-2.5 px-2 rounded-lg border transition-all text-center cursor-pointer",
                       isSelected
                         ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                        : "border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80"
+                        : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
                     )}
                   >
                     <div
-                      className="size-5 rounded-full shadow-inner ring-2 ring-white/10 shrink-0 flex items-center justify-center"
+                      className="size-4.5 rounded-full shadow-inner ring-2 ring-white/10 shrink-0 flex items-center justify-center"
                       style={{ backgroundColor: preset.tokens.base }}
                     >
                       {isSelected && (
-                        <Check className="size-3 text-white stroke-[3]" />
+                        <Check className="size-2.5 text-white stroke-[3]" />
                       )}
                     </div>
                     <span
                       className={cn(
-                        "text-xs font-medium whitespace-nowrap truncate max-w-full px-1",
+                        "text-[11px] font-medium whitespace-nowrap truncate max-w-full px-1",
                         isSelected ? "text-foreground font-semibold" : "text-muted-foreground"
                       )}
                     >
@@ -219,43 +225,44 @@ export function VideoSettings({
             </div>
           </div>
 
-          {/* Aspect Ratio Selector */}
-          <div className="space-y-2 pt-3 border-t border-border/50">
+          {/* Aspect Ratio Section */}
+          <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-foreground">
-                Formato do player
-              </Label>
+              <div className="space-y-0.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Formato do player
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Define a proporção e as dimensões padrão do container de reprodução.
+                </p>
+              </div>
               {isPending && pendingField === "aspectRatio" && (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground shrink-0" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Define a proporção visual do container de reprodução.
-            </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
               {/* Horizontal 16:9 Option */}
               <button
                 type="button"
                 disabled={isPending}
                 onClick={() => handleAspectRatioSelect("16:9")}
                 className={cn(
-                  "flex items-center gap-3.5 p-3.5 rounded-xl border transition-all text-left cursor-pointer",
+                  "flex items-center gap-3 p-3 rounded-lg border transition-all text-left cursor-pointer",
                   currentAspectRatio === "16:9"
                     ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                    : "border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80"
+                    : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
                 )}
               >
-                {/* 16:9 CSS Illustration */}
                 <div
                   className={cn(
-                    "w-12 h-7 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    "w-11 h-6.5 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                     currentAspectRatio === "16:9"
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-zinc-800 text-zinc-400"
                   )}
                 >
-                  <Play className="size-3 fill-current ml-0.5" />
+                  <Play className="size-2.5 fill-current ml-0.5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
@@ -268,12 +275,12 @@ export function VideoSettings({
                       Horizontal
                     </span>
                     {currentAspectRatio === "16:9" && (
-                      <span className="flex size-4 items-center justify-center rounded-full bg-primary text-white shrink-0">
-                        <Check className="size-2.5 stroke-[3]" />
+                      <span className="flex size-3.5 items-center justify-center rounded-full bg-primary text-white shrink-0">
+                        <Check className="size-2 stroke-[3]" />
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
+                  <p className="text-[10px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
                     16:9 • ~680px padrão
                   </p>
                 </div>
@@ -285,22 +292,21 @@ export function VideoSettings({
                 disabled={isPending}
                 onClick={() => handleAspectRatioSelect("9:16")}
                 className={cn(
-                  "flex items-center gap-3.5 p-3.5 rounded-xl border transition-all text-left cursor-pointer",
+                  "flex items-center gap-3 p-3 rounded-lg border transition-all text-left cursor-pointer",
                   currentAspectRatio === "9:16"
                     ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                    : "border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80"
+                    : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
                 )}
               >
-                {/* 9:16 CSS Illustration */}
                 <div
                   className={cn(
-                    "w-7 h-12 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    "w-6.5 h-11 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                     currentAspectRatio === "9:16"
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-zinc-800 text-zinc-400"
                   )}
                 >
-                  <Play className="size-3 fill-current ml-0.5" />
+                  <Play className="size-2.5 fill-current ml-0.5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
@@ -313,12 +319,12 @@ export function VideoSettings({
                       Vertical
                     </span>
                     {currentAspectRatio === "9:16" && (
-                      <span className="flex size-4 items-center justify-center rounded-full bg-primary text-white shrink-0">
-                        <Check className="size-2.5 stroke-[3]" />
+                      <span className="flex size-3.5 items-center justify-center rounded-full bg-primary text-white shrink-0">
+                        <Check className="size-2 stroke-[3]" />
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
+                  <p className="text-[10px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
                     9:16 • ~480px padrão
                   </p>
                 </div>
@@ -327,7 +333,7 @@ export function VideoSettings({
           </div>
 
           {/* Show Video Title Toggle */}
-          <div className="flex items-center justify-between gap-4 pt-3 border-t border-border/50">
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 p-3.5">
             <div className="space-y-0.5">
               <Label
                 htmlFor={`show-title-switch-${videoId}`}
@@ -335,11 +341,11 @@ export function VideoSettings({
               >
                 Exibir título do vídeo
               </Label>
-              <p className="text-xs text-muted-foreground leading-relaxed">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
                 Mostra o título no topo do player durante a reprodução.
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 pt-0.5">
               {isPending && pendingField === "showTitle" && (
                 <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}
@@ -364,26 +370,30 @@ export function VideoSettings({
       </Card>
 
       {/* Category: Reprodução */}
-      <Card className="border-border bg-card shadow-xs">
-        <CardHeader className="pb-3">
+      <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
+        <CardHeader className="pb-3 border-b border-border/40">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <PlayCircle className="size-4 text-muted-foreground" />
               Reprodução
             </CardTitle>
-            <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground border border-border/60 uppercase tracking-wide">
               Modos Exclusivos
             </span>
           </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Configure o início automático e comportamento de áudio do player.
+          </p>
         </CardHeader>
-        <CardContent className="space-y-3">
+
+        <CardContent className="pt-4 space-y-3">
           {/* Autoplay Toggle */}
           <div
             className={cn(
-              "flex items-start justify-between gap-4 rounded-lg border p-4 transition-colors",
+              "flex items-start justify-between gap-4 rounded-lg border p-3.5 transition-colors",
               config.playback.autoplay
                 ? "border-primary/50 bg-primary/5"
-                : "border-border bg-muted/20 hover:bg-muted/30"
+                : "border-border/80 bg-muted/20 hover:bg-muted/30"
             )}
           >
             <div className="flex gap-3">
@@ -397,26 +407,26 @@ export function VideoSettings({
               >
                 <Volume2 className="size-4" />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <Label
                     htmlFor={`autoplay-switch-${videoId}`}
-                    className="text-sm font-semibold text-foreground cursor-pointer"
+                    className="text-xs font-semibold text-foreground cursor-pointer"
                   >
                     Autoplay
                   </Label>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                     Com áudio
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+                <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
                   Inicia o vídeo automaticamente como uma reprodução normal. Alguns navegadores podem bloquear autoplay com áudio.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0 pt-0.5">
               {isPending && pendingField === "autoplay" && (
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}
               <Switch
                 id={`autoplay-switch-${videoId}`}
@@ -430,10 +440,10 @@ export function VideoSettings({
           {/* Background Autoplay Toggle */}
           <div
             className={cn(
-              "flex items-start justify-between gap-4 rounded-lg border p-4 transition-colors",
+              "flex items-start justify-between gap-4 rounded-lg border p-3.5 transition-colors",
               config.playback.backgroundAutoplay
                 ? "border-primary/50 bg-primary/5"
-                : "border-border bg-muted/20 hover:bg-muted/30"
+                : "border-border/80 bg-muted/20 hover:bg-muted/30"
             )}
           >
             <div className="flex gap-3">
@@ -447,26 +457,26 @@ export function VideoSettings({
               >
                 <VolumeX className="size-4" />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <Label
                     htmlFor={`background-autoplay-switch-${videoId}`}
-                    className="text-sm font-semibold text-foreground cursor-pointer"
+                    className="text-xs font-semibold text-foreground cursor-pointer"
                   >
                     Background Autoplay
                   </Label>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                     Mudo em Loop
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+                <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
                   Mantém o vídeo reproduzindo automaticamente no mudo como fundo antes da interação do espectador. Essa reprodução não representa uma visualização real.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0 pt-0.5">
               {isPending && pendingField === "backgroundAutoplay" && (
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}
               <Switch
                 id={`background-autoplay-switch-${videoId}`}
