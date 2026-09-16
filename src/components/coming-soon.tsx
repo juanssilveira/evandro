@@ -1,9 +1,9 @@
 import { Play } from "lucide-react";
 
 const FEATURES = [
-  "Biblioteca de vídeos",
-  "Player configurável",
-  "Analytics",
+  "Hosting Próprio",
+  "Player 100% Configurável",
+  "Analytics Avançado",
 ];
 
 export function ComingSoon() {
@@ -20,22 +20,22 @@ export function ComingSoon() {
       </div>
 
       {/* Main content */}
-      <div className="text-center max-w-sm space-y-4">
+      <div className="text-center max-w-md space-y-4">
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-soft px-3 py-1">
+        {/* <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-soft px-3 py-1">
           <span className="size-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
           <span className="text-[11px] font-semibold tracking-wide text-primary uppercase">
             Em breve
           </span>
-        </div>
+        </div> */}
 
         {/* Heading */}
-        <h1 className="text-4xl font-bold tracking-tight text-foreground">
-          Estamos preparando tudo.
+        <h1 className="text-4xl font-bold tracking-tight text-foreground max-w-md">
+          Estamos preparando tudo!
         </h1>
 
         {/* Description */}
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
           Uma plataforma técnica para gerenciar, configurar e acompanhar
           seus vídeos com precisão.
         </p>

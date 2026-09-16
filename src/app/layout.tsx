@@ -16,8 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WatchMap Beta",
-  description: "WatchMap Beta - Video analytics and tracking platform",
+  title: "WatchMap Player BETA - Analytics de vídeo e traqueamento avançado",
 };
 
 export default function RootLayout({
