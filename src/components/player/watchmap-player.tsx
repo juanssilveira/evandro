@@ -625,8 +625,7 @@ export function WatchMapPlayer({
         <div
           onClick={() => playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current)}
           style={{
-            background: "linear-gradient(180deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.52) 50%, rgba(0, 0, 0, 0.72) 100%)",
-            backgroundColor: "rgba(0, 0, 0, 0.62)",
+            background: "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
           }}
           className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
         >
