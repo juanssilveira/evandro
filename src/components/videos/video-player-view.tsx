@@ -30,14 +30,14 @@ export function VideoPlayerView({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(380px,440px)] gap-6 lg:gap-8 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,680px)_minmax(340px,400px)] justify-center gap-6 lg:gap-8 items-start">
       {/* Left Column (Sticky Preview Canvas + Embed Code) */}
-      <div className="lg:sticky lg:top-20 space-y-4 lg:self-start">
+      <div className="w-full max-w-[680px] lg:sticky lg:top-20 space-y-4 lg:self-start mx-auto">
         {/* Preview Canvas */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-primary" />
+              <span className="size-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
               Preview do Player
             </span>
             <span className="text-[11px] font-mono text-muted-foreground">
@@ -45,7 +45,7 @@ export function VideoPlayerView({
             </span>
           </div>
 
-          <div className="relative w-full h-[320px] sm:h-[380px] lg:h-[400px] rounded-2xl border border-border/80 bg-zinc-950/5 dark:bg-zinc-950/40 p-3 sm:p-4 flex items-center justify-center overflow-hidden shadow-xs">
+          <div className="relative w-full aspect-video max-h-[382px] rounded-2xl border border-border/80 bg-zinc-950/5 dark:bg-zinc-950/40 p-2 sm:p-3 flex items-center justify-center overflow-hidden shadow-xs">
             {/* Subtle technical background grid */}
             <div
               className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"

@@ -35,7 +35,7 @@ export function VideoIdBadge({ publicId }: VideoIdBadgeProps) {
       title="Clique para copiar o ID do vídeo"
       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/70 hover:bg-muted border border-border/80 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-all cursor-pointer group shadow-2xs select-none"
     >
-      <Hash className="size-3 text-primary shrink-0" />
+      <Hash className="size-3 text-muted-foreground shrink-0" />
       <span className="font-semibold text-foreground/90">{publicId}</span>
       {copied ? (
         <span className="inline-flex items-center gap-1 text-[10px] font-sans font-semibold text-emerald-600 dark:text-emerald-400 ml-0.5">

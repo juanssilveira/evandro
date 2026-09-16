@@ -41,7 +41,7 @@ export function VideoEmbedCard({ publicId, baseUrl }: VideoEmbedCardProps) {
         {/* Header & Copy Button */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground border border-border shrink-0">
               <Code2 className="size-4" />
             </div>
             <div>
@@ -77,13 +77,13 @@ export function VideoEmbedCard({ publicId, baseUrl }: VideoEmbedCardProps) {
 
         {/* Code Snippet Box */}
         <div className="relative rounded-lg bg-zinc-950 px-3.5 py-2.5 border border-border/50 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed">
-          <div className="text-zinc-200">{`<script src="${cleanBaseUrl}/embed/v1/watchmap-player.js" defer></script>`}</div>
-          <div className="text-primary-foreground/90">{`<watchmap-player video-id="${publicId}"></watchmap-player>`}</div>
+          <div className="text-zinc-400">{`<script src="${cleanBaseUrl}/embed/v1/watchmap-player.js" defer></script>`}</div>
+          <div className="text-zinc-200">{`<watchmap-player video-id="${publicId}"></watchmap-player>`}</div>
         </div>
 
         {/* Instructions */}
         <div className="flex items-start gap-2 rounded-lg bg-muted/40 border border-border/40 px-3 py-2 text-[11px] text-muted-foreground">
-          <Info className="size-3.5 text-primary shrink-0 mt-0.5" />
+          <Info className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
           <p className="leading-normal">
             Cole a tag <code className="text-foreground font-mono bg-muted/80 px-1 py-0.5 rounded text-[10px]">&lt;script&gt;</code> no cabeçalho e <code className="text-foreground font-mono bg-muted/80 px-1 py-0.5 rounded text-[10px]">&lt;watchmap-player&gt;</code> onde deseja exibir o vídeo.
           </p>

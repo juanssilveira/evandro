@@ -157,7 +157,7 @@ export function VideoSettings({
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-              <Palette className="size-4 text-primary" />
+              <Palette className="size-4 text-muted-foreground" />
               Aparência
             </CardTitle>
             <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
@@ -332,7 +332,7 @@ export function VideoSettings({
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-              <PlayCircle className="size-4 text-primary" />
+              <PlayCircle className="size-4 text-muted-foreground" />
               Reprodução
             </CardTitle>
             <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">

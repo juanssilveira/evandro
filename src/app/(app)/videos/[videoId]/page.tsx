@@ -74,7 +74,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
       </header>
 
       {/* Main Page Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto w-full space-y-6">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full space-y-6">
         {/* Navigation & Clean Header with Metadata Strip */}
         <div className="space-y-3 pb-4 border-b border-border/70">
           <div className="flex items-center justify-between">
@@ -100,7 +100,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
             {/* Technical Metadata Strip */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground font-medium">
               <div className="flex items-center gap-1.5 truncate max-w-xs sm:max-w-md">
-                <Film className="size-3.5 text-primary shrink-0" />
+                <Film className="size-3.5 text-muted-foreground shrink-0" />
                 <span className="truncate font-mono text-[11px]" title={video.originalFilename}>
                   {video.originalFilename}
                 </span>
@@ -109,21 +109,21 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
               <span className="text-border hidden sm:inline">•</span>
 
               <div className="flex items-center gap-1.5">
-                <HardDrive className="size-3.5 text-primary shrink-0" />
+                <HardDrive className="size-3.5 text-muted-foreground shrink-0" />
                 <span>{formatBytes(video.sizeBytes)}</span>
               </div>
 
               <span className="text-border hidden sm:inline">•</span>
 
               <div className="flex items-center gap-1.5">
-                <Calendar className="size-3.5 text-primary shrink-0" />
+                <Calendar className="size-3.5 text-muted-foreground shrink-0" />
                 <span>{formatDate(video.createdAt)}</span>
               </div>
 
               <span className="text-border hidden sm:inline">•</span>
 
               <div className="flex items-center gap-1.5">
-                <User className="size-3.5 text-primary shrink-0" />
+                <User className="size-3.5 text-muted-foreground shrink-0" />
                 <span>Conta: <strong className="font-semibold text-foreground">{account.name}</strong></span>
               </div>
             </div>
