@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { videos, type Video } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { generatePresignedUploadUrl, getVideoStorageKey, verifyObjectExists } from "@/lib/r2";
 import type { CreateUploadInput, FinalizeUploadInput } from "@/lib/validations/videos";
 
@@ -10,6 +10,19 @@ export async function getVideosForAccount(accountId: string): Promise<Video[]> {
     .from(videos)
     .where(eq(videos.accountId, accountId))
     .orderBy(desc(videos.createdAt));
+}
+
+export async function getVideoForAccount(
+  videoId: string,
+  accountId: string
+): Promise<Video | null> {
+  const [video] = await db
+    .select()
+    .from(videos)
+    .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)))
+    .limit(1);
+
+  return video || null;
 }
 
 export async function createVideoUploadSession(

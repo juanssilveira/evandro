@@ -2,10 +2,11 @@ import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getVideosForAccount } from "@/lib/videos";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { UploadDialog } from "@/components/videos/upload-dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { Video, Film, HardDrive, Calendar } from "lucide-react";
+import { Video, HardDrive, Calendar, Play } from "lucide-react";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 Bytes";
@@ -87,43 +88,46 @@ export default async function VideosPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {videoList.map((video) => (
-              <Card
+              <Link
                 key={video.id}
-                className="border-border hover:border-primary/40 transition-colors flex flex-col justify-between overflow-hidden"
+                href={`/videos/${video.id}`}
+                className="group block focus:outline-none"
               >
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary mt-0.5">
-                      <Film className="size-4" />
+                <Card className="border-border group-hover:border-primary/50 group-hover:shadow-sm transition-all flex flex-col justify-between overflow-hidden h-full">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors mt-0.5">
+                        <Play className="size-4 fill-current ml-0.5" />
+                      </div>
+                      <div className="overflow-hidden">
+                        <h3
+                          className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm leading-tight truncate"
+                          title={video.title}
+                        >
+                          {video.title}
+                        </h3>
+                        <p
+                          className="text-xs text-muted-foreground truncate mt-0.5"
+                          title={video.originalFilename}
+                        >
+                          {video.originalFilename}
+                        </p>
+                      </div>
                     </div>
-                    <div className="overflow-hidden">
-                      <h3
-                        className="font-semibold text-foreground text-sm leading-tight truncate"
-                        title={video.title}
-                      >
-                        {video.title}
-                      </h3>
-                      <p
-                        className="text-xs text-muted-foreground truncate mt-0.5"
-                        title={video.originalFilename}
-                      >
-                        {video.originalFilename}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
-                    <span className="flex items-center gap-1">
-                      <HardDrive className="size-3" />
-                      {formatBytes(video.sizeBytes)}
-                    </span>
-                    <span className="flex items-center gap-1 font-mono">
-                      <Calendar className="size-3" />
-                      {formatDate(video.createdAt)}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
+                      <span className="flex items-center gap-1">
+                        <HardDrive className="size-3" />
+                        {formatBytes(video.sizeBytes)}
+                      </span>
+                      <span className="flex items-center gap-1 font-mono">
+                        <Calendar className="size-3" />
+                        {formatDate(video.createdAt)}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         )}
