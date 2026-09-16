@@ -30,9 +30,9 @@ export function VideoPlayerView({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,680px)_minmax(340px,400px)] justify-center gap-6 lg:gap-8 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-[600px_minmax(0,1fr)] xl:grid-cols-[640px_minmax(0,1fr)] gap-6 lg:gap-8 items-start">
       {/* Left Column (Sticky Preview Canvas + Embed Code) */}
-      <div className="w-full max-w-[680px] lg:sticky lg:top-20 space-y-4 lg:self-start mx-auto">
+      <div className="w-full lg:sticky lg:top-20 space-y-4 lg:self-start">
         {/* Preview Canvas */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between px-1">
@@ -45,7 +45,7 @@ export function VideoPlayerView({
             </span>
           </div>
 
-          <div className="relative w-full aspect-video max-h-[382px] rounded-2xl border border-border/80 bg-zinc-950/5 dark:bg-zinc-950/40 p-2 sm:p-3 flex items-center justify-center overflow-hidden shadow-xs">
+          <div className="relative w-full aspect-video max-h-[380px] rounded-2xl border border-border/80 bg-zinc-950/5 dark:bg-zinc-950/40 p-2 sm:p-3 flex items-center justify-center overflow-hidden shadow-xs">
             {/* Subtle technical background grid */}
             <div
               className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
@@ -73,8 +73,8 @@ export function VideoPlayerView({
         />
       </div>
 
-      {/* Right Column (Player Settings Categories) */}
-      <div className="space-y-6">
+      {/* Right Column (Player Settings Categories - Fluid & Spacious) */}
+      <div className="space-y-6 min-w-0">
         <VideoSettings
           videoId={videoId}
           config={config}

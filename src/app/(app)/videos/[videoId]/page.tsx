@@ -74,7 +74,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
       </header>
 
       {/* Main Page Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full space-y-6">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto w-full space-y-6">
         {/* Navigation & Clean Header with Metadata Strip */}
         <div className="space-y-3 pb-4 border-b border-border/70">
           <div className="flex items-center justify-between">

@@ -192,30 +192,28 @@ export function VideoSettings({
                     disabled={isPending}
                     onClick={() => handleAccentColorSelect(colorKey)}
                     className={cn(
-                      "flex items-center justify-between sm:justify-center sm:flex-col gap-2.5 p-3 rounded-lg border transition-all text-left sm:text-center cursor-pointer",
+                      "flex flex-col items-center justify-center gap-2 py-3 px-2 rounded-xl border transition-all text-center cursor-pointer",
                       isSelected
                         ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
                         : "border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80"
                     )}
                   >
-                    <div className="flex items-center sm:flex-col gap-2.5">
-                      <div
-                        className="size-5 rounded-full shadow-inner ring-2 ring-white/10 shrink-0 flex items-center justify-center"
-                        style={{ backgroundColor: preset.tokens.base }}
-                      >
-                        {isSelected && (
-                          <Check className="size-3 text-white stroke-[3]" />
-                        )}
-                      </div>
-                      <span
-                        className={cn(
-                          "text-xs font-medium",
-                          isSelected ? "text-foreground font-semibold" : "text-muted-foreground"
-                        )}
-                      >
-                        {preset.name}
-                      </span>
+                    <div
+                      className="size-5 rounded-full shadow-inner ring-2 ring-white/10 shrink-0 flex items-center justify-center"
+                      style={{ backgroundColor: preset.tokens.base }}
+                    >
+                      {isSelected && (
+                        <Check className="size-3 text-white stroke-[3]" />
+                      )}
                     </div>
+                    <span
+                      className={cn(
+                        "text-xs font-medium whitespace-nowrap truncate max-w-full px-1",
+                        isSelected ? "text-foreground font-semibold" : "text-muted-foreground"
+                      )}
+                    >
+                      {preset.name}
+                    </span>
                   </button>
                 );
               })}
@@ -243,7 +241,7 @@ export function VideoSettings({
                 disabled={isPending}
                 onClick={() => handleAspectRatioSelect("16:9")}
                 className={cn(
-                  "flex items-center gap-4 p-3.5 rounded-lg border transition-all text-left cursor-pointer",
+                  "flex items-center gap-3.5 p-3.5 rounded-xl border transition-all text-left cursor-pointer",
                   currentAspectRatio === "16:9"
                     ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
                     : "border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80"
@@ -252,31 +250,33 @@ export function VideoSettings({
                 {/* 16:9 CSS Illustration */}
                 <div
                   className={cn(
-                    "w-14 h-8 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    "w-12 h-7 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                     currentAspectRatio === "16:9"
                       ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-zinc-800/80 text-zinc-400"
+                      : "border-border bg-zinc-800 text-zinc-400"
                   )}
                 >
                   <Play className="size-3 fill-current ml-0.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <span
                       className={cn(
                         "text-xs font-semibold",
-                        currentAspectRatio === "16:9" ? "text-foreground" : "text-zinc-300"
+                        currentAspectRatio === "16:9" ? "text-foreground font-bold" : "text-foreground/90"
                       )}
                     >
                       Horizontal
                     </span>
                     {currentAspectRatio === "16:9" && (
-                      <span className="flex size-4 items-center justify-center rounded-full bg-primary text-white">
+                      <span className="flex size-4 items-center justify-center rounded-full bg-primary text-white shrink-0">
                         <Check className="size-2.5 stroke-[3]" />
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-muted-foreground font-mono">16:9 (680px padrão)</span>
+                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
+                    16:9 • ~680px padrão
+                  </p>
                 </div>
               </button>
 
@@ -286,7 +286,7 @@ export function VideoSettings({
                 disabled={isPending}
                 onClick={() => handleAspectRatioSelect("9:16")}
                 className={cn(
-                  "flex items-center gap-4 p-3.5 rounded-lg border transition-all text-left cursor-pointer",
+                  "flex items-center gap-3.5 p-3.5 rounded-xl border transition-all text-left cursor-pointer",
                   currentAspectRatio === "9:16"
                     ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
                     : "border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80"
@@ -295,31 +295,33 @@ export function VideoSettings({
                 {/* 9:16 CSS Illustration */}
                 <div
                   className={cn(
-                    "w-8 h-14 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    "w-7 h-12 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                     currentAspectRatio === "9:16"
                       ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-zinc-800/80 text-zinc-400"
+                      : "border-border bg-zinc-800 text-zinc-400"
                   )}
                 >
                   <Play className="size-3 fill-current ml-0.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <span
                       className={cn(
                         "text-xs font-semibold",
-                        currentAspectRatio === "9:16" ? "text-foreground" : "text-zinc-300"
+                        currentAspectRatio === "9:16" ? "text-foreground font-bold" : "text-foreground/90"
                       )}
                     >
                       Vertical
                     </span>
                     {currentAspectRatio === "9:16" && (
-                      <span className="flex size-4 items-center justify-center rounded-full bg-primary text-white">
+                      <span className="flex size-4 items-center justify-center rounded-full bg-primary text-white shrink-0">
                         <Check className="size-2.5 stroke-[3]" />
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-muted-foreground font-mono">9:16 (480px padrão)</span>
+                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
+                    9:16 • ~480px padrão
+                  </p>
                 </div>
               </button>
             </div>
