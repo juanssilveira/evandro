@@ -43,13 +43,26 @@ Uma feature só está concluída quando todos os critérios de aceite definidos 
 
 Cada spec representa um milestone de desenvolvimento.
 
+### Git Workflow e Ambientes
+
+* Toda implementação de specs ocorre na branch `development`.
+* Commits de milestone são criados na branch `development`.
+* O agente pode fazer push apenas para `development` durante o desenvolvimento normal.
+* A branch `stage` recebe código somente por promoção/merge de `development`.
+* A branch `main` (production) recebe código somente por promoção/merge de `stage`.
+* Nunca fazer push direto para `stage` ou `main` como parte da implementação de uma spec.
+* Nunca realizar merge entre ambientes automaticamente sem instrução explícita.
+* Production (`main`) deve receber exatamente o código previamente validado em `stage`.
+
+### Finalização de Milestones
+
 Ao concluir integralmente uma spec:
 
 1. validar todos os critérios de aceite;
 2. executar os checks de qualidade do projeto;
 3. revisar os arquivos alterados;
-4. criar um único commit representando a conclusão da spec;
-5. enviar o commit para o repositório remoto.
+4. criar um único commit na branch `development` representando a conclusão da spec;
+5. enviar o commit para o repositório remoto (`development`).
 
 Utilizar o padrão:
 
