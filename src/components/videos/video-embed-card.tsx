@@ -90,8 +90,54 @@ export function VideoEmbedCard({
             <Code2 className="size-4 text-muted-foreground" />
             Código de Embed
           </CardTitle>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground border border-border/60 uppercase tracking-wide">
-            Web Component
+          {/* WatchMap Player 3D shimmer badge */}
+          <span
+            className="watchmap-badge relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider select-none overflow-hidden cursor-default"
+            style={{
+              background: "linear-gradient(135deg, #6d28d9 0%, #7c3aed 40%, #4f46e5 100%)",
+              boxShadow:
+                "0 1px 0 0 rgba(255,255,255,0.18) inset, 0 -1px 0 0 rgba(0,0,0,0.25) inset, 0 2px 6px -1px rgba(109,40,217,0.55), 0 1px 2px -1px rgba(79,70,229,0.4)",
+              border: "1px solid rgba(167,139,250,0.35)",
+            }}
+          >
+            {/* Gloss top highlight */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-[45%] rounded-t-full"
+              style={{
+                background: "linear-gradient(to bottom, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 100%)",
+              }}
+            />
+            {/* Shimmer sweep */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-full"
+              style={{
+                background:
+                  "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%)",
+                backgroundSize: "200% 100%",
+                animation: "wm-shimmer 2.8s ease-in-out infinite",
+              }}
+            />
+            {/* Dot indicator */}
+            <span
+              aria-hidden
+              className="relative size-1.5 rounded-full shrink-0"
+              style={{
+                background: "rgba(255,255,255,0.9)",
+                boxShadow: "0 0 4px 1px rgba(167,139,250,0.7)",
+              }}
+            />
+            <span className="relative text-white/90" style={{ letterSpacing: "0.06em" }}>
+              WM Player v1.0
+            </span>
+            <style>{`
+              @keyframes wm-shimmer {
+                0%   { background-position: 200% center; }
+                60%  { background-position: -200% center; }
+                100% { background-position: -200% center; }
+              }
+            `}</style>
           </span>
         </div>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">

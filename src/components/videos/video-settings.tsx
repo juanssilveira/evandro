@@ -170,7 +170,7 @@ export function VideoSettings({
 
         <CardContent className="pt-4 space-y-3.5">
           {/* Aspect Ratio Section */}
-          <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
+          <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="text-xs font-semibold text-foreground">
@@ -277,7 +277,7 @@ export function VideoSettings({
           </div>
 
           {/* Accent Color Section */}
-          <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
+          <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="text-xs font-semibold text-foreground">
@@ -333,7 +333,7 @@ export function VideoSettings({
           </div>
 
           {/* Show Video Title Toggle */}
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 py-3 px-3.5 sm:py-3 sm:px-4">
             <div className="space-y-1">
               <Label
                 htmlFor={`show-title-switch-${videoId}`}
@@ -390,7 +390,7 @@ export function VideoSettings({
           {/* Autoplay Toggle */}
           <div
             className={cn(
-              "flex items-center justify-between gap-4 rounded-lg border p-3.5 sm:p-4 transition-colors",
+              "flex items-center justify-between gap-4 rounded-lg border py-3 px-3.5 sm:py-3 sm:px-4 transition-colors",
               config.playback.autoplay
                 ? "border-primary/50 bg-primary/5"
                 : "border-border/80 bg-muted/20 hover:bg-muted/30"
@@ -440,7 +440,7 @@ export function VideoSettings({
           {/* Background Autoplay Toggle */}
           <div
             className={cn(
-              "flex items-center justify-between gap-4 rounded-lg border p-3.5 sm:p-4 transition-colors",
+              "flex items-center justify-between gap-4 rounded-lg border py-3 px-3.5 sm:py-3 sm:px-4 transition-colors",
               config.playback.backgroundAutoplay
                 ? "border-primary/50 bg-primary/5"
                 : "border-border/80 bg-muted/20 hover:bg-muted/30"
