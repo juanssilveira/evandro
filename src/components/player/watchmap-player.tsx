@@ -13,7 +13,7 @@ import {
   RotateCcw,
   Loader2,
   AlertCircle,
-  Settings,
+  Gauge,
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -543,12 +543,15 @@ export function WatchMapPlayer({
   return (
     <div
       ref={containerRef}
-      style={accentStyle}
+      style={{
+        ...accentStyle,
+        containerType: "inline-size",
+      }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleContainerDoubleClick}
       className={cn(
-        "relative w-full rounded-xl overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl mx-auto",
+        "@container relative w-full rounded-xl overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl mx-auto",
         isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]",
         isFullscreen && "rounded-none border-none max-h-screen max-w-none aspect-auto",
         className
@@ -608,7 +611,7 @@ export function WatchMapPlayer({
                 videoRef.current.play().catch(() => {});
               }
             }}
-            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors cursor-pointer"
           >
             <RotateCcw className="size-3.5" />
             Tentar novamente
@@ -629,7 +632,7 @@ export function WatchMapPlayer({
               playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current);
             }}
             style={{ backgroundColor: "var(--player-accent)" }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-medium text-xs sm:text-sm shadow-2xl backdrop-blur-sm transition-all hover:scale-105 active:scale-95 border border-white/20"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-medium text-xs sm:text-sm shadow-2xl backdrop-blur-sm transition-all hover:scale-105 active:scale-95 border border-white/20 cursor-pointer"
           >
             <Volume2 className="size-4 fill-white" />
             <span>Ativar som e assistir do início</span>
@@ -645,9 +648,9 @@ export function WatchMapPlayer({
         >
           <div
             style={{ backgroundColor: "var(--player-accent)" }}
-            className="flex size-16 items-center justify-center rounded-full text-white shadow-xl transition-transform hover:scale-105"
+            className="flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full text-white shadow-xl transition-transform hover:scale-105"
           >
-            <Play className="size-8 ml-1 fill-white" />
+            <Play className="size-7 @min-[480px]:size-8 ml-1 fill-white" />
           </div>
         </div>
       )}
@@ -656,34 +659,34 @@ export function WatchMapPlayer({
       {title && (
         <div
           className={cn(
-            "absolute top-0 inset-x-0 p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 pointer-events-none transition-opacity duration-300",
+            "absolute top-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 pointer-events-none transition-opacity duration-300",
             controlsVisible ? "opacity-100" : "opacity-0"
           )}
         >
-          <h2 className="text-sm font-medium text-white/90 truncate drop-shadow">
+          <h2 className="text-xs @min-[480px]:text-sm font-medium text-white/90 truncate drop-shadow">
             {title}
           </h2>
         </div>
       )}
 
-      {/* Bottom Controls Overlay */}
+      {/* Bottom Adaptive Controls Overlay */}
       {!isControlsHidden && (
         <div
           data-no-fullscreen="true"
           onDoubleClick={(e) => e.stopPropagation()}
           className={cn(
-            "absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20 transition-opacity duration-300 flex flex-col gap-2.5",
+            "absolute bottom-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20 transition-opacity duration-300 flex flex-col gap-1.5 @min-[380px]:gap-2.5",
             controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
           )}
         >
-          {/* Seek Bar (Linear, Smooth, No stepping transitions) */}
+          {/* Seek Bar (Linear, Smooth, Spans 100% width) */}
           <div
             ref={progressTrackRef}
             onMouseDown={handleSeekMouseDown}
-            className="relative group/track w-full h-3 flex items-center cursor-pointer py-1"
+            className="relative group/track w-full h-3 flex items-center cursor-pointer py-1 select-none"
           >
             {/* Background track */}
-            <div className="relative w-full h-1 group-hover/track:h-1.5 bg-white/25 rounded-full overflow-hidden">
+            <div className="relative w-full h-1 group-hover/track:h-1.5 bg-white/25 rounded-full overflow-hidden transition-all">
               {/* Buffered progress */}
               <div
                 className="absolute left-0 top-0 bottom-0 bg-white/30 rounded-full"
@@ -701,7 +704,7 @@ export function WatchMapPlayer({
 
             {/* Scrubber thumb */}
             <div
-              className="absolute size-3.5 rounded-full bg-white shadow-md opacity-0 group-hover/track:opacity-100 pointer-events-none border"
+              className="absolute size-3.5 rounded-full bg-white shadow-md opacity-0 group-hover/track:opacity-100 pointer-events-none border transition-opacity"
               style={{
                 left: `${progressPercent}%`,
                 transform: "translateX(-50%)",
@@ -710,45 +713,48 @@ export function WatchMapPlayer({
             />
           </div>
 
-          {/* Control Buttons & Indicators */}
-          <div className="flex items-center justify-between gap-2 text-white">
+          {/* Control Buttons & Indicators Row (Responsive Flex Nowrap) */}
+          <div className="flex items-center justify-between gap-1.5 @min-[380px]:gap-2 text-white flex-nowrap">
             {/* Left: Play/Pause, Volume, Time */}
-            <div className="flex items-center gap-3">
-              {/* Play/Pause */}
+            <div className="flex items-center gap-1.5 @min-[380px]:gap-2 @min-[520px]:gap-3 min-w-0">
+              {/* Play/Pause Button */}
               <button
                 type="button"
                 onClick={togglePlay}
-                className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
+                className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
                 title={isPlaying ? "Pausar (Space)" : "Reproduzir (Space)"}
+                aria-label={isPlaying ? "Pausar" : "Reproduzir"}
               >
                 {isPlaying ? (
-                  <Pause className="size-5 fill-white/90" />
+                  <Pause className="size-4.5 @min-[380px]:size-5 fill-white/90" />
                 ) : (
-                  <Play className="size-5 fill-white/90" />
+                  <Play className="size-4.5 @min-[380px]:size-5 fill-white/90" />
                 )}
               </button>
 
               {/* Volume & Custom Slider */}
-              <div className="flex items-center gap-2 group/volume">
+              <div className="flex items-center gap-1.5 @min-[380px]:gap-2 group/volume shrink-0">
                 <button
                   type="button"
                   onClick={toggleMute}
-                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
-                  title={isMuted ? "Ativar som (M)" : "Silenciar (M)"}
+                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
+                  title={isMuted || volume === 0 ? "Ativar som (M)" : "Desativar som (M)"}
+                  aria-label={isMuted || volume === 0 ? "Ativar som" : "Desativar som"}
                 >
                   {isMuted || volume === 0 ? (
-                    <VolumeX className="size-5 text-white/90" />
+                    <VolumeX className="size-4.5 @min-[380px]:size-5 text-white/90" />
                   ) : volume < 0.5 ? (
-                    <Volume1 className="size-5 text-white/90" />
+                    <Volume1 className="size-4.5 @min-[380px]:size-5 text-white/90" />
                   ) : (
-                    <Volume2 className="size-5 text-white/90" />
+                    <Volume2 className="size-4.5 @min-[380px]:size-5 text-white/90" />
                   )}
                 </button>
 
+                {/* Volume Slider - Hidden in Minimal/Compact (<480px container width) */}
                 <div
                   ref={volumeTrackRef}
                   onMouseDown={handleVolumeMouseDown}
-                  className="w-16 h-4 flex items-center cursor-pointer py-1"
+                  className="w-14 @min-[560px]:w-16 h-4 hidden @min-[480px]:flex items-center cursor-pointer py-1 select-none"
                   title={`Volume: ${Math.round(effectiveVolume * 100)}%`}
                 >
                   <div className="relative w-full h-1 bg-white/30 rounded-full overflow-hidden">
@@ -763,8 +769,8 @@ export function WatchMapPlayer({
                 </div>
               </div>
 
-              {/* Time Display */}
-              <div className="text-xs font-mono text-white/80 tabular-nums">
+              {/* Time Display - Hidden in Minimal (<340px container width) */}
+              <div className="hidden @min-[340px]:block text-[11px] @min-[420px]:text-xs font-mono text-white/80 tabular-nums truncate select-none">
                 <span>{formatTime(currentTime)}</span>
                 <span className="text-white/40 mx-1">/</span>
                 <span>{formatTime(duration)}</span>
@@ -772,28 +778,30 @@ export function WatchMapPlayer({
             </div>
 
             {/* Right: Playback Speed, Fullscreen */}
-            <div className="flex items-center gap-2 relative">
-              {/* Playback Speed Menu */}
+            <div className="flex items-center gap-1 @min-[380px]:gap-1.5 relative shrink-0">
+              {/* Playback Speed Menu (Gauge Icon) */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowSettings(!showSettings)}
                   style={playbackRate !== 1 ? { color: "var(--player-accent)" } : undefined}
                   className={cn(
-                    "px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 hover:bg-white/15 transition-colors focus:outline-none",
+                    "p-1.5 @min-[440px]:px-2 @min-[440px]:py-1 rounded-md text-xs font-medium flex items-center gap-1.5 hover:bg-white/15 transition-colors focus:outline-none cursor-pointer",
                     playbackRate !== 1 && "font-semibold"
                   )}
-                  title="Velocidade de reprodução"
+                  title={`Velocidade de reprodução (${playbackRate}x)`}
+                  aria-label={`Velocidade de reprodução (${playbackRate}x)`}
                 >
-                  <Settings className="size-3.5" />
-                  <span>{playbackRate}x</span>
+                  <Gauge className="size-4 shrink-0" />
+                  <span className="hidden @min-[440px]:inline">{playbackRate}x</span>
                 </button>
 
                 {/* Speed Popover */}
                 {showSettings && (
                   <div className="absolute bottom-full right-0 mb-2 w-32 bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-lg p-1 shadow-2xl z-40 text-xs">
-                    <div className="px-2 py-1 text-[10px] uppercase font-semibold text-zinc-400 border-b border-white/10 mb-1">
-                      Velocidade
+                    <div className="px-2 py-1 text-[10px] uppercase font-semibold text-zinc-400 border-b border-white/10 mb-1 flex items-center gap-1.5">
+                      <Gauge className="size-3" />
+                      <span>Velocidade</span>
                     </div>
                     {PLAYBACK_RATES.map((rate) => (
                       <button
@@ -802,7 +810,7 @@ export function WatchMapPlayer({
                         onClick={() => handleRateChange(rate)}
                         style={playbackRate === rate ? { color: "var(--player-accent)" } : undefined}
                         className={cn(
-                          "w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-white/10 text-left transition-colors",
+                          "w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-white/10 text-left transition-colors cursor-pointer",
                           playbackRate === rate ? "font-semibold" : "text-white/80"
                         )}
                       >
@@ -821,13 +829,14 @@ export function WatchMapPlayer({
                 <button
                   type="button"
                   onClick={() => toggleFullscreen("button")}
-                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
+                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer"
                   title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
+                  aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
                 >
                   {isFullscreen ? (
-                    <Minimize className="size-5" />
+                    <Minimize className="size-4.5 @min-[380px]:size-5" />
                   ) : (
-                    <Maximize className="size-5" />
+                    <Maximize className="size-4.5 @min-[380px]:size-5" />
                   )}
                 </button>
               )}
