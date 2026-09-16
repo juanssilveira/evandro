@@ -5,11 +5,14 @@ import { getCurrentAccount } from "@/lib/accounts";
 import {
   createVideoUploadSession,
   finalizeVideoUpload,
-  updateVideoDebugEnabled,
 } from "@/lib/videos";
+import {
+  updatePlayerConfig,
+} from "@/lib/player-settings";
 import {
   createUploadSchema,
   finalizeUploadSchema,
+  updatePlayerConfigActionSchema,
   updateVideoDebugSchema,
 } from "@/lib/validations/videos";
 import { headers } from "next/headers";
@@ -76,6 +79,44 @@ export async function finalizeUploadAction(rawInput: unknown) {
   }
 }
 
+export async function updatePlayerConfigAction(rawInput: unknown) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user?.id) {
+    return { error: "Não autorizado." };
+  }
+
+  const account = await getCurrentAccount(session.user.id);
+  if (!account) {
+    return { error: "Conta não encontrada para o usuário." };
+  }
+
+  const parsed = updatePlayerConfigActionSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || "Dados inválidos." };
+  }
+
+  try {
+    const updated = await updatePlayerConfig(
+      parsed.data.videoId,
+      account.id,
+      parsed.data.config
+    );
+
+    if (!updated) {
+      return { error: "Vídeo não encontrado ou não pertence a esta conta." };
+    }
+
+    revalidatePath(`/videos/${parsed.data.videoId}`);
+    return { success: true, config: updated };
+  } catch (error) {
+    console.error("Error updating player config:", error);
+    return { error: "Erro interno ao atualizar configurações do player." };
+  }
+}
+
 export async function updateVideoDebugAction(rawInput: unknown) {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -96,10 +137,14 @@ export async function updateVideoDebugAction(rawInput: unknown) {
   }
 
   try {
-    const updated = await updateVideoDebugEnabled(
+    const updated = await updatePlayerConfig(
       parsed.data.videoId,
       account.id,
-      parsed.data.debugEnabled
+      {
+        development: {
+          debug: parsed.data.debugEnabled,
+        },
+      }
     );
 
     if (!updated) {
@@ -107,7 +152,7 @@ export async function updateVideoDebugAction(rawInput: unknown) {
     }
 
     revalidatePath(`/videos/${parsed.data.videoId}`);
-    return { success: true, video: updated };
+    return { success: true, config: updated };
   } catch (error) {
     console.error("Error updating video debug setting:", error);
     return { error: "Erro interno ao atualizar configurações do vídeo." };

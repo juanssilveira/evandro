@@ -289,7 +289,6 @@ storage_key
 original_filename
 mime_type
 size_bytes
-debug_enabled
 created_at
 updated_at
 ```
@@ -342,14 +341,6 @@ Tamanho do arquivo em bytes.
 
 Obrigatório.
 
-### debug_enabled
-
-Indica se os logs de debug do Player Runtime estão habilitados para o vídeo no console do navegador.
-
-Booleano. Default: `false`.
-
-Obrigatório.
-
 ### created_at
 
 Data de criação.
@@ -375,9 +366,56 @@ videos
 
 ---
 
+# video_player_settings
+
+Configurações persistidas e versionadas do WatchMap Player para um vídeo.
+
+Relação 1:1 com `videos`.
+
+## Campos
+
+```text
+video_id
+config
+created_at
+updated_at
+```
+
+### video_id
+
+UUID.
+
+Primary key e foreign key para:
+
+```text
+videos.id
+```
+
+ON DELETE CASCADE.
+
+### config
+
+Configuração versionada estruturada em JSONB (`PlayerConfig`).
+
+Obrigatório.
+
+### created_at
+
+Data de criação.
+
+Obrigatório.
+
+### updated_at
+
+Data da última atualização.
+
+Obrigatório.
+
+---
+
 # Relacionamentos
 
-Modelo inicial:
+Modelo:
 
 ```text
 Better Auth User
@@ -390,6 +428,9 @@ account_members
        │
        ▼
      videos
+       │
+       ▼ (1:1)
+video_player_settings
 ```
 
 Relações:
@@ -400,6 +441,8 @@ User 1 ─── N Account Members
 Account 1 ─── N Account Members
 
 Account 1 ─── N Videos
+
+Video 1 ─── 1 Video Player Settings
 ```
 
 Um usuário pode futuramente pertencer a múltiplas contas.

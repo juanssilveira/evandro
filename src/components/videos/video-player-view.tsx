@@ -3,21 +3,26 @@
 import { useState } from "react";
 import { WatchMapPlayer } from "@/components/player/watchmap-player";
 import { VideoSettings } from "./video-settings";
+import type { PlayerConfig } from "@/types/player-config";
 
 interface VideoPlayerViewProps {
   videoId: string;
   playbackUrl: string;
   title: string;
-  initialDebugEnabled: boolean;
+  initialConfig: PlayerConfig;
 }
 
 export function VideoPlayerView({
   videoId,
   playbackUrl,
   title,
-  initialDebugEnabled,
+  initialConfig,
 }: VideoPlayerViewProps) {
-  const [debugEnabled, setDebugEnabled] = useState(initialDebugEnabled);
+  const [config, setConfig] = useState<PlayerConfig>(initialConfig);
+
+  const handleConfigChange = (updatedConfig: PlayerConfig) => {
+    setConfig(updatedConfig);
+  };
 
   return (
     <div className="space-y-6">
@@ -27,15 +32,15 @@ export function VideoPlayerView({
           src={playbackUrl}
           videoId={videoId}
           title={title}
-          debugEnabled={debugEnabled}
+          config={config}
         />
       </div>
 
       {/* Video Settings */}
       <VideoSettings
         videoId={videoId}
-        debugEnabled={debugEnabled}
-        onDebugChange={setDebugEnabled}
+        config={config}
+        onConfigChange={handleConfigChange}
       />
     </div>
   );

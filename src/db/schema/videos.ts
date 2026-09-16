@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, bigint, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, bigint, index } from "drizzle-orm/pg-core";
 import { accounts } from "./accounts";
 
 export const videos = pgTable(
@@ -13,7 +13,6 @@ export const videos = pgTable(
     originalFilename: text("original_filename").notNull(),
     mimeType: text("mime_type").notNull(),
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
-    debugEnabled: boolean("debug_enabled").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()

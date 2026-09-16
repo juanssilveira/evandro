@@ -1,41 +1,56 @@
 "use client";
 
 import * as React from "react";
-import { useState, useTransition } from "react";
-import { updateVideoDebugAction } from "@/app/actions/videos";
+import { useTransition, useState } from "react";
+import { updatePlayerConfigAction } from "@/app/actions/videos";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sliders, Loader2 } from "lucide-react";
+import type { PlayerConfig } from "@/types/player-config";
 
 interface VideoSettingsProps {
   videoId: string;
-  debugEnabled: boolean;
-  onDebugChange: (enabled: boolean) => void;
+  config: PlayerConfig;
+  onConfigChange: (config: PlayerConfig) => void;
 }
 
 export function VideoSettings({
   videoId,
-  debugEnabled,
-  onDebugChange,
+  config,
+  onConfigChange,
 }: VideoSettingsProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const handleToggle = (checked: boolean) => {
-    const previous = debugEnabled;
-    onDebugChange(checked);
+  const handleDebugToggle = (checked: boolean) => {
+    const previousConfig = config;
+    const nextConfig: PlayerConfig = {
+      ...config,
+      development: {
+        ...config.development,
+        debug: checked,
+      },
+    };
+
+    onConfigChange(nextConfig);
     setError(null);
 
     startTransition(async () => {
-      const result = await updateVideoDebugAction({
+      const result = await updatePlayerConfigAction({
         videoId,
-        debugEnabled: checked,
+        config: {
+          development: {
+            debug: checked,
+          },
+        },
       });
 
       if (result.error) {
-        onDebugChange(previous);
+        onConfigChange(previousConfig);
         setError(result.error);
+      } else if (result.config) {
+        onConfigChange(result.config as PlayerConfig);
       }
     });
   };
@@ -65,9 +80,9 @@ export function VideoSettings({
             {isPending && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
             <Switch
               id={`debug-switch-${videoId}`}
-              checked={debugEnabled}
+              checked={config.development.debug}
               disabled={isPending}
-              onCheckedChange={handleToggle}
+              onCheckedChange={handleDebugToggle}
             />
           </div>
         </div>

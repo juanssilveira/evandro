@@ -22,6 +22,7 @@ import {
   type PlayerEventListener,
   type FullscreenInitiator,
 } from "./runtime";
+import { type PlayerConfig, DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
 
 interface WatchMapPlayerProps {
   src: string;
@@ -29,6 +30,7 @@ interface WatchMapPlayerProps {
   title?: string;
   className?: string;
   autoPlay?: boolean;
+  config?: PlayerConfig;
   debugEnabled?: boolean;
   onEvent?: PlayerEventListener;
   onRuntimeReady?: (runtime: PlayerRuntime) => void;
@@ -53,8 +55,9 @@ export function WatchMapPlayer({
   videoId = "default-video",
   title,
   className,
-  autoPlay = false,
-  debugEnabled = false,
+  autoPlay,
+  config = DEFAULT_PLAYER_CONFIG,
+  debugEnabled,
   onEvent,
   onRuntimeReady,
 }: WatchMapPlayerProps) {
@@ -64,6 +67,12 @@ export function WatchMapPlayer({
   const volumeTrackRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<PlayerRuntime | null>(null);
 
+  // Segmented configuration consumption
+  const effectiveAutoPlay = autoPlay ?? config.playback.autoplay;
+  const effectiveDebug = debugEnabled ?? config.development.debug;
+  const isControlsHidden = config.controls.hidden;
+  const fullscreenConfig = config.controls.fullscreen;
+
   // Initialize PlayerRuntime lifecycle
   useEffect(() => {
     const video = videoRef.current;
@@ -72,7 +81,7 @@ export function WatchMapPlayer({
 
     const runtime = new PlayerRuntime(video, {
       videoId,
-      debug: debugEnabled,
+      debug: effectiveDebug,
       containerElement: container,
     });
 
@@ -90,7 +99,7 @@ export function WatchMapPlayer({
       unsubscribe?.();
       runtime.destroy();
     };
-  }, [videoId, debugEnabled, onEvent, onRuntimeReady]);
+  }, [videoId, effectiveDebug, onEvent, onRuntimeReady]);
 
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -270,6 +279,11 @@ export function WatchMapPlayer({
   // Fullscreen toggle (shared controller for button and double click)
   const toggleFullscreen = useCallback(
     (initiator: FullscreenInitiator = "button") => {
+      if (!fullscreenConfig.enabled) return;
+      if (initiator === "button" && !fullscreenConfig.button) return;
+      if (initiator === "double_click" && !fullscreenConfig.doubleClick) return;
+      if (initiator === "keyboard" && !fullscreenConfig.keyboardF) return;
+
       const container = containerRef.current;
       if (!container) return;
 
@@ -289,11 +303,13 @@ export function WatchMapPlayer({
         });
       }
     },
-    []
+    [fullscreenConfig]
   );
 
   // Double click handler on video container / main area
   const handleContainerDoubleClick = (e: React.MouseEvent) => {
+    if (!fullscreenConfig.enabled || !fullscreenConfig.doubleClick) return;
+
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
@@ -372,16 +388,12 @@ export function WatchMapPlayer({
 
   // Video event handlers
   const handleTimeUpdate = () => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (!isDraggingSeek) {
-      setCurrentTime(video.currentTime);
+    if (videoRef.current && !isDraggingSeek) {
+      setCurrentTime(videoRef.current.currentTime);
     }
-
-    if (video.buffered.length > 0) {
+    if (videoRef.current && videoRef.current.buffered.length > 0) {
       try {
-        const end = video.buffered.end(video.buffered.length - 1);
+        const end = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
         setBufferedEnd(end);
       } catch {
         // ignore index errors
@@ -390,43 +402,45 @@ export function WatchMapPlayer({
   };
 
   const handleVolumeSync = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    setVolume(video.volume);
-    setIsMuted(video.muted || video.volume === 0);
+    if (videoRef.current) {
+      setVolume(videoRef.current.volume);
+      setIsMuted(videoRef.current.muted || videoRef.current.volume === 0);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration || 0);
+      setIsLoading(false);
+    }
+  };
+
+  const handleWaiting = () => {
+    setIsLoading(true);
+  };
+
+  const handlePlaying = () => {
+    setIsLoading(false);
+    setIsPlaying(true);
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+    setControlsVisible(true);
+  };
+
+  const handleError = () => {
+    setHasError(true);
+    setIsLoading(false);
   };
 
   const handleLoadStart = () => {
     setIsLoading(true);
     setHasError(false);
-  };
-
-  const handleLoadedMetadata = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    setDuration(video.duration || 0);
-    setVolume(video.volume);
-    setIsMuted(video.muted || video.volume === 0);
-    setIsLoading(false);
-  };
-
-  const handleWaiting = () => setIsLoading(true);
-  const handlePlaying = () => {
-    setIsPlaying(true);
-    setIsLoading(false);
-    showControlsTemporarily();
-  };
-  const handlePause = () => {
-    setIsPlaying(false);
-    setControlsVisible(true);
-  };
-  const handleEnded = () => {
-    setIsPlaying(false);
-    setControlsVisible(true);
-  };
-  const handleError = () => {
-    setHasError(true);
-    setIsLoading(false);
   };
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -451,7 +465,7 @@ export function WatchMapPlayer({
         src={src}
         playsInline
         preload="metadata"
-        autoPlay={autoPlay}
+        autoPlay={effectiveAutoPlay}
         controls={false}
         onClick={togglePlay}
         onLoadStart={handleLoadStart}
@@ -533,159 +547,163 @@ export function WatchMapPlayer({
       )}
 
       {/* Bottom Controls Overlay */}
-      <div
-        data-no-fullscreen="true"
-        onDoubleClick={(e) => e.stopPropagation()}
-        className={cn(
-          "absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20 transition-opacity duration-300 flex flex-col gap-2.5",
-          controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
-        )}
-      >
-        {/* Seek Bar (Linear, Smooth, No stepping transitions) */}
+      {!isControlsHidden && (
         <div
-          ref={progressTrackRef}
-          onMouseDown={handleSeekMouseDown}
-          className="relative group/track w-full h-3 flex items-center cursor-pointer py-1"
+          data-no-fullscreen="true"
+          onDoubleClick={(e) => e.stopPropagation()}
+          className={cn(
+            "absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20 transition-opacity duration-300 flex flex-col gap-2.5",
+            controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
         >
-          {/* Background track */}
-          <div className="relative w-full h-1 group-hover/track:h-1.5 bg-white/25 rounded-full overflow-hidden">
-            {/* Buffered progress */}
+          {/* Seek Bar (Linear, Smooth, No stepping transitions) */}
+          <div
+            ref={progressTrackRef}
+            onMouseDown={handleSeekMouseDown}
+            className="relative group/track w-full h-3 flex items-center cursor-pointer py-1"
+          >
+            {/* Background track */}
+            <div className="relative w-full h-1 group-hover/track:h-1.5 bg-white/25 rounded-full overflow-hidden">
+              {/* Buffered progress */}
+              <div
+                className="absolute left-0 top-0 bottom-0 bg-white/30 rounded-full"
+                style={{ width: `${bufferedPercent}%` }}
+              />
+              {/* Played progress */}
+              <div
+                className="absolute left-0 top-0 bottom-0 bg-primary rounded-full"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            {/* Scrubber thumb */}
             <div
-              className="absolute left-0 top-0 bottom-0 bg-white/30 rounded-full"
-              style={{ width: `${bufferedPercent}%` }}
-            />
-            {/* Played progress */}
-            <div
-              className="absolute left-0 top-0 bottom-0 bg-primary rounded-full"
-              style={{ width: `${progressPercent}%` }}
+              className="absolute size-3.5 rounded-full bg-white shadow-md border border-primary opacity-0 group-hover/track:opacity-100 pointer-events-none"
+              style={{
+                left: `${progressPercent}%`,
+                transform: "translateX(-50%)",
+              }}
             />
           </div>
 
-          {/* Scrubber thumb */}
-          <div
-            className="absolute size-3.5 rounded-full bg-white shadow-md border border-primary opacity-0 group-hover/track:opacity-100 pointer-events-none"
-            style={{
-              left: `${progressPercent}%`,
-              transform: "translateX(-50%)",
-            }}
-          />
-        </div>
-
-        {/* Control Buttons & Indicators */}
-        <div className="flex items-center justify-between gap-2 text-white">
-          {/* Left: Play/Pause, Volume, Time */}
-          <div className="flex items-center gap-3">
-            {/* Play/Pause */}
-            <button
-              type="button"
-              onClick={togglePlay}
-              className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
-              title={isPlaying ? "Pausar (Space)" : "Reproduzir (Space)"}
-            >
-              {isPlaying ? (
-                <Pause className="size-5 fill-white/90" />
-              ) : (
-                <Play className="size-5 fill-white/90" />
-              )}
-            </button>
-
-            {/* Volume & Custom Slider */}
-            <div className="flex items-center gap-2 group/volume">
+          {/* Control Buttons & Indicators */}
+          <div className="flex items-center justify-between gap-2 text-white">
+            {/* Left: Play/Pause, Volume, Time */}
+            <div className="flex items-center gap-3">
+              {/* Play/Pause */}
               <button
                 type="button"
-                onClick={toggleMute}
+                onClick={togglePlay}
                 className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
-                title={isMuted ? "Ativar som (M)" : "Silenciar (M)"}
+                title={isPlaying ? "Pausar (Space)" : "Reproduzir (Space)"}
               >
-                {isMuted || volume === 0 ? (
-                  <VolumeX className="size-5 text-white/90" />
-                ) : volume < 0.5 ? (
-                  <Volume1 className="size-5 text-white/90" />
+                {isPlaying ? (
+                  <Pause className="size-5 fill-white/90" />
                 ) : (
-                  <Volume2 className="size-5 text-white/90" />
+                  <Play className="size-5 fill-white/90" />
                 )}
               </button>
 
-              <div
-                ref={volumeTrackRef}
-                onMouseDown={handleVolumeMouseDown}
-                className="w-16 h-4 flex items-center cursor-pointer py-1"
-                title={`Volume: ${Math.round(effectiveVolume * 100)}%`}
-              >
-                <div className="relative w-full h-1 bg-white/30 rounded-full overflow-hidden">
-                  <div
-                    className="absolute left-0 top-0 bottom-0 bg-primary rounded-full"
-                    style={{ width: `${effectiveVolume * 100}%` }}
-                  />
+              {/* Volume & Custom Slider */}
+              <div className="flex items-center gap-2 group/volume">
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
+                  title={isMuted ? "Ativar som (M)" : "Silenciar (M)"}
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="size-5 text-white/90" />
+                  ) : volume < 0.5 ? (
+                    <Volume1 className="size-5 text-white/90" />
+                  ) : (
+                    <Volume2 className="size-5 text-white/90" />
+                  )}
+                </button>
+
+                <div
+                  ref={volumeTrackRef}
+                  onMouseDown={handleVolumeMouseDown}
+                  className="w-16 h-4 flex items-center cursor-pointer py-1"
+                  title={`Volume: ${Math.round(effectiveVolume * 100)}%`}
+                >
+                  <div className="relative w-full h-1 bg-white/30 rounded-full overflow-hidden">
+                    <div
+                      className="absolute left-0 top-0 bottom-0 bg-primary rounded-full"
+                      style={{ width: `${effectiveVolume * 100}%` }}
+                    />
+                  </div>
                 </div>
+              </div>
+
+              {/* Time Display */}
+              <div className="text-xs font-mono text-white/80 tabular-nums">
+                <span>{formatTime(currentTime)}</span>
+                <span className="text-white/40 mx-1">/</span>
+                <span>{formatTime(duration)}</span>
               </div>
             </div>
 
-            {/* Time Display */}
-            <div className="text-xs font-mono text-white/80 tabular-nums">
-              <span>{formatTime(currentTime)}</span>
-              <span className="text-white/40 mx-1">/</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-          </div>
+            {/* Right: Playback Speed, Fullscreen */}
+            <div className="flex items-center gap-2 relative">
+              {/* Playback Speed Menu */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={cn(
+                    "px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 hover:bg-white/15 transition-colors focus:outline-none",
+                    playbackRate !== 1 && "text-primary"
+                  )}
+                  title="Velocidade de reprodução"
+                >
+                  <Settings className="size-3.5" />
+                  <span>{playbackRate}x</span>
+                </button>
 
-          {/* Right: Playback Speed, Fullscreen */}
-          <div className="flex items-center gap-2 relative">
-            {/* Playback Speed Menu */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowSettings(!showSettings)}
-                className={cn(
-                  "px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 hover:bg-white/15 transition-colors focus:outline-none",
-                  playbackRate !== 1 && "text-primary"
-                )}
-                title="Velocidade de reprodução"
-              >
-                <Settings className="size-3.5" />
-                <span>{playbackRate}x</span>
-              </button>
-
-              {/* Speed Popover */}
-              {showSettings && (
-                <div className="absolute bottom-full right-0 mb-2 w-32 bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-lg p-1 shadow-2xl z-40 text-xs">
-                  <div className="px-2 py-1 text-[10px] uppercase font-semibold text-zinc-400 border-b border-white/10 mb-1">
-                    Velocidade
+                {/* Speed Popover */}
+                {showSettings && (
+                  <div className="absolute bottom-full right-0 mb-2 w-32 bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-lg p-1 shadow-2xl z-40 text-xs">
+                    <div className="px-2 py-1 text-[10px] uppercase font-semibold text-zinc-400 border-b border-white/10 mb-1">
+                      Velocidade
+                    </div>
+                    {PLAYBACK_RATES.map((rate) => (
+                      <button
+                        key={rate}
+                        type="button"
+                        onClick={() => handleRateChange(rate)}
+                        className={cn(
+                          "w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-white/10 text-left transition-colors",
+                          playbackRate === rate ? "text-primary font-semibold" : "text-white/80"
+                        )}
+                      >
+                        <span>{rate}x</span>
+                        {playbackRate === rate && <Check className="size-3.5 text-primary" />}
+                      </button>
+                    ))}
                   </div>
-                  {PLAYBACK_RATES.map((rate) => (
-                    <button
-                      key={rate}
-                      type="button"
-                      onClick={() => handleRateChange(rate)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-white/10 text-left transition-colors",
-                        playbackRate === rate ? "text-primary font-semibold" : "text-white/80"
-                      )}
-                    >
-                      <span>{rate}x</span>
-                      {playbackRate === rate && <Check className="size-3.5 text-primary" />}
-                    </button>
-                  ))}
-                </div>
+                )}
+              </div>
+
+              {/* Fullscreen Button */}
+              {fullscreenConfig.enabled && fullscreenConfig.button && (
+                <button
+                  type="button"
+                  onClick={() => toggleFullscreen("button")}
+                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
+                  title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
+                >
+                  {isFullscreen ? (
+                    <Minimize className="size-5" />
+                  ) : (
+                    <Maximize className="size-5" />
+                  )}
+                </button>
               )}
             </div>
-
-            {/* Fullscreen Button */}
-            <button
-              type="button"
-              onClick={() => toggleFullscreen("button")}
-              className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
-              title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
-            >
-              {isFullscreen ? (
-                <Minimize className="size-5" />
-              ) : (
-                <Maximize className="size-5" />
-              )}
-            </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

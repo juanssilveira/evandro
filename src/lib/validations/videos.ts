@@ -19,6 +19,49 @@ export const finalizeUploadSchema = z.object({
 
 export type FinalizeUploadInput = z.infer<typeof finalizeUploadSchema>;
 
+export const updatePlayerConfigActionSchema = z.object({
+  videoId: z.string().uuid("ID de vídeo inválido"),
+  config: z.object({
+    playback: z
+      .object({
+        autoplay: z.boolean().optional(),
+        backgroundAutoplay: z.boolean().optional(),
+      })
+      .optional(),
+    controls: z
+      .object({
+        hidden: z.boolean().optional(),
+        fullscreen: z
+          .object({
+            enabled: z.boolean().optional(),
+            button: z.boolean().optional(),
+            doubleClick: z.boolean().optional(),
+            keyboardF: z.boolean().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    progress: z
+      .object({
+        fake: z
+          .object({
+            enabled: z.boolean().optional(),
+            targetPercent: z.number().optional(),
+            targetSeconds: z.number().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    development: z
+      .object({
+        debug: z.boolean().optional(),
+      })
+      .optional(),
+  }),
+});
+
+export type UpdatePlayerConfigActionInput = z.infer<typeof updatePlayerConfigActionSchema>;
+
 export const updateVideoDebugSchema = z.object({
   videoId: z.string().uuid("ID de vídeo inválido"),
   debugEnabled: z.boolean(),

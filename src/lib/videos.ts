@@ -82,17 +82,3 @@ export async function finalizeVideoUpload(
 
   return { success: true, video: newVideo };
 }
-
-export async function updateVideoDebugEnabled(
-  videoId: string,
-  accountId: string,
-  debugEnabled: boolean
-): Promise<Video | null> {
-  const [updated] = await db
-    .update(videos)
-    .set({ debugEnabled })
-    .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)))
-    .returning();
-
-  return updated || null;
-}

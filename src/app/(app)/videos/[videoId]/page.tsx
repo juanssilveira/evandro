@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getVideoForAccount } from "@/lib/videos";
+import { getPlayerConfig } from "@/lib/player-settings";
+import { DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
 import { generatePresignedPlaybackUrl } from "@/lib/r2";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -50,6 +52,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
     notFound();
   }
 
+  const playerConfig = (await getPlayerConfig(video.id, account.id)) ?? DEFAULT_PLAYER_CONFIG;
   const playbackUrl = await generatePresignedPlaybackUrl(video.storageKey, 3600);
 
   return (
@@ -97,7 +100,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
           videoId={video.id}
           playbackUrl={playbackUrl}
           title={video.title}
-          initialDebugEnabled={video.debugEnabled}
+          initialConfig={playerConfig}
         />
 
         {/* Video Info Card */}

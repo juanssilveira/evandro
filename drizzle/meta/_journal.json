@@ -29,6 +29,13 @@
       "when": 1789578423254,
       "tag": "0003_slimy_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789580139782,
+      "tag": "0004_living_diamondback",
+      "breakpoints": true
     }
   ]
 }
