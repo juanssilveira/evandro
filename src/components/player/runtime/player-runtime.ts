@@ -33,6 +33,8 @@ export class PlayerRuntime {
   private seekStartTime = 0;
   private previousTime = 0;
   private previousRate = 1;
+  private previousVolume = 1;
+  private previousMuted = false;
   private isDestroyed = false;
 
   private listeners: Set<PlayerEventListener> = new Set();
@@ -47,6 +49,8 @@ export class PlayerRuntime {
 
     this.previousTime = video.currentTime || 0;
     this.previousRate = video.playbackRate || 1;
+    this.previousVolume = typeof video.volume === "number" ? video.volume : 1;
+    this.previousMuted = Boolean(video.muted);
 
     if (this.debug) {
       console.log(`[WatchMap Runtime] INITIALIZE videoId=${this.videoId}`);
@@ -217,10 +221,32 @@ export class PlayerRuntime {
     });
 
     add("volumechange", () => {
+      const currentVolume = this.video.volume;
+      const currentMuted = this.video.muted;
+
+      if (
+        currentVolume === this.previousVolume &&
+        currentMuted === this.previousMuted
+      ) {
+        return;
+      }
+
+      const previousVolume = this.previousVolume;
+      const previousMuted = this.previousMuted;
+      const previousEffectiveVolume = previousMuted ? 0 : previousVolume;
+      const effectiveVolume = currentMuted ? 0 : currentVolume;
+
+      this.previousVolume = currentVolume;
+      this.previousMuted = currentMuted;
+
       this.emit({
         type: PlayerEventType.VOLUME_CHANGE,
-        volume: this.video.volume,
-        muted: this.video.muted,
+        previousVolume,
+        volume: currentVolume,
+        previousMuted,
+        muted: currentMuted,
+        previousEffectiveVolume,
+        effectiveVolume,
       });
     });
 
@@ -292,11 +318,21 @@ export class PlayerRuntime {
       }
       case PlayerEventType.VOLUME_CHANGE: {
         const vol = event as VolumeChangeEvent;
-        console.log(
-          `${prefix} VOLUME_CHANGE ${vol.volume.toFixed(2)} (${
-            vol.muted ? "muted" : "unmuted"
-          })`
-        );
+        let suffix = "";
+        if (!vol.previousMuted && vol.muted) {
+          suffix = " (muted)";
+        } else if (vol.previousMuted && !vol.muted) {
+          suffix = " (unmuted)";
+        }
+        const formatVol = (v: number) =>
+          Number.isInteger(v)
+            ? v.toString()
+            : parseFloat(v.toFixed(2)).toString();
+
+        const fromStr = formatVol(vol.previousEffectiveVolume);
+        const toStr = formatVol(vol.effectiveVolume);
+
+        console.log(`${prefix} VOLUME_CHANGE ${fromStr} → ${toStr}${suffix}`);
         break;
       }
       case PlayerEventType.BUFFER_START:

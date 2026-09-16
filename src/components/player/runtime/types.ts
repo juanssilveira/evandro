@@ -76,8 +76,12 @@ export interface RateChangeEvent extends BasePlayerEvent {
 
 export interface VolumeChangeEvent extends BasePlayerEvent {
   type: typeof PlayerEventType.VOLUME_CHANGE;
+  previousVolume: number;
   volume: number;
+  previousMuted: boolean;
   muted: boolean;
+  previousEffectiveVolume: number;
+  effectiveVolume: number;
 }
 
 export interface BufferStartEvent extends BasePlayerEvent {
