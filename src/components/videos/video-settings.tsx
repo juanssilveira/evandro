@@ -447,30 +447,38 @@ export function VideoSettings({
         </CardContent>
       </Card>
 
-      {/* Category: Desenvolvimento */}
-      <Card className="border-border bg-card shadow-xs">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-            <Code2 className="size-4 text-primary" />
-            Desenvolvimento
-          </CardTitle>
+      {/* Category: Desenvolvimento / Ambiente de Testes */}
+      <Card className="border-amber-500/30 bg-card shadow-xs">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Code2 className="size-4 text-amber-500" />
+              Ambiente de Testes
+            </CardTitle>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wide">
+              Apenas para Testes
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Ferramentas auxiliares de diagnóstico para depuração local. Não afetam a experiência final de reprodução do espectador.
+          </p>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
+        <CardContent className="pt-4 space-y-3">
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 p-3.5">
             <div className="space-y-1">
               <Label
                 htmlFor={`debug-switch-${videoId}`}
-                className="text-sm font-medium text-foreground cursor-pointer"
+                className="text-xs font-semibold text-foreground cursor-pointer"
               >
-                Debug do Player
+                Debug do Player Runtime
               </Label>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Exibe eventos internos do WatchMap Player no console do navegador.
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Registra eventos de ciclo de vida e comandos do player no console do navegador (DevTools).
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 pt-0.5">
               {isPending && pendingField === "debug" && (
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}
               <Switch
                 id={`debug-switch-${videoId}`}

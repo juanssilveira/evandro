@@ -37,19 +37,19 @@ export function VideoEmbedCard({ publicId, baseUrl }: VideoEmbedCardProps) {
 
   return (
     <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
-      <CardContent className="p-4 sm:p-6 space-y-4">
+      <CardContent className="p-4 sm:p-5 space-y-3">
         {/* Header & Copy Button */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
-              <Code2 className="size-4.5" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
+              <Code2 className="size-4" />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-foreground tracking-tight">
                 Código de Embed
               </h3>
-              <p className="text-xs text-muted-foreground">
-                Incorpore este player em qualquer página externa isolado por Shadow DOM.
+              <p className="text-[11px] text-muted-foreground">
+                Shadow DOM isolado • Sem dependências externas
               </p>
             </div>
           </div>
@@ -59,44 +59,34 @@ export function VideoEmbedCard({ publicId, baseUrl }: VideoEmbedCardProps) {
             variant="outline"
             size="sm"
             onClick={handleCopy}
-            className="h-8.5 px-3.5 text-xs font-medium gap-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
+            className="h-8 px-3 text-xs font-medium gap-1.5 shrink-0 cursor-pointer shadow-2xs"
           >
             {copied ? (
               <>
-                <Check className="size-3.5 text-emerald-500" />
+                <Check className="size-3.5 text-emerald-500 stroke-[2.5]" />
                 <span className="text-emerald-500 font-semibold">Copiado!</span>
               </>
             ) : (
               <>
                 <Copy className="size-3.5 text-muted-foreground" />
-                <span>Copiar código</span>
+                <span>Copiar</span>
               </>
             )}
           </Button>
         </div>
 
         {/* Code Snippet Box */}
-        <div className="relative rounded-lg bg-zinc-950 p-3.5 border border-border/50 font-mono text-xs text-zinc-300 overflow-x-auto select-all leading-relaxed">
+        <div className="relative rounded-lg bg-zinc-950 px-3.5 py-2.5 border border-border/50 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed">
           <div className="text-zinc-200">{`<script src="${cleanBaseUrl}/embed/v1/watchmap-player.js" defer></script>`}</div>
           <div className="text-primary-foreground/90">{`<watchmap-player video-id="${publicId}"></watchmap-player>`}</div>
         </div>
 
         {/* Instructions */}
-        <div className="flex items-start gap-2.5 rounded-lg bg-muted/30 border border-border/40 p-3 text-xs text-muted-foreground">
-          <Info className="size-4 text-primary shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-medium text-foreground">
-              Como instalar no seu site:
-            </p>
-            <ul className="list-disc list-inside space-y-0.5 text-muted-foreground text-[11px] leading-relaxed">
-              <li>
-                Cole a tag <code className="text-foreground font-mono bg-muted/60 px-1 py-0.5 rounded">&lt;script&gt;</code> dentro da tag <code className="text-foreground font-mono bg-muted/60 px-1 py-0.5 rounded">&lt;head&gt;</code> ou antes do fechamento do <code className="text-foreground font-mono bg-muted/60 px-1 py-0.5 rounded">&lt;/body&gt;</code>.
-              </li>
-              <li>
-                Posicione a tag <code className="text-foreground font-mono bg-muted/60 px-1 py-0.5 rounded">&lt;watchmap-player&gt;</code> no local exato do layout onde deseja que o vídeo seja exibido.
-              </li>
-            </ul>
-          </div>
+        <div className="flex items-start gap-2 rounded-lg bg-muted/40 border border-border/40 px-3 py-2 text-[11px] text-muted-foreground">
+          <Info className="size-3.5 text-primary shrink-0 mt-0.5" />
+          <p className="leading-normal">
+            Cole a tag <code className="text-foreground font-mono bg-muted/80 px-1 py-0.5 rounded text-[10px]">&lt;script&gt;</code> no cabeçalho e <code className="text-foreground font-mono bg-muted/80 px-1 py-0.5 rounded text-[10px]">&lt;watchmap-player&gt;</code> onde deseja exibir o vídeo.
+          </p>
         </div>
       </CardContent>
     </Card>
