@@ -17,12 +17,16 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PlayerRuntime, type PlayerEventListener } from "./runtime";
 
 interface WatchMapPlayerProps {
   src: string;
+  videoId?: string;
   title?: string;
   className?: string;
   autoPlay?: boolean;
+  onEvent?: PlayerEventListener;
+  onRuntimeReady?: (runtime: PlayerRuntime) => void;
 }
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2];
@@ -41,14 +45,40 @@ function formatTime(seconds: number): string {
 
 export function WatchMapPlayer({
   src,
+  videoId = "default-video",
   title,
   className,
   autoPlay = false,
+  onEvent,
+  onRuntimeReady,
 }: WatchMapPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressTrackRef = useRef<HTMLDivElement>(null);
   const volumeTrackRef = useRef<HTMLDivElement>(null);
+
+  // Initialize PlayerRuntime lifecycle
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const runtime = new PlayerRuntime(video, {
+      videoId,
+      debug: process.env.NODE_ENV !== "production",
+    });
+
+    let unsubscribe: (() => void) | undefined;
+    if (onEvent) {
+      unsubscribe = runtime.subscribe(onEvent);
+    }
+
+    onRuntimeReady?.(runtime);
+
+    return () => {
+      unsubscribe?.();
+      runtime.destroy();
+    };
+  }, [videoId, onEvent, onRuntimeReady]);
 
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);

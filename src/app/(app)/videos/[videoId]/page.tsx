@@ -96,6 +96,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
         <div className="w-full">
           <WatchMapPlayer
             src={playbackUrl}
+            videoId={video.id}
             title={video.title}
           />
         </div>

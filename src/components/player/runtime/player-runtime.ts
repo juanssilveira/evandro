@@ -1,0 +1,308 @@
+import {
+  PlayerEventType,
+  type PlayerRuntimeEvent,
+  type PlayerEventListener,
+  type PlayerSnapshot,
+  type Unsubscribe,
+  type PlayerRuntimeOptions,
+  type SeekStartEvent,
+  type SeekEndEvent,
+  type RateChangeEvent,
+  type VolumeChangeEvent,
+  type ErrorEvent,
+} from "./types";
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
+type EmitPayload = DistributiveOmit<
+  PlayerRuntimeEvent,
+  "eventId" | "videoId" | "timestamp" | "snapshot"
+> & {
+  snapshot?: PlayerSnapshot;
+};
+
+export class PlayerRuntime {
+  public readonly videoId: string;
+  private readonly video: HTMLVideoElement;
+  private readonly debug: boolean;
+
+  private isReady = false;
+  private isBuffering = false;
+  private isSeeking = false;
+  private seekStartTime = 0;
+  private previousTime = 0;
+  private previousRate = 1;
+  private isDestroyed = false;
+
+  private listeners: Set<PlayerEventListener> = new Set();
+  private abortController: AbortController = new AbortController();
+
+  constructor(video: HTMLVideoElement, options: PlayerRuntimeOptions) {
+    this.video = video;
+    this.videoId = options.videoId;
+    this.debug =
+      options.debug ??
+      (typeof process !== "undefined" && process.env.NODE_ENV !== "production");
+
+    this.previousTime = video.currentTime || 0;
+    this.previousRate = video.playbackRate || 1;
+
+    this.attachEventListeners();
+
+    // Check if video is already ready upon initialization
+    if (video.readyState >= 1 && !isNaN(video.duration) && video.duration > 0) {
+      this.checkAndEmitReady();
+    }
+  }
+
+  public getSnapshot(): PlayerSnapshot {
+    return {
+      videoId: this.videoId,
+      currentTime: this.video.currentTime || 0,
+      duration: isNaN(this.video.duration) ? 0 : this.video.duration,
+      playbackRate: this.video.playbackRate || 1,
+      paused: Boolean(this.video.paused),
+      muted: Boolean(this.video.muted),
+      volume: typeof this.video.volume === "number" ? this.video.volume : 1,
+      ended: Boolean(this.video.ended),
+      timestamp: Date.now(),
+    };
+  }
+
+  public subscribe(listener: PlayerEventListener): Unsubscribe {
+    if (this.isDestroyed) {
+      return () => {};
+    }
+
+    this.listeners.add(listener);
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  public destroy(): void {
+    if (this.isDestroyed) return;
+
+    this.isDestroyed = true;
+    this.abortController.abort();
+    this.listeners.clear();
+  }
+
+  private emit(eventData: EmitPayload): void {
+    if (this.isDestroyed) return;
+
+    const timestamp = Date.now();
+    const snapshot = eventData.snapshot || this.getSnapshot();
+
+    const event: PlayerRuntimeEvent = {
+      eventId: crypto.randomUUID(),
+      videoId: this.videoId,
+      timestamp,
+      snapshot,
+      ...eventData,
+    } as PlayerRuntimeEvent;
+
+    if (this.debug) {
+      this.logDebug(event);
+    }
+
+    for (const listener of this.listeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        console.error("[WatchMap Runtime] Error in listener:", err);
+      }
+    }
+  }
+
+  private checkAndEmitReady(): void {
+    if (!this.isReady) {
+      this.isReady = true;
+      this.emit({ type: PlayerEventType.PLAYER_READY });
+    }
+  }
+
+  private attachEventListeners(): void {
+    const { signal } = this.abortController;
+
+    const add = (
+      name: string,
+      handler: (event: Event) => void
+    ) => {
+      this.video.addEventListener(name, handler, { signal });
+    };
+
+    add("loadedmetadata", () => {
+      this.checkAndEmitReady();
+    });
+
+    add("canplay", () => {
+      if (this.isBuffering) {
+        this.isBuffering = false;
+        this.emit({ type: PlayerEventType.BUFFER_END });
+      }
+      this.checkAndEmitReady();
+    });
+
+    add("play", () => {
+      this.emit({ type: PlayerEventType.PLAY });
+    });
+
+    add("playing", () => {
+      if (this.isBuffering) {
+        this.isBuffering = false;
+        this.emit({ type: PlayerEventType.BUFFER_END });
+      }
+      this.emit({ type: PlayerEventType.PLAYING });
+    });
+
+    add("pause", () => {
+      if (!this.video.ended && !this.isSeeking) {
+        this.emit({ type: PlayerEventType.PAUSE });
+      }
+    });
+
+    add("timeupdate", () => {
+      if (!this.isSeeking) {
+        this.previousTime = this.video.currentTime;
+      }
+      this.emit({ type: PlayerEventType.TIME_UPDATE });
+    });
+
+    add("seeking", () => {
+      if (!this.isSeeking) {
+        this.isSeeking = true;
+        this.seekStartTime = this.previousTime;
+        this.emit({
+          type: PlayerEventType.SEEK_START,
+          from: this.seekStartTime,
+        });
+      }
+    });
+
+    add("seeked", () => {
+      if (this.isSeeking) {
+        this.isSeeking = false;
+        const to = this.video.currentTime;
+        this.emit({
+          type: PlayerEventType.SEEK_END,
+          from: this.seekStartTime,
+          to,
+        });
+        this.previousTime = to;
+      }
+    });
+
+    add("ratechange", () => {
+      const newRate = this.video.playbackRate;
+      if (newRate !== this.previousRate) {
+        const previousRate = this.previousRate;
+        this.previousRate = newRate;
+        this.emit({
+          type: PlayerEventType.RATE_CHANGE,
+          previousRate,
+          newRate,
+        });
+      }
+    });
+
+    add("volumechange", () => {
+      this.emit({
+        type: PlayerEventType.VOLUME_CHANGE,
+        volume: this.video.volume,
+        muted: this.video.muted,
+      });
+    });
+
+    add("waiting", () => {
+      if (!this.isBuffering && !this.video.paused && !this.video.ended) {
+        this.isBuffering = true;
+        this.emit({ type: PlayerEventType.BUFFER_START });
+      }
+    });
+
+    add("ended", () => {
+      if (this.isBuffering) {
+        this.isBuffering = false;
+        this.emit({ type: PlayerEventType.BUFFER_END });
+      }
+      this.emit({ type: PlayerEventType.ENDED });
+    });
+
+    add("error", () => {
+      const mediaError = this.video.error;
+      const message = mediaError
+        ? `Media error code ${mediaError.code}`
+        : "Erro desconhecido na reprodução do vídeo";
+
+      this.emit({
+        type: PlayerEventType.ERROR,
+        message,
+        code: mediaError?.code,
+      });
+    });
+  }
+
+  private logDebug(event: PlayerRuntimeEvent): void {
+    const prefix = "[WatchMap Runtime]";
+    switch (event.type) {
+      case PlayerEventType.PLAYER_READY:
+        console.log(`${prefix} PLAYER_READY`);
+        break;
+      case PlayerEventType.PLAY:
+        console.log(`${prefix} PLAY`);
+        break;
+      case PlayerEventType.PLAYING:
+        console.log(`${prefix} PLAYING`);
+        break;
+      case PlayerEventType.PAUSE:
+        console.log(`${prefix} PAUSE ${event.snapshot.currentTime.toFixed(3)}`);
+        break;
+      case PlayerEventType.TIME_UPDATE:
+        console.log(`${prefix} TIME_UPDATE ${event.snapshot.currentTime.toFixed(3)}`);
+        break;
+      case PlayerEventType.SEEK_START:
+        console.log(
+          `${prefix} SEEK_START ${(event as SeekStartEvent).from.toFixed(3)}`
+        );
+        break;
+      case PlayerEventType.SEEK_END: {
+        const seek = event as SeekEndEvent;
+        console.log(
+          `${prefix} SEEK_END ${seek.from.toFixed(3)} → ${seek.to.toFixed(3)}`
+        );
+        break;
+      }
+      case PlayerEventType.RATE_CHANGE: {
+        const rate = event as RateChangeEvent;
+        console.log(
+          `${prefix} RATE_CHANGE ${rate.previousRate} → ${rate.newRate}`
+        );
+        break;
+      }
+      case PlayerEventType.VOLUME_CHANGE: {
+        const vol = event as VolumeChangeEvent;
+        console.log(
+          `${prefix} VOLUME_CHANGE ${vol.volume.toFixed(2)} (${
+            vol.muted ? "muted" : "unmuted"
+          })`
+        );
+        break;
+      }
+      case PlayerEventType.BUFFER_START:
+        console.log(`${prefix} BUFFER_START`);
+        break;
+      case PlayerEventType.BUFFER_END:
+        console.log(`${prefix} BUFFER_END`);
+        break;
+      case PlayerEventType.ENDED:
+        console.log(`${prefix} ENDED`);
+        break;
+      case PlayerEventType.ERROR:
+        console.log(`${prefix} ERROR ${(event as ErrorEvent).message}`);
+        break;
+    }
+  }
+}
