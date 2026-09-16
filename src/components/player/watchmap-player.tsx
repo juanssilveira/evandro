@@ -48,6 +48,7 @@ export function WatchMapPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressTrackRef = useRef<HTMLDivElement>(null);
+  const volumeTrackRef = useRef<HTMLDivElement>(null);
 
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -67,6 +68,31 @@ export function WatchMapPlayer({
   const [isDraggingSeek, setIsDraggingSeek] = useState(false);
   const lastVolumeRef = useRef(1);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 60fps smooth linear progress animation loop
+  useEffect(() => {
+    let animationFrameId: number;
+
+    const loop = () => {
+      const video = videoRef.current;
+      if (video && !isDraggingSeek) {
+        setCurrentTime(video.currentTime);
+      }
+      if (isPlaying) {
+        animationFrameId = requestAnimationFrame(loop);
+      }
+    };
+
+    if (isPlaying) {
+      animationFrameId = requestAnimationFrame(loop);
+    }
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [isPlaying, isDraggingSeek]);
 
   // Autohide controls logic
   const showControlsTemporarily = useCallback(() => {
@@ -110,35 +136,52 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    if (isMuted || video.volume === 0) {
+    if (video.muted || video.volume === 0 || isMuted) {
       const restored = lastVolumeRef.current > 0 ? lastVolumeRef.current : 1;
       video.muted = false;
       video.volume = restored;
       setVolume(restored);
       setIsMuted(false);
     } else {
-      lastVolumeRef.current = video.volume;
+      lastVolumeRef.current = video.volume > 0 ? video.volume : 1;
       video.muted = true;
       setIsMuted(true);
     }
   }, [isMuted]);
 
-  // Volume change
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVol = parseFloat(e.target.value);
+  // Volume drag/click
+  const updateVolumeFromPosition = (clientX: number) => {
+    const track = volumeTrackRef.current;
     const video = videoRef.current;
-    if (!video) return;
+    if (!track || !video) return;
+
+    const rect = track.getBoundingClientRect();
+    const rawVol = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const newVol = Math.round(rawVol * 100) / 100;
 
     video.volume = newVol;
+    video.muted = newVol === 0;
     setVolume(newVol);
-    if (newVol === 0) {
-      video.muted = true;
-      setIsMuted(true);
-    } else {
-      video.muted = false;
-      setIsMuted(false);
+    setIsMuted(newVol === 0);
+    if (newVol > 0) {
       lastVolumeRef.current = newVol;
     }
+  };
+
+  const handleVolumeMouseDown = (e: React.MouseEvent) => {
+    updateVolumeFromPosition(e.clientX);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      updateVolumeFromPosition(moveEvent.clientX);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   };
 
   // Playback rate change
@@ -213,7 +256,6 @@ export function WatchMapPlayer({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing in an input
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA"
@@ -259,9 +301,10 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    setCurrentTime(video.currentTime);
+    if (!isDraggingSeek) {
+      setCurrentTime(video.currentTime);
+    }
 
-    // Update buffered progress
     if (video.buffered.length > 0) {
       try {
         const end = video.buffered.end(video.buffered.length - 1);
@@ -270,6 +313,13 @@ export function WatchMapPlayer({
         // ignore index errors
       }
     }
+  };
+
+  const handleVolumeSync = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    setVolume(video.volume);
+    setIsMuted(video.muted || video.volume === 0);
   };
 
   const handleLoadStart = () => {
@@ -281,6 +331,8 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video) return;
     setDuration(video.duration || 0);
+    setVolume(video.volume);
+    setIsMuted(video.muted || video.volume === 0);
     setIsLoading(false);
   };
 
@@ -305,6 +357,7 @@ export function WatchMapPlayer({
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedPercent = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
+  const effectiveVolume = isMuted ? 0 : volume;
 
   return (
     <div
@@ -328,6 +381,7 @@ export function WatchMapPlayer({
         onClick={togglePlay}
         onLoadStart={handleLoadStart}
         onTimeUpdate={handleTimeUpdate}
+        onVolumeChange={handleVolumeSync}
         onLoadedMetadata={handleLoadedMetadata}
         onWaiting={handleWaiting}
         onPlaying={handlePlaying}
@@ -389,7 +443,7 @@ export function WatchMapPlayer({
         </div>
       )}
 
-      {/* Top Title Bar (Visible on Hover / Controls Visible) */}
+      {/* Top Title Bar */}
       {title && (
         <div
           className={cn(
@@ -410,14 +464,14 @@ export function WatchMapPlayer({
           controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
       >
-        {/* Seek Bar */}
+        {/* Seek Bar (Linear, Smooth, No stepping transitions) */}
         <div
           ref={progressTrackRef}
           onMouseDown={handleSeekMouseDown}
           className="relative group/track w-full h-3 flex items-center cursor-pointer py-1"
         >
           {/* Background track */}
-          <div className="relative w-full h-1 group-hover/track:h-1.5 bg-white/25 rounded-full overflow-hidden transition-all">
+          <div className="relative w-full h-1 group-hover/track:h-1.5 bg-white/25 rounded-full overflow-hidden">
             {/* Buffered progress */}
             <div
               className="absolute left-0 top-0 bottom-0 bg-white/30 rounded-full"
@@ -425,14 +479,14 @@ export function WatchMapPlayer({
             />
             {/* Played progress */}
             <div
-              className="absolute left-0 top-0 bottom-0 bg-primary rounded-full transition-all"
+              className="absolute left-0 top-0 bottom-0 bg-primary rounded-full"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
 
           {/* Scrubber thumb */}
           <div
-            className="absolute size-3.5 rounded-full bg-white shadow-md border border-primary opacity-0 group-hover/track:opacity-100 transition-opacity pointer-events-none"
+            className="absolute size-3.5 rounded-full bg-white shadow-md border border-primary opacity-0 group-hover/track:opacity-100 pointer-events-none"
             style={{
               left: `${progressPercent}%`,
               transform: "translateX(-50%)",
@@ -458,8 +512,8 @@ export function WatchMapPlayer({
               )}
             </button>
 
-            {/* Volume & Slider */}
-            <div className="flex items-center gap-1.5 group/volume">
+            {/* Volume & Custom Slider */}
+            <div className="flex items-center gap-2 group/volume">
               <button
                 type="button"
                 onClick={toggleMute}
@@ -467,24 +521,27 @@ export function WatchMapPlayer({
                 title={isMuted ? "Ativar som (M)" : "Silenciar (M)"}
               >
                 {isMuted || volume === 0 ? (
-                  <VolumeX className="size-5" />
+                  <VolumeX className="size-5 text-white/90" />
                 ) : volume < 0.5 ? (
-                  <Volume1 className="size-5" />
+                  <Volume1 className="size-5 text-white/90" />
                 ) : (
-                  <Volume2 className="size-5" />
+                  <Volume2 className="size-5 text-white/90" />
                 )}
               </button>
 
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={isMuted ? 0 : volume}
-                onChange={handleVolumeChange}
-                className="w-0 group-hover/volume:w-16 transition-all duration-200 h-1 bg-white/30 accent-primary rounded-lg cursor-pointer overflow-hidden opacity-0 group-hover/volume:opacity-100"
-                title="Volume"
-              />
+              <div
+                ref={volumeTrackRef}
+                onMouseDown={handleVolumeMouseDown}
+                className="w-16 h-4 flex items-center cursor-pointer py-1"
+                title={`Volume: ${Math.round(effectiveVolume * 100)}%`}
+              >
+                <div className="relative w-full h-1 bg-white/30 rounded-full overflow-hidden">
+                  <div
+                    className="absolute left-0 top-0 bottom-0 bg-primary rounded-full"
+                    style={{ width: `${effectiveVolume * 100}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Time Display */}
