@@ -48,7 +48,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
       />
 
       {/* Main Page Area */}
-      <main className="flex-1 mx-auto w-full max-w-[1240px] px-4 sm:px-6 py-8 space-y-6">
+      <main className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 py-8 space-y-6">
         <VideoDetailsView
           video={video}
           accountName={account.name}

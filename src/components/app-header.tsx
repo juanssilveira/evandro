@@ -38,7 +38,7 @@ export function AppHeader({ currentPath, user, className }: AppHeaderProps) {
       )}
     >
       {/* Inner wrapper aligned to the same max-width as the main container */}
-      <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between px-4 sm:px-6">
         {/* Left: Logo + nav */}
         <div className="flex items-center gap-6">
           {/* Wordmark */}

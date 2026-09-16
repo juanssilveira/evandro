@@ -44,7 +44,7 @@ export default async function VideosPage() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 mx-auto w-full max-w-[1240px] px-4 sm:px-6 py-8 space-y-6">
+      <main className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 py-8 space-y-6">
 
         {/* Page Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
