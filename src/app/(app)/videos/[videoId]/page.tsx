@@ -9,7 +9,6 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { VideoPlayerView } from "@/components/videos/video-player-view";
-import { VideoEmbedCard } from "@/components/videos/video-embed-card";
 import { ArrowLeft, HardDrive, Calendar, Film, Play } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -75,43 +74,44 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
       </header>
 
       {/* Main Page Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full space-y-6">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto w-full space-y-6">
         {/* Navigation & Header */}
-        <div className="space-y-3 pb-2 border-b border-border/60">
-          <Link
-            href="/videos"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
-          >
-            <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
-            <span>Voltar para biblioteca</span>
-          </Link>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
+          <div className="space-y-1.5 min-w-0">
+            <Link
+              href="/videos"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
+            >
+              <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
+              <span>Voltar para biblioteca</span>
+            </Link>
 
-          <div className="space-y-1">
-            <h1 className="text-xl font-bold tracking-tight text-foreground truncate" title={video.title}>
-              {video.title}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Conta: <strong className="font-semibold text-foreground">{account.name}</strong>
-            </p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate" title={video.title}>
+                {video.title}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-xs font-medium shadow-2xs">
+              Conta: <strong className="text-foreground font-semibold">{account.name}</strong>
+            </span>
           </div>
         </div>
 
-        {/* Video Player & Settings */}
+        {/* Video Player & Settings (2-Column Layout) */}
         <VideoPlayerView
           videoId={video.id}
           playbackUrl={playbackUrl}
           title={video.title}
           initialConfig={playerConfig}
-        />
-
-        {/* Embed Code Snippet Card */}
-        <VideoEmbedCard
           publicId={video.publicId}
           baseUrl={process.env.BASE_URL || "http://localhost:3000"}
         />
 
         {/* Video Metadata Card */}
-        <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
+        <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden mt-8">
           <CardContent className="p-4 sm:p-5 grid gap-4 sm:grid-cols-3 text-sm">
             <div className="flex items-center gap-3">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
