@@ -15,6 +15,13 @@
       "when": 1789575579997,
       "tag": "0001_lazy_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789576256890,
+      "tag": "0002_whole_meteorite",
+      "breakpoints": true
     }
   ]
 }

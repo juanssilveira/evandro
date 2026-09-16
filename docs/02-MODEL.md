@@ -285,10 +285,10 @@ A entidade representa o vídeo dentro do domínio da aplicação independentemen
 id
 account_id
 title
-source_url
-thumbnail_url
-duration_ms
-status
+storage_key
+original_filename
+mime_type
+size_bytes
 created_at
 updated_at
 ```
@@ -317,55 +317,41 @@ Nome apresentado ao usuário.
 
 Obrigatório.
 
-### source_url
+### storage_key
 
-URL utilizada como origem do vídeo.
+Caminho do objeto no storage (ex: accounts/{accountId}/videos/{videoId}/source.mp4).
 
-Pode ser nula enquanto nenhum arquivo ou origem estiver associado.
+Obrigatório e único.
 
-A infraestrutura de armazenamento não deve ser inferida a partir deste campo.
+### original_filename
 
-### thumbnail_url
+Nome original do arquivo enviado pelo usuário.
 
-Thumbnail do vídeo.
+Obrigatório.
 
-Opcional.
+### mime_type
 
-### duration_ms
+Tipo MIME do arquivo (ex: video/mp4).
 
-Duração do vídeo em milissegundos.
+Obrigatório.
 
-Opcional enquanto os metadados ainda não estiverem disponíveis.
+### size_bytes
 
-Utilizar unidade explícita:
+Tamanho do arquivo em bytes.
 
-```text
-milliseconds
-```
-
-e não valores ambíguos de duração.
-
-### status
-
-Estado operacional do vídeo.
-
-Valores iniciais:
-
-```text
-draft
-ready
-error
-```
-
-Não adicionar estados relacionados a upload ou processamento antes da implementação dessas funcionalidades.
+Obrigatório.
 
 ### created_at
 
 Data de criação.
 
+Obrigatório.
+
 ### updated_at
 
 Data da última atualização.
+
+Obrigatório.
 
 ---
 
