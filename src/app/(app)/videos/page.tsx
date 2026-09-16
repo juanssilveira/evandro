@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { getCurrentAccount } from "@/lib/accounts";
 import { headers } from "next/headers";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,10 @@ export default async function VideosPage() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+
+  const account = session?.user.id
+    ? await getCurrentAccount(session.user.id)
+    : null;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -32,7 +37,7 @@ export default async function VideosPage() {
             Vídeos
           </h1>
           <p className="text-sm text-muted-foreground">
-            Você está autenticado no WatchMap.
+            Conta: {account?.name}
           </p>
         </div>
 
@@ -48,8 +53,9 @@ export default async function VideosPage() {
               Bem-vindo, {session?.user.name || session?.user.email}.
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Esta é uma rota protegida de validação de autenticação da Spec 002.
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>Conta associada: <strong className="text-foreground">{account?.name}</strong></p>
+            <p>Esta é uma rota protegida de validação de domínio da Spec 003.</p>
           </CardContent>
         </Card>
       </main>

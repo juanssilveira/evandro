@@ -8,6 +8,13 @@
       "when": 1789574336664,
       "tag": "0000_eminent_mister_fear",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789575579997,
+      "tag": "0001_lazy_tarantula",
+      "breakpoints": true
     }
   ]
 }
