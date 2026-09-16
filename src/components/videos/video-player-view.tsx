@@ -27,7 +27,7 @@ export function VideoPlayerView({
   return (
     <div className="space-y-6">
       {/* WatchMap Custom Player */}
-      <div className="w-full">
+      <div className="w-full flex justify-center">
         <WatchMapPlayer
           src={playbackUrl}
           videoId={videoId}

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   PlayCircle,
+  Play,
   Code2,
   Loader2,
   Volume2,
@@ -20,6 +21,7 @@ import {
   type PlayerConfig,
   type PlayerConfigPatch,
   type PlayerAccentColor,
+  type PlayerAspectRatio,
   playerAccentColors,
   PLAYER_ACCENT_PRESETS,
 } from "@/types/player-config";
@@ -132,7 +134,21 @@ export function VideoSettings({
     );
   };
 
+  const handleAspectRatioSelect = (ratio: PlayerAspectRatio) => {
+    if (config.appearance?.aspectRatio === ratio) return;
+
+    handleConfigUpdate(
+      {
+        appearance: {
+          aspectRatio: ratio,
+        },
+      },
+      "aspectRatio"
+    );
+  };
+
   const currentAccent = config.appearance?.accentColor ?? "purple";
+  const currentAspectRatio = config.appearance?.aspectRatio ?? "16:9";
 
   return (
     <div className="space-y-6">
@@ -149,7 +165,8 @@ export function VideoSettings({
             </span>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-5">
+          {/* Accent Color */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold text-foreground">
@@ -163,7 +180,7 @@ export function VideoSettings({
               Define a cor de elementos como barra de progresso, botão de play, volume e indicadores ativos.
             </p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
               {playerAccentColors.map((colorKey) => {
                 const preset = PLAYER_ACCENT_PRESETS[colorKey];
                 const isSelected = currentAccent === colorKey;
@@ -202,6 +219,109 @@ export function VideoSettings({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Aspect Ratio Selector */}
+          <div className="space-y-2 pt-3 border-t border-border/50">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground">
+                Formato do player
+              </Label>
+              {isPending && pendingField === "aspectRatio" && (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Define a proporção visual do container de reprodução.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Horizontal 16:9 Option */}
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => handleAspectRatioSelect("16:9")}
+                className={cn(
+                  "flex items-center gap-4 p-3.5 rounded-lg border transition-all text-left cursor-pointer",
+                  currentAspectRatio === "16:9"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                    : "border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80"
+                )}
+              >
+                {/* 16:9 CSS Illustration */}
+                <div
+                  className={cn(
+                    "w-14 h-8 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    currentAspectRatio === "16:9"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-zinc-800/80 text-zinc-400"
+                  )}
+                >
+                  <Play className="size-3 fill-current ml-0.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={cn(
+                        "text-xs font-semibold",
+                        currentAspectRatio === "16:9" ? "text-foreground" : "text-zinc-300"
+                      )}
+                    >
+                      Horizontal
+                    </span>
+                    {currentAspectRatio === "16:9" && (
+                      <span className="flex size-4 items-center justify-center rounded-full bg-primary text-white">
+                        <Check className="size-2.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-muted-foreground font-mono">16:9 (680px padrão)</span>
+                </div>
+              </button>
+
+              {/* Vertical 9:16 Option */}
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => handleAspectRatioSelect("9:16")}
+                className={cn(
+                  "flex items-center gap-4 p-3.5 rounded-lg border transition-all text-left cursor-pointer",
+                  currentAspectRatio === "9:16"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                    : "border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80"
+                )}
+              >
+                {/* 9:16 CSS Illustration */}
+                <div
+                  className={cn(
+                    "w-8 h-14 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    currentAspectRatio === "9:16"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-zinc-800/80 text-zinc-400"
+                  )}
+                >
+                  <Play className="size-3 fill-current ml-0.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={cn(
+                        "text-xs font-semibold",
+                        currentAspectRatio === "9:16" ? "text-foreground" : "text-zinc-300"
+                      )}
+                    >
+                      Vertical
+                    </span>
+                    {currentAspectRatio === "9:16" && (
+                      <span className="flex size-4 items-center justify-center rounded-full bg-primary text-white">
+                        <Check className="size-2.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-muted-foreground font-mono">9:16 (480px padrão)</span>
+                </div>
+              </button>
             </div>
           </div>
         </CardContent>

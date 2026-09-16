@@ -4,6 +4,7 @@ import * as React from "react";
 import { useState, useEffect } from "react";
 import { WatchMapPlayer } from "../watchmap-player";
 import { Loader2, AlertCircle, RotateCcw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { type PlayerConfig, DEFAULT_PLAYER_CONFIG, parsePlayerConfig } from "@/types/player-config";
 
 export interface EmbedPlayerProps {
@@ -120,10 +121,17 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
   const { status, data, errorMessage } = state;
 
+  const isVertical = data?.config.appearance?.aspectRatio === "9:16";
+
   if (status === "loading") {
     return (
-      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center border border-white/10 shadow-2xl">
-        <div className="flex size-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md text-primary shadow-lg border border-white/10">
+      <div
+        className={cn(
+          "relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center border border-white/10 shadow-2xl mx-auto",
+          isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]"
+        )}
+      >
+        <div className="flex size-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md shadow-lg border border-white/10">
           <Loader2 className="size-6 animate-spin text-[#7C3AED]" />
         </div>
       </div>
@@ -132,7 +140,12 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
   if (status === "not_found") {
     return (
-      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-zinc-950 flex flex-col items-center justify-center text-center p-6 border border-white/10 shadow-2xl space-y-3 font-sans">
+      <div
+        className={cn(
+          "relative w-full rounded-xl overflow-hidden bg-zinc-950 flex flex-col items-center justify-center text-center p-6 border border-white/10 shadow-2xl space-y-3 font-sans mx-auto",
+          isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]"
+        )}
+      >
         <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive border border-destructive/20">
           <AlertCircle className="size-6 text-red-500" />
         </div>
@@ -150,7 +163,12 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
   if (status === "error" || !data) {
     return (
-      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-zinc-950 flex flex-col items-center justify-center text-center p-6 border border-white/10 shadow-2xl space-y-3 font-sans">
+      <div
+        className={cn(
+          "relative w-full rounded-xl overflow-hidden bg-zinc-950 flex flex-col items-center justify-center text-center p-6 border border-white/10 shadow-2xl space-y-3 font-sans mx-auto",
+          isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]"
+        )}
+      >
         <div className="flex size-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
           <AlertCircle className="size-6 text-amber-500" />
         </div>

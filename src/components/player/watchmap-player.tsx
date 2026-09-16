@@ -538,6 +538,8 @@ export function WatchMapPlayer({
   const bufferedPercent = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
   const effectiveVolume = isMuted ? 0 : volume;
 
+  const isVertical = effectiveConfig.appearance?.aspectRatio === "9:16";
+
   return (
     <div
       ref={containerRef}
@@ -546,8 +548,9 @@ export function WatchMapPlayer({
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleContainerDoubleClick}
       className={cn(
-        "relative w-full aspect-video rounded-xl overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl",
-        isFullscreen && "rounded-none border-none max-h-screen",
+        "relative w-full rounded-xl overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl mx-auto",
+        isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]",
+        isFullscreen && "rounded-none border-none max-h-screen max-w-none aspect-auto",
         className
       )}
     >
