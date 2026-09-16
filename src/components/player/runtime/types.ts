@@ -8,6 +8,8 @@ export const PlayerEventType = {
   SEEK_END: "SEEK_END",
   RATE_CHANGE: "RATE_CHANGE",
   VOLUME_CHANGE: "VOLUME_CHANGE",
+  FULLSCREEN_ENTER: "FULLSCREEN_ENTER",
+  FULLSCREEN_EXIT: "FULLSCREEN_EXIT",
   BUFFER_START: "BUFFER_START",
   BUFFER_END: "BUFFER_END",
   ENDED: "ENDED",
@@ -16,6 +18,8 @@ export const PlayerEventType = {
 
 export type PlayerEventType =
   (typeof PlayerEventType)[keyof typeof PlayerEventType];
+
+export type FullscreenInitiator = "button" | "double_click" | "system";
 
 export interface PlayerSnapshot {
   videoId: string;
@@ -84,6 +88,16 @@ export interface VolumeChangeEvent extends BasePlayerEvent {
   effectiveVolume: number;
 }
 
+export interface FullscreenEnterEvent extends BasePlayerEvent {
+  type: typeof PlayerEventType.FULLSCREEN_ENTER;
+  fullscreenInitiator: FullscreenInitiator;
+}
+
+export interface FullscreenExitEvent extends BasePlayerEvent {
+  type: typeof PlayerEventType.FULLSCREEN_EXIT;
+  fullscreenInitiator: FullscreenInitiator;
+}
+
 export interface BufferStartEvent extends BasePlayerEvent {
   type: typeof PlayerEventType.BUFFER_START;
 }
@@ -112,6 +126,8 @@ export type PlayerRuntimeEvent =
   | SeekEndEvent
   | RateChangeEvent
   | VolumeChangeEvent
+  | FullscreenEnterEvent
+  | FullscreenExitEvent
   | BufferStartEvent
   | BufferEndEvent
   | EndedEvent
@@ -124,4 +140,5 @@ export type Unsubscribe = () => void;
 export interface PlayerRuntimeOptions {
   videoId: string;
   debug?: boolean;
+  containerElement?: HTMLElement | null;
 }

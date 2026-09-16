@@ -17,7 +17,11 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PlayerRuntime, type PlayerEventListener } from "./runtime";
+import {
+  PlayerRuntime,
+  type PlayerEventListener,
+  type FullscreenInitiator,
+} from "./runtime";
 
 interface WatchMapPlayerProps {
   src: string;
@@ -58,16 +62,21 @@ export function WatchMapPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressTrackRef = useRef<HTMLDivElement>(null);
   const volumeTrackRef = useRef<HTMLDivElement>(null);
+  const runtimeRef = useRef<PlayerRuntime | null>(null);
 
   // Initialize PlayerRuntime lifecycle
   useEffect(() => {
     const video = videoRef.current;
+    const container = containerRef.current;
     if (!video) return;
 
     const runtime = new PlayerRuntime(video, {
       videoId,
       debug: debugEnabled,
+      containerElement: container,
     });
+
+    runtimeRef.current = runtime;
 
     let unsubscribe: (() => void) | undefined;
     if (onEvent) {
@@ -77,6 +86,7 @@ export function WatchMapPlayer({
     onRuntimeReady?.(runtime);
 
     return () => {
+      runtimeRef.current = null;
       unsubscribe?.();
       runtime.destroy();
     };
@@ -257,23 +267,53 @@ export function WatchMapPlayer({
     window.addEventListener("mouseup", onMouseUp);
   };
 
-  // Fullscreen toggle
-  const toggleFullscreen = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  // Fullscreen toggle (shared controller for button and double click)
+  const toggleFullscreen = useCallback(
+    (initiator: FullscreenInitiator = "button") => {
+      const container = containerRef.current;
+      if (!container) return;
 
-    if (!document.fullscreenElement) {
-      container.requestFullscreen?.().catch((err) => {
-        console.error("Fullscreen error:", err);
-      });
-    } else {
-      document.exitFullscreen?.().catch((err) => {
-        console.error("Exit fullscreen error:", err);
-      });
+      if (runtimeRef.current) {
+        runtimeRef.current.setPendingFullscreenInitiator(initiator);
+      }
+
+      if (!document.fullscreenElement) {
+        container.requestFullscreen?.().catch((err) => {
+          console.error("Fullscreen error:", err);
+          runtimeRef.current?.clearPendingFullscreenInitiator();
+        });
+      } else {
+        document.exitFullscreen?.().catch((err) => {
+          console.error("Exit fullscreen error:", err);
+          runtimeRef.current?.clearPendingFullscreenInitiator();
+        });
+      }
+    },
+    []
+  );
+
+  // Double click handler on video container / main area
+  const handleContainerDoubleClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    if (
+      target.closest("button") ||
+      target.closest("input") ||
+      target.closest("select") ||
+      target.closest("[role='button']") ||
+      target.closest("[role='slider']") ||
+      target.closest("[data-no-fullscreen]") ||
+      target.closest(".group\\/track") ||
+      target.closest(".group\\/volume")
+    ) {
+      return;
     }
-  }, []);
 
-  // Listen to fullscreen changes
+    toggleFullscreen("double_click");
+  };
+
+  // Listen to fullscreen changes for UI state
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
@@ -301,7 +341,7 @@ export function WatchMapPlayer({
         showControlsTemporarily();
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
-        toggleFullscreen();
+        toggleFullscreen("button");
       } else if (e.key === "m" || e.key === "M") {
         e.preventDefault();
         toggleMute();
@@ -325,8 +365,10 @@ export function WatchMapPlayer({
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [togglePlay, toggleFullscreen, toggleMute, duration, showControlsTemporarily]);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [duration, showControlsTemporarily, toggleMute, togglePlay, toggleFullscreen]);
 
   // Video event handlers
   const handleTimeUpdate = () => {
@@ -396,6 +438,7 @@ export function WatchMapPlayer({
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onDoubleClick={handleContainerDoubleClick}
       className={cn(
         "relative w-full aspect-video rounded-xl overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl",
         isFullscreen && "rounded-none border-none max-h-screen",
@@ -491,6 +534,8 @@ export function WatchMapPlayer({
 
       {/* Bottom Controls Overlay */}
       <div
+        data-no-fullscreen="true"
+        onDoubleClick={(e) => e.stopPropagation()}
         className={cn(
           "absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20 transition-opacity duration-300 flex flex-col gap-2.5",
           controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -628,7 +673,7 @@ export function WatchMapPlayer({
             {/* Fullscreen Button */}
             <button
               type="button"
-              onClick={toggleFullscreen}
+              onClick={() => toggleFullscreen("button")}
               className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none"
               title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
             >

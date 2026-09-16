@@ -9,6 +9,9 @@ import {
   type SeekEndEvent,
   type RateChangeEvent,
   type VolumeChangeEvent,
+  type FullscreenEnterEvent,
+  type FullscreenExitEvent,
+  type FullscreenInitiator,
   type ErrorEvent,
 } from "./types";
 
@@ -25,11 +28,14 @@ type EmitPayload = DistributiveOmit<
 export class PlayerRuntime {
   public readonly videoId: string;
   private readonly video: HTMLVideoElement;
+  private readonly containerElement: HTMLElement | null = null;
   private readonly debug: boolean;
 
   private isReady = false;
   private isBuffering = false;
   private isSeeking = false;
+  private isFullscreen = false;
+  private pendingFullscreenInitiator: FullscreenInitiator | null = null;
   private seekStartTime = 0;
   private previousTime = 0;
   private previousRate = 1;
@@ -43,6 +49,7 @@ export class PlayerRuntime {
   constructor(video: HTMLVideoElement, options: PlayerRuntimeOptions) {
     this.video = video;
     this.videoId = options.videoId;
+    this.containerElement = options.containerElement ?? null;
     this.debug = Boolean(options.debug);
 
     this.previousTime = video.currentTime || 0;
@@ -74,6 +81,14 @@ export class PlayerRuntime {
       ended: Boolean(this.video.ended),
       timestamp: Date.now(),
     };
+  }
+
+  public setPendingFullscreenInitiator(initiator: FullscreenInitiator): void {
+    this.pendingFullscreenInitiator = initiator;
+  }
+
+  public clearPendingFullscreenInitiator(): void {
+    this.pendingFullscreenInitiator = null;
   }
 
   public subscribe(listener: PlayerEventListener): Unsubscribe {
@@ -275,6 +290,44 @@ export class PlayerRuntime {
         code: mediaError?.code,
       });
     });
+
+    const checkFullscreenState = (): boolean => {
+      if (typeof document === "undefined") return false;
+      const fs = document.fullscreenElement;
+      if (!fs) return false;
+      if (this.containerElement) {
+        return fs === this.containerElement || this.containerElement.contains(fs);
+      }
+      return fs === this.video || fs.contains(this.video);
+    };
+
+    this.isFullscreen = checkFullscreenState();
+
+    const handleFullscreenChange = () => {
+      const isNowFullscreen = checkFullscreenState();
+      if (isNowFullscreen !== this.isFullscreen) {
+        this.isFullscreen = isNowFullscreen;
+        const initiator: FullscreenInitiator =
+          this.pendingFullscreenInitiator ?? "system";
+        this.pendingFullscreenInitiator = null;
+
+        if (isNowFullscreen) {
+          this.emit({
+            type: PlayerEventType.FULLSCREEN_ENTER,
+            fullscreenInitiator: initiator,
+          });
+        } else {
+          this.emit({
+            type: PlayerEventType.FULLSCREEN_EXIT,
+            fullscreenInitiator: initiator,
+          });
+        }
+      }
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("fullscreenchange", handleFullscreenChange, { signal });
+    }
   }
 
   private logDebug(event: PlayerRuntimeEvent): void {
@@ -331,6 +384,20 @@ export class PlayerRuntime {
         const toStr = formatVol(vol.effectiveVolume);
 
         console.log(`${prefix} VOLUME_CHANGE ${fromStr} → ${toStr}${suffix}`);
+        break;
+      }
+      case PlayerEventType.FULLSCREEN_ENTER: {
+        const fs = event as FullscreenEnterEvent;
+        console.log(
+          `${prefix} FULLSCREEN_ENTER initiator=${fs.fullscreenInitiator}`
+        );
+        break;
+      }
+      case PlayerEventType.FULLSCREEN_EXIT: {
+        const fs = event as FullscreenExitEvent;
+        console.log(
+          `${prefix} FULLSCREEN_EXIT initiator=${fs.fullscreenInitiator}`
+        );
         break;
       }
       case PlayerEventType.BUFFER_START:
