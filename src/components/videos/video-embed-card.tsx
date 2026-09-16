@@ -142,11 +142,11 @@ export function VideoEmbedCard({
         </div>
 
         {/* Sub-section: Testes e Debug */}
-        <div className="pt-2 border-t border-border/40 space-y-2.5">
+        <div className="pt-4 sm:pt-5 border-t border-border/50 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Bug className="size-3.5 text-muted-foreground" />
-              <span className="text-xs font-semibold text-foreground tracking-tight">
+            <div className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400">
+              <Bug className="size-3.5" />
+              <span className="text-xs font-semibold tracking-tight">
                 Testes e Debug
               </span>
             </div>
