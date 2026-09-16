@@ -89,13 +89,19 @@ export default async function VideosPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {videoList.map((video) => (
-              <Link
+              <div
                 key={video.id}
-                href={`/videos/${video.id}`}
-                className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-xl"
+                className="relative group rounded-xl"
               >
                 <Card className="border-border group-hover:border-primary/40 group-hover:shadow-sm transition-all flex flex-col justify-between overflow-hidden h-full rounded-xl bg-card">
-                  <CardContent className="p-4 space-y-3">
+                  {/* Stretched Navigation Link */}
+                  <Link
+                    href={`/videos/${video.id}`}
+                    className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-xl"
+                    aria-label={`Abrir vídeo ${video.title}`}
+                  />
+
+                  <CardContent className="p-4 space-y-3 relative z-10 pointer-events-none">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-3 min-w-0 flex-1">
                         <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors mt-0.5 border border-primary/20 group-hover:border-primary">
@@ -116,7 +122,11 @@ export default async function VideosPage() {
                           </p>
                         </div>
                       </div>
-                      <VideoCardMenu video={video} />
+
+                      {/* Interactive Context Menu */}
+                      <div className="pointer-events-auto shrink-0">
+                        <VideoCardMenu video={video} />
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-2.5 border-t border-border/70">
@@ -131,7 +141,7 @@ export default async function VideosPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </Link>
+              </div>
             ))}
           </div>
         )}
