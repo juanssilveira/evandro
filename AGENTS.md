@@ -25,11 +25,13 @@ Antes de implementar ou alterar qualquer funcionalidade:
 * Nunca confiar em IDs ou permissões enviados pelo frontend.
 * Manter componentes pequenos e responsabilidades bem separadas.
 * Preservar a arquitetura existente ao modificar código.
+* Toda vez que alterar o banco ou schemas, gerar e aplicar as migrations no ambiente de desenvolvimento (`pnpm db:generate` e `pnpm db:migrate`).
 
 ## Qualidade
 
 Antes de considerar uma tarefa concluída:
 
+* se houver alterações de banco/schema, gerar e aplicar as migrations (`pnpm db:migrate`);
 * executar typecheck;
 * executar lint;
 * executar build;
