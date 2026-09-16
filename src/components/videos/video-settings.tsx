@@ -333,11 +333,11 @@ export function VideoSettings({
           </div>
 
           {/* Show Video Title Toggle */}
-          <div className="flex items-start justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 p-3.5">
-            <div className="space-y-0.5">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4">
+            <div className="space-y-1">
               <Label
                 htmlFor={`show-title-switch-${videoId}`}
-                className="text-xs font-semibold text-foreground cursor-pointer"
+                className="text-xs font-semibold text-foreground cursor-pointer block"
               >
                 Exibir título do vídeo
               </Label>
@@ -345,7 +345,7 @@ export function VideoSettings({
                 Mostra o título no topo do player durante a reprodução.
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0 pt-0.5">
+            <div className="flex items-center gap-2 shrink-0">
               {isPending && pendingField === "showTitle" && (
                 <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}
@@ -390,16 +390,16 @@ export function VideoSettings({
           {/* Autoplay Toggle */}
           <div
             className={cn(
-              "flex items-start justify-between gap-4 rounded-lg border p-3.5 transition-colors",
+              "flex items-center justify-between gap-4 rounded-lg border p-3.5 sm:p-4 transition-colors",
               config.playback.autoplay
                 ? "border-primary/50 bg-primary/5"
                 : "border-border/80 bg-muted/20 hover:bg-muted/30"
             )}
           >
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
               <div
                 className={cn(
-                  "size-8 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                  "size-8 rounded-md flex items-center justify-center shrink-0 transition-colors",
                   config.playback.autoplay
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground"
@@ -424,7 +424,7 @@ export function VideoSettings({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 pt-0.5">
+            <div className="flex items-center gap-2 shrink-0">
               {isPending && pendingField === "autoplay" && (
                 <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}
@@ -440,16 +440,16 @@ export function VideoSettings({
           {/* Background Autoplay Toggle */}
           <div
             className={cn(
-              "flex items-start justify-between gap-4 rounded-lg border p-3.5 transition-colors",
+              "flex items-center justify-between gap-4 rounded-lg border p-3.5 sm:p-4 transition-colors",
               config.playback.backgroundAutoplay
                 ? "border-primary/50 bg-primary/5"
                 : "border-border/80 bg-muted/20 hover:bg-muted/30"
             )}
           >
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
               <div
                 className={cn(
-                  "size-8 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                  "size-8 rounded-md flex items-center justify-center shrink-0 transition-colors",
                   config.playback.backgroundAutoplay
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground"
@@ -474,7 +474,7 @@ export function VideoSettings({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 pt-0.5">
+            <div className="flex items-center gap-2 shrink-0">
               {isPending && pendingField === "backgroundAutoplay" && (
                 <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}

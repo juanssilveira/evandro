@@ -101,7 +101,7 @@ export function VideoEmbedCard({
 
       <CardContent className="pt-4 space-y-3.5">
         {/* Code Snippet Box Container */}
-        <div className="rounded-lg border border-border/80 bg-muted/20 p-3 space-y-2.5">
+        <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-foreground">
               Snippet de integração
@@ -134,7 +134,7 @@ export function VideoEmbedCard({
         </div>
 
         {/* Instructions */}
-        <div className="flex items-start gap-2 rounded-lg bg-muted/30 border border-border/50 px-3 py-2 text-[11px] text-muted-foreground">
+        <div className="flex items-start gap-2.5 rounded-lg bg-muted/30 border border-border/50 p-3 sm:p-3.5 text-[11px] text-muted-foreground">
           <Info className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
           <p className="leading-normal">
             Cole a tag <code className="text-foreground font-mono bg-muted px-1 py-0.5 rounded text-[10px]">&lt;script&gt;</code> no cabeçalho e <code className="text-foreground font-mono bg-muted px-1 py-0.5 rounded text-[10px]">&lt;watchmap-player&gt;</code> onde deseja exibir o vídeo.
@@ -155,11 +155,11 @@ export function VideoEmbedCard({
             </span>
           </div>
 
-          <div className="flex items-start justify-between gap-3 rounded-lg border border-border/80 bg-muted/20 p-3">
-            <div className="space-y-0.5">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4">
+            <div className="space-y-1">
               <Label
                 htmlFor={`embed-debug-switch-${videoId}`}
-                className="text-xs font-semibold text-foreground cursor-pointer"
+                className="text-xs font-semibold text-foreground cursor-pointer block"
               >
                 Debug do Player Runtime
               </Label>
@@ -167,7 +167,7 @@ export function VideoEmbedCard({
                 Registra eventos do ciclo de vida no console do DevTools.
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0 pt-0.5">
+            <div className="flex items-center gap-2 shrink-0">
               {isPending && (
                 <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}
