@@ -20,7 +20,7 @@ export default function Home() {
           </p>
         </div>
         <div className="pt-2">
-          <Button render={<Link href="/videos" />}>
+          <Button render={<Link href="/videos" />} nativeButton={false}>
             Acessar biblioteca
           </Button>
         </div>
