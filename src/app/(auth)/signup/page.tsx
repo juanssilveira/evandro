@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -76,33 +76,35 @@ export default function SignupPage() {
   };
 
   return (
-    <Card className="border-border bg-card shadow-sm">
-      <CardHeader className="space-y-1 text-center">
-        <div className="mb-2 flex justify-center">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-            WM
+    <Card className="border-border bg-card shadow-sm rounded-xl">
+      <CardHeader className="space-y-2 text-center pb-6">
+        <div className="flex justify-center mb-1">
+          <div className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-b from-violet-500 to-[#7C3AED] text-white font-bold shadow-[0_1px_2px_rgba(0,0,0,0.1),0_2px_0_#6D28D9] border border-[#6D28D9]">
+            <Play className="size-5 fill-white ml-0.5" />
           </div>
         </div>
-        <CardTitle className="text-2xl font-bold tracking-tight">
+        <CardTitle className="text-xl font-bold tracking-tight text-foreground">
           Criar conta no WatchMap
         </CardTitle>
-        <CardDescription className="text-muted-foreground text-sm">
-          Preencha os campos abaixo para começar
+        <CardDescription className="text-muted-foreground text-xs max-w-xs mx-auto">
+          Preencha os campos abaixo para começar a gerenciar e analisar seus vídeos
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3.5">
           {authError && (
             <div
               role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+              className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium"
             >
               {authError}
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome completo</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="name" className="text-xs font-medium text-foreground">
+              Nome completo
+            </Label>
             <Input
               id="name"
               type="text"
@@ -117,12 +119,14 @@ export default function SignupPage() {
               required
             />
             {errors.name && (
-              <p className="text-xs text-destructive">{errors.name}</p>
+              <p className="text-[11px] text-destructive font-medium">{errors.name}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">E-mail</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-xs font-medium text-foreground">
+              E-mail
+            </Label>
             <Input
               id="email"
               type="email"
@@ -137,12 +141,14 @@ export default function SignupPage() {
               required
             />
             {errors.email && (
-              <p className="text-xs text-destructive">{errors.email}</p>
+              <p className="text-[11px] text-destructive font-medium">{errors.email}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-xs font-medium text-foreground">
+              Senha
+            </Label>
             <Input
               id="password"
               type="password"
@@ -157,12 +163,14 @@ export default function SignupPage() {
               required
             />
             {errors.password && (
-              <p className="text-xs text-destructive">{errors.password}</p>
+              <p className="text-[11px] text-destructive font-medium">{errors.password}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirmar senha</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirmPassword" className="text-xs font-medium text-foreground">
+              Confirmar senha
+            </Label>
             <Input
               id="confirmPassword"
               type="password"
@@ -180,17 +188,18 @@ export default function SignupPage() {
               required
             />
             {errors.confirmPassword && (
-              <p className="text-xs text-destructive">
+              <p className="text-[11px] text-destructive font-medium">
                 {errors.confirmPassword}
               </p>
             )}
           </div>
         </CardContent>
 
-        <CardFooter className="flex flex-col space-y-4">
+        <CardFooter className="flex flex-col space-y-4 pt-2">
           <Button
             type="submit"
-            className="w-full font-medium"
+            size="lg"
+            className="w-full"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -203,11 +212,11 @@ export default function SignupPage() {
             )}
           </Button>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-xs text-muted-foreground">
             Já possui uma conta?{" "}
             <Link
               href="/login"
-              className="font-medium text-primary hover:underline"
+              className="font-semibold text-primary hover:text-primary-hover transition-colors"
             >
               Entrar
             </Link>

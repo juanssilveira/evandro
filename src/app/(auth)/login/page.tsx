@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -71,18 +71,18 @@ export default function LoginPage() {
   };
 
   return (
-    <Card className="border-border bg-card shadow-sm">
-      <CardHeader className="space-y-1 text-center">
-        <div className="mb-2 flex justify-center">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-            WM
+    <Card className="border-border bg-card shadow-sm rounded-xl">
+      <CardHeader className="space-y-2 text-center pb-6">
+        <div className="flex justify-center mb-1">
+          <div className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-b from-violet-500 to-[#7C3AED] text-white font-bold shadow-[0_1px_2px_rgba(0,0,0,0.1),0_2px_0_#6D28D9] border border-[#6D28D9]">
+            <Play className="size-5 fill-white ml-0.5" />
           </div>
         </div>
-        <CardTitle className="text-2xl font-bold tracking-tight">
+        <CardTitle className="text-xl font-bold tracking-tight text-foreground">
           Entrar no WatchMap
         </CardTitle>
-        <CardDescription className="text-muted-foreground text-sm">
-          Informe suas credenciais para acessar sua conta
+        <CardDescription className="text-muted-foreground text-xs max-w-xs mx-auto">
+          Informe suas credenciais para acessar sua conta e gerenciar seus vídeos
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -90,14 +90,16 @@ export default function LoginPage() {
           {authError && (
             <div
               role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+              className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium"
             >
               {authError}
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="email">E-mail</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-xs font-medium text-foreground">
+              E-mail
+            </Label>
             <Input
               id="email"
               type="email"
@@ -112,12 +114,14 @@ export default function LoginPage() {
               required
             />
             {errors.email && (
-              <p className="text-xs text-destructive">{errors.email}</p>
+              <p className="text-[11px] text-destructive font-medium">{errors.email}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-xs font-medium text-foreground">
+              Senha
+            </Label>
             <Input
               id="password"
               type="password"
@@ -132,15 +136,16 @@ export default function LoginPage() {
               required
             />
             {errors.password && (
-              <p className="text-xs text-destructive">{errors.password}</p>
+              <p className="text-[11px] text-destructive font-medium">{errors.password}</p>
             )}
           </div>
         </CardContent>
 
-        <CardFooter className="flex flex-col space-y-4">
+        <CardFooter className="flex flex-col space-y-4 pt-2">
           <Button
             type="submit"
-            className="w-full font-medium"
+            size="lg"
+            className="w-full"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -153,11 +158,11 @@ export default function LoginPage() {
             )}
           </Button>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-xs text-muted-foreground">
             Não possui uma conta?{" "}
             <Link
               href="/signup"
-              className="font-medium text-primary hover:underline"
+              className="font-semibold text-primary hover:text-primary-hover transition-colors"
             >
               Criar conta
             </Link>

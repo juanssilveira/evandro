@@ -192,7 +192,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
       <DialogTrigger
         render={
           (trigger as React.ReactElement) || (
-            <Button className="font-medium">
+            <Button>
               <UploadCloud className="size-4 mr-1.5" />
               Enviar vídeo
             </Button>
@@ -211,7 +211,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
 
           <DialogClose disabled={isBusy} />
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-3">
             {/* Drag & Drop Area */}
             {!file ? (
               <div
@@ -219,19 +219,19 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                className={`flex flex-col items-center justify-center border border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
                   isDragging
                     ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50 bg-muted/30"
+                    : "border-border hover:border-primary/50 bg-muted/20 hover:bg-muted/30"
                 }`}
               >
-                <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-3">
-                  <UploadCloud className="size-6" />
+                <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary mb-3 border border-primary/20">
+                  <UploadCloud className="size-5" />
                 </div>
-                <p className="text-sm font-medium text-foreground">
-                  Arraste um vídeo aqui ou <span className="text-primary hover:underline">procure no dispositivo</span>
+                <p className="text-xs font-medium text-foreground">
+                  Arraste um vídeo aqui ou <span className="text-primary font-semibold hover:underline">procure no dispositivo</span>
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-[11px] text-muted-foreground mt-1">
                   Apenas arquivos MP4 (.mp4)
                 </p>
                 <input
@@ -247,16 +247,16 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
                 />
               </div>
             ) : (
-              <div className="flex items-center justify-between p-3.5 rounded-lg border border-border bg-muted/40">
+              <div className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-muted/20">
                 <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                    <Film className="size-5" />
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                    <Film className="size-4" />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-sm font-medium text-foreground truncate">
+                    <p className="text-xs font-medium text-foreground truncate">
                       {file.name}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[11px] font-mono text-muted-foreground">
                       {formatBytes(file.size)}
                     </p>
                   </div>
@@ -267,7 +267,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="text-xs text-muted-foreground hover:text-foreground"
+                    className="text-xs"
                     onClick={resetState}
                   >
                     Alterar
@@ -279,7 +279,9 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
             {/* Title Input */}
             {file && (
               <div className="space-y-1.5">
-                <Label htmlFor="video-title">Título do vídeo</Label>
+                <Label htmlFor="video-title" className="text-xs font-medium text-foreground">
+                  Título do vídeo
+                </Label>
                 <Input
                   id="video-title"
                   type="text"
@@ -311,7 +313,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
                     )}
                     {status === "success" && (
                       <>
-                        <CheckCircle2 className="size-3.5 text-green-600" />
+                        <CheckCircle2 className="size-3.5 text-emerald-600" />
                         Upload concluído com sucesso!
                       </>
                     )}
@@ -323,17 +325,17 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
                     )}
                   </span>
                   {progress !== null && status !== "error" && (
-                    <span className="text-muted-foreground font-mono">{progress}%</span>
+                    <span className="text-muted-foreground font-mono text-[11px]">{progress}%</span>
                   )}
                 </div>
 
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div
                     className={`h-full transition-all duration-200 ${
                       status === "error"
                         ? "bg-destructive"
                         : status === "success"
-                        ? "bg-green-600"
+                        ? "bg-emerald-600"
                         : "bg-primary"
                     }`}
                     style={{ width: `${progress || 0}%` }}
@@ -354,7 +356,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => handleOpenChange(false)}
               disabled={isBusy}
             >
@@ -366,7 +368,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
             >
               {isBusy ? (
                 <>
-                  <Loader2 className="size-4 animate-spin mr-1.5" />
+                  <Loader2 className="size-3.5 animate-spin mr-1.5" />
                   {status === "uploading" ? "Enviando..." : "Finalizando..."}
                 </>
               ) : (

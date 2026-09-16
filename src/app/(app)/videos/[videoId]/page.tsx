@@ -9,7 +9,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { VideoPlayerView } from "@/components/videos/video-player-view";
-import { ArrowLeft, HardDrive, Calendar, Film } from "lucide-react";
+import { ArrowLeft, HardDrive, Calendar, Film, Play } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 function formatBytes(bytes: number): string {
@@ -57,16 +57,16 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Top Header */}
-      <header className="flex h-14 items-center justify-between border-b border-border px-6 bg-card">
-        <div className="flex items-center gap-2 font-bold text-foreground">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-bold">
-            WM
+      {/* Top Navigation Header */}
+      <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4 sm:px-6 sticky top-0 z-20">
+        <div className="flex items-center gap-2.5 font-bold text-foreground">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-b from-violet-500 to-[#7C3AED] text-white text-xs font-bold shadow-[0_1px_2px_rgba(0,0,0,0.1),0_1px_0_#6D28D9] border border-[#6D28D9]">
+            <Play className="size-3.5 fill-white ml-0.5" />
           </div>
-          <span>WatchMap</span>
+          <span className="text-sm font-bold tracking-tight">WatchMap</span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:inline-block text-xs font-medium text-muted-foreground">
             {session.user.email}
           </span>
           <LogoutButton />
@@ -74,23 +74,23 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
       </header>
 
       {/* Main Page Area */}
-      <main className="flex-1 p-6 max-w-5xl mx-auto w-full space-y-6">
-        {/* Navigation & Title */}
-        <div className="space-y-4">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full space-y-6">
+        {/* Navigation & Header */}
+        <div className="space-y-3 pb-2 border-b border-border/60">
           <Link
             href="/videos"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
           >
-            <ArrowLeft className="size-3.5" />
-            Voltar para vídeos
+            <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
+            <span>Voltar para biblioteca</span>
           </Link>
 
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="text-xl font-bold tracking-tight text-foreground truncate" title={video.title}>
               {video.title}
             </h1>
             <p className="text-xs text-muted-foreground">
-              Conta: <strong className="text-foreground">{account.name}</strong>
+              Conta: <strong className="font-semibold text-foreground">{account.name}</strong>
             </p>
           </div>
         </div>
@@ -103,40 +103,40 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
           initialConfig={playerConfig}
         />
 
-        {/* Video Info Card */}
-        <Card className="border-border bg-card">
-          <CardContent className="p-4 sm:p-6 grid gap-4 sm:grid-cols-3 text-sm">
+        {/* Video Metadata Card */}
+        <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
+          <CardContent className="p-4 sm:p-5 grid gap-4 sm:grid-cols-3 text-sm">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Film className="size-5" />
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                <Film className="size-4" />
               </div>
               <div className="overflow-hidden">
-                <p className="text-xs text-muted-foreground">Nome original</p>
-                <p className="font-medium text-foreground truncate" title={video.originalFilename}>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Arquivo original</p>
+                <p className="text-xs font-mono font-medium text-foreground truncate mt-0.5" title={video.originalFilename}>
                   {video.originalFilename}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <HardDrive className="size-5" />
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                <HardDrive className="size-4" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Tamanho</p>
-                <p className="font-medium text-foreground">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tamanho do arquivo</p>
+                <p className="text-xs font-mono font-medium text-foreground mt-0.5">
                   {formatBytes(video.sizeBytes)}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Calendar className="size-5" />
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                <Calendar className="size-4" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Enviado em</p>
-                <p className="font-medium text-foreground">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Data de upload</p>
+                <p className="text-xs font-mono font-medium text-foreground mt-0.5">
                   {formatDate(video.createdAt)}
                 </p>
               </div>

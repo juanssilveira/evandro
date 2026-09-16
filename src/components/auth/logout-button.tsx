@@ -27,14 +27,14 @@ export function LogoutButton() {
       size="sm"
       onClick={handleLogout}
       disabled={isLoading}
-      className="gap-2"
+      className="text-xs"
     >
       {isLoading ? (
-        <Loader2 className="size-4 animate-spin" />
+        <Loader2 className="size-3.5 animate-spin" />
       ) : (
-        <LogOut className="size-4" />
+        <LogOut className="size-3.5 text-muted-foreground" />
       )}
-      Sair
+      <span>Sair</span>
     </Button>
   );
 }
