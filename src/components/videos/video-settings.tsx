@@ -105,7 +105,7 @@ export function VideoSettings({
     <div className="space-y-6">
       {/* Category: Reprodução */}
       <Card className="border-border bg-card shadow-xs">
-        <CardHeader className="p-4 sm:p-6 pb-3">
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
               <PlayCircle className="size-4 text-primary" />
@@ -116,7 +116,7 @@ export function VideoSettings({
             </span>
           </div>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-0 space-y-3">
+        <CardContent className="space-y-3">
           {/* Autoplay Toggle */}
           <div
             className={cn(
@@ -225,13 +225,13 @@ export function VideoSettings({
 
       {/* Category: Desenvolvimento */}
       <Card className="border-border bg-card shadow-xs">
-        <CardHeader className="p-4 sm:p-6 pb-3">
+        <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
             <Code2 className="size-4 text-primary" />
             Desenvolvimento
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-0 space-y-3">
+        <CardContent className="space-y-3">
           <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
             <div className="space-y-1">
               <Label

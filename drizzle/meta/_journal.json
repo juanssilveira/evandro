@@ -36,6 +36,13 @@
       "when": 1789580139782,
       "tag": "0004_living_diamondback",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789581901955,
+      "tag": "0005_aromatic_roughhouse",
+      "breakpoints": true
     }
   ]
 }

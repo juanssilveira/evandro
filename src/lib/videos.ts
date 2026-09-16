@@ -25,6 +25,18 @@ export async function getVideoForAccount(
   return video || null;
 }
 
+export async function getVideoByPublicId(
+  publicId: string
+): Promise<Video | null> {
+  const [video] = await db
+    .select()
+    .from(videos)
+    .where(eq(videos.publicId, publicId))
+    .limit(1);
+
+  return video || null;
+}
+
 export async function createVideoUploadSession(
   accountId: string,
   input: CreateUploadInput
@@ -71,6 +83,7 @@ export async function finalizeVideoUpload(
     .insert(videos)
     .values({
       id: input.videoId,
+      publicId: crypto.randomUUID(),
       accountId,
       title: input.title,
       storageKey,

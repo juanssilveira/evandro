@@ -19,6 +19,12 @@ export async function getPlayerConfig(
     return null;
   }
 
+  return getPlayerConfigByVideoId(videoId);
+}
+
+export async function getPlayerConfigByVideoId(
+  videoId: string
+): Promise<PlayerConfig> {
   const [row] = await db
     .select()
     .from(videoPlayerSettings)

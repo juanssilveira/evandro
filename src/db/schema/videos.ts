@@ -5,6 +5,10 @@ export const videos = pgTable(
   "videos",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    publicId: text("public_id")
+      .notNull()
+      .unique()
+      .$defaultFn(() => crypto.randomUUID()),
     accountId: uuid("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
@@ -21,6 +25,7 @@ export const videos = pgTable(
   },
   (t) => [
     index("videos_account_id_created_at_idx").on(t.accountId, t.createdAt),
+    index("videos_public_id_idx").on(t.publicId),
   ]
 );
 

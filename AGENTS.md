@@ -71,3 +71,13 @@ O commit de milestone só deve ser criado quando a spec estiver concluída e val
 Não incluir alterações não relacionadas à spec no commit.
 
 Se o push não puder ser realizado por falta de configuração, autenticação ou acesso ao remoto, informar claramente o bloqueio em vez de alterar a configuração Git sem autorização.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -103,6 +103,39 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
           initialConfig={playerConfig}
         />
 
+        {/* Embed Code Snippet Card */}
+        <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
+          <CardContent className="p-4 sm:p-5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                  <Play className="size-4 fill-primary" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                    Código de Embed (Web Component)
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    Incorpore este player em qualquer página externa com isolamento total via Shadow DOM.
+                  </p>
+                </div>
+              </div>
+              <a
+                href={`/embed-test.html?v=${video.publicId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary-hover hover:underline transition-colors shrink-0"
+              >
+                Abrir página de teste externa &rarr;
+              </a>
+            </div>
+
+            <div className="relative rounded-lg bg-zinc-950 p-3 border border-border/40 font-mono text-xs text-zinc-300 overflow-x-auto select-all">
+              <code>{`<script src="/embed/v1/watchmap-player.js" defer></script>\n<watchmap-player video-id="${video.publicId}"></watchmap-player>`}</code>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Video Metadata Card */}
         <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
           <CardContent className="p-4 sm:p-5 grid gap-4 sm:grid-cols-3 text-sm">
