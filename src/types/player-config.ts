@@ -86,10 +86,12 @@ export const playerConfigSchema = z.object({
     .object({
       accentColor: z.enum(playerAccentColors).default("purple"),
       aspectRatio: z.enum(playerAspectRatios).default("16:9"),
+      showTitle: z.boolean().default(true),
     })
     .default({
       accentColor: "purple",
       aspectRatio: "16:9",
+      showTitle: true,
     }),
 
   playback: z
@@ -174,6 +176,7 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
   appearance: {
     accentColor: "purple",
     aspectRatio: "16:9",
+    showTitle: true,
   },
 
   playback: {

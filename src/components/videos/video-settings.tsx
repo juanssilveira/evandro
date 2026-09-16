@@ -326,6 +326,41 @@ export function VideoSettings({
               </button>
             </div>
           </div>
+
+          {/* Show Video Title Toggle */}
+          <div className="flex items-center justify-between gap-4 pt-3 border-t border-border/50">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor={`show-title-switch-${videoId}`}
+                className="text-xs font-semibold text-foreground cursor-pointer"
+              >
+                Exibir título do vídeo
+              </Label>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Mostra o título no topo do player durante a reprodução.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {isPending && pendingField === "showTitle" && (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              )}
+              <Switch
+                id={`show-title-switch-${videoId}`}
+                checked={config.appearance?.showTitle ?? true}
+                disabled={isPending}
+                onCheckedChange={(checked) =>
+                  handleConfigUpdate(
+                    {
+                      appearance: {
+                        showTitle: checked,
+                      },
+                    },
+                    "showTitle"
+                  )
+                }
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
 

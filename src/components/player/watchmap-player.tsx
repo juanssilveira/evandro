@@ -656,7 +656,7 @@ export function WatchMapPlayer({
       )}
 
       {/* Top Title Bar */}
-      {title && (
+      {title && (effectiveConfig.appearance?.showTitle ?? true) && (
         <div
           className={cn(
             "absolute top-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 pointer-events-none transition-opacity duration-300",
