@@ -231,6 +231,7 @@ export function WatchMapPlayer({
   }, [isPlaying, showSettings, isDraggingSeek]);
 
   const handleMouseMove = () => {
+    if (playbackMode === "background_autoplay") return;
     showControlsTemporarily();
   };
 
@@ -623,7 +624,7 @@ export function WatchMapPlayer({
       {playbackMode === "background_autoplay" && !hasError && (
         <div
           onClick={() => playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current)}
-          className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-gradient-to-b from-black/45 via-black/35 to-black/45 hover:from-black/50 hover:via-black/40 hover:to-black/50 transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
+          className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer bg-gradient-to-b from-black/70 via-black/50 to-black/70 hover:from-black/75 hover:via-black/55 hover:to-black/75 transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
         >
           <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
             {/* Subtle External Pulse Ring (Expands & Fades Out) */}
@@ -696,7 +697,7 @@ export function WatchMapPlayer({
       )}
 
       {/* Top Title Bar */}
-      {title && (effectiveConfig.appearance?.showTitle ?? true) && (
+      {title && (effectiveConfig.appearance?.showTitle ?? true) && playbackMode !== "background_autoplay" && (
         <div
           className={cn(
             "absolute top-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 pointer-events-none transition-opacity duration-300",
@@ -710,7 +711,7 @@ export function WatchMapPlayer({
       )}
 
       {/* Bottom Adaptive Controls Overlay */}
-      {!isControlsHidden && (
+      {!isControlsHidden && playbackMode !== "background_autoplay" && (
         <div
           data-no-fullscreen="true"
           onDoubleClick={(e) => e.stopPropagation()}
