@@ -136,36 +136,32 @@ function MoveVideoContent({ video, onOpenChange, onSuccess }: MoveVideoContentPr
           <span>Carregando pastas...</span>
         </div>
       ) : (
-        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
-          {/* Root Library Option */}
+        <div className="space-y-3">
+          {/* ── Option: Root Library (Differentiated non-folder design) ── */}
           <button
             type="button"
             onClick={() => setSelectedFolderId(null)}
             className={cn(
-              "flex w-full items-center justify-between p-2.5 rounded-lg border text-left transition-all cursor-pointer text-xs",
+              "flex w-full items-center justify-between px-3.5 py-2.5 rounded-lg border text-left transition-all cursor-pointer text-xs",
               selectedFolderId === null
                 ? "border-primary bg-primary/5 text-foreground font-medium shadow-2xs"
-                : "border-border/70 hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                : "border-dashed border-border bg-muted/30 hover:bg-muted/60 text-muted-foreground hover:text-foreground"
             )}
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <div
+              <Library
                 className={cn(
-                  "flex size-7 items-center justify-center rounded-md border shrink-0",
-                  selectedFolderId === null
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border bg-muted/60 text-muted-foreground"
+                  "size-4 shrink-0",
+                  selectedFolderId === null ? "text-primary" : "text-muted-foreground/80"
                 )}
-              >
-                <Library className="size-3.5" />
-              </div>
+              />
               <div className="min-w-0">
-                <p className="font-medium text-foreground truncate">
+                <span className="font-medium text-foreground">
                   Raiz da Biblioteca
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  Sem pasta vinculada
-                </p>
+                </span>
+                <span className="text-[11px] text-muted-foreground ml-2">
+                  (sem pasta)
+                </span>
               </div>
             </div>
 
@@ -174,53 +170,63 @@ function MoveVideoContent({ video, onOpenChange, onSuccess }: MoveVideoContentPr
             )}
           </button>
 
-          {/* Folder List */}
-          {folders.map((folder) => {
-            const isSelected = selectedFolderId === folder.id;
-            const cfg =
-              FOLDER_COLOR_CONFIGS[(folder.color as FolderColor) || "gray"] ||
-              FOLDER_COLOR_CONFIGS.gray;
+          {/* ── Folder List Section ── */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 px-0.5 pt-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                Pastas ({folders.length})
+              </span>
+            </div>
 
-            return (
-              <button
-                key={folder.id}
-                type="button"
-                onClick={() => setSelectedFolderId(folder.id)}
-                className={cn(
-                  "flex w-full items-center justify-between p-2.5 rounded-lg border text-left transition-all cursor-pointer text-xs",
-                  isSelected
-                    ? "border-primary bg-primary/5 text-foreground font-medium shadow-2xs"
-                    : "border-border/70 hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
+            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-0.5">
+              {folders.map((folder) => {
+                const isSelected = selectedFolderId === folder.id;
+                const cfg =
+                  FOLDER_COLOR_CONFIGS[(folder.color as FolderColor) || "gray"] ||
+                  FOLDER_COLOR_CONFIGS.gray;
+
+                return (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={() => setSelectedFolderId(folder.id)}
                     className={cn(
-                      "flex size-7 items-center justify-center rounded-md border shrink-0",
-                      cfg.iconClass
+                      "flex w-full items-center justify-between p-2.5 rounded-lg border text-left transition-all cursor-pointer text-xs",
+                      isSelected
+                        ? "border-primary bg-primary/5 text-foreground font-medium shadow-2xs"
+                        : "border-border/70 hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    <FolderIcon className="size-3.5 fill-current/20" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground truncate max-w-[220px] xs:max-w-[260px]">
-                      {folder.name}
-                    </p>
-                  </div>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={cn(
+                          "flex size-7 items-center justify-center rounded-md border shrink-0",
+                          cfg.iconClass
+                        )}
+                      >
+                        <FolderIcon className="size-3.5 fill-current/20" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground truncate max-w-[220px] xs:max-w-[260px]">
+                          {folder.name}
+                        </p>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <Check className="size-4 text-primary shrink-0 stroke-[2.5]" />
+                    )}
+                  </button>
+                );
+              })}
+
+              {folders.length === 0 && (
+                <div className="p-3 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                  Nenhuma pasta criada ainda.
                 </div>
-
-                {isSelected && (
-                  <Check className="size-4 text-primary shrink-0 stroke-[2.5]" />
-                )}
-              </button>
-            );
-          })}
-
-          {folders.length === 0 && (
-            <div className="p-4 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
-              Nenhuma pasta criada ainda.
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
