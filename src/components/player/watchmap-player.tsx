@@ -681,12 +681,12 @@ export function WatchMapPlayer({
           className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
         >
           <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
-            {/* Subtle External Pulse Ring (Expands & Fades Out) */}
+            {/* Subtle External Pulse Ring (Expands & Fades Out - Derived luminous accent) */}
             <div
               aria-hidden="true"
-              className="wm-pulse-ring pointer-events-none absolute -inset-1 rounded-full"
+              className="wm-pulse-ring pointer-events-none absolute -inset-1 rounded-2xl"
               style={{
-                boxShadow: "0 0 0 3px var(--player-accent)",
+                boxShadow: "0 0 0 3px color-mix(in srgb, var(--player-accent) 25%, white 75%)",
                 animation: "wm-pulse-ring 2s cubic-bezier(0.2, 0, 0.4, 1) infinite",
               }}
             />
@@ -700,16 +700,25 @@ export function WatchMapPlayer({
               }}
               style={{ backgroundColor: "var(--player-accent)" }}
               className={cn(
-                "relative inline-flex items-center justify-center gap-2 @min-[420px]:gap-2.5",
-                "px-4 py-2.5 @min-[420px]:px-5 @min-[420px]:py-3 rounded-full text-white font-semibold",
-                "text-xs @min-[360px]:text-[13px] @min-[480px]:text-sm",
+                "relative flex flex-col items-center justify-center text-center",
+                "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl text-white",
                 "shadow-2xl backdrop-blur-md transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]",
                 "border border-white/20 select-none cursor-pointer max-w-full"
               )}
             >
-              <Volume2 className="size-4 @min-[420px]:size-4.5 shrink-0 fill-white text-white" />
-              <span className="text-center leading-tight @min-[420px]:leading-normal line-clamp-2 max-w-[260px] @min-[420px]:max-w-none">
-                Ativar som e assistir do início
+              {/* Icon */}
+              <div className="flex items-center justify-center size-7 @min-[400px]:size-8 rounded-full bg-white/15 mb-1.5 shrink-0">
+                <Volume2 className="size-4 @min-[400px]:size-4.5 fill-white text-white shrink-0" />
+              </div>
+
+              {/* Subtitle / Context */}
+              <span className="text-[10px] @min-[360px]:text-[11px] @min-[420px]:text-xs font-medium text-white/80 leading-tight">
+                Seu vídeo já começou
+              </span>
+
+              {/* Main Action Text */}
+              <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug mt-0.5 max-w-[220px] @min-[360px]:max-w-[260px] @min-[420px]:max-w-none">
+                Clique para ativar o som
               </span>
             </button>
           </div>
@@ -718,10 +727,10 @@ export function WatchMapPlayer({
             @keyframes wm-pulse-ring {
               0% {
                 transform: scale(0.96);
-                opacity: 0.8;
+                opacity: 0.85;
               }
               65%, 100% {
-                transform: scale(1.08, 1.18);
+                transform: scale(1.08, 1.15);
                 opacity: 0;
               }
             }
