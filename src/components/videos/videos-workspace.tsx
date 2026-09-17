@@ -6,7 +6,7 @@ import { UploadDialog } from "@/components/videos/upload-dialog";
 import { UploadCloud } from "lucide-react";
 
 interface VideosWorkspaceContextType {
-  openNewVideoModal: (file?: File | null) => void;
+  openNewVideoModal: (file?: File | null, folderId?: string | null) => void;
 }
 
 const VideosWorkspaceContext = createContext<VideosWorkspaceContextType | null>(null);
@@ -21,6 +21,7 @@ export function useVideosWorkspace() {
 
 interface VideosWorkspaceProps {
   children: React.ReactNode;
+  folderId?: string | null;
 }
 
 function isValidVideoFile(file: File): boolean {
@@ -36,27 +37,37 @@ function isValidVideoFile(file: File): boolean {
   );
 }
 
-export function VideosWorkspace({ children }: VideosWorkspaceProps) {
+export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalFile, setModalFile] = useState<File | null>(null);
+  const [overrideFolderId, setOverrideFolderId] = useState<string | null | undefined>(undefined);
+
+  const activeFolderId = overrideFolderId !== undefined ? overrideFolderId : (folderId ?? null);
 
   // Drag & drop state
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragCounterRef = useRef(0);
 
   // Open modal handler (unified for Header, Empty State, and Drop)
-  const openNewVideoModal = useCallback((file?: File | null) => {
+  const openNewVideoModal = useCallback((file?: File | null, targetFolderId?: string | null) => {
     setModalFile(file || null);
+    if (targetFolderId !== undefined) {
+      setOverrideFolderId(targetFolderId);
+    } else {
+      setOverrideFolderId(folderId ?? null);
+    }
     setIsModalOpen(true);
-  }, []);
+  }, [folderId]);
 
   const handleModalOpenChange = useCallback((open: boolean) => {
     setIsModalOpen(open);
     if (!open) {
       setModalFile(null);
+      setOverrideFolderId(undefined);
     }
   }, []);
+
 
   // ── Drag & Drop handlers (Flicker-free whole-page detection) ──
   const handleDragEnter = (e: React.DragEvent) => {
@@ -138,8 +149,10 @@ export function VideosWorkspace({ children }: VideosWorkspaceProps) {
           open={isModalOpen}
           onOpenChange={handleModalOpenChange}
           initialFile={modalFile}
+          folderId={activeFolderId}
         />
       </div>
     </VideosWorkspaceContext.Provider>
   );
 }
+

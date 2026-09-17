@@ -10,9 +10,10 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Download, Pencil, Trash2 } from "lucide-react";
+import { MoreVertical, Download, Pencil, Trash2, FolderInput } from "lucide-react";
 import { EditVideoDialog } from "./edit-video-dialog";
 import { DeleteVideoDialog } from "./delete-video-dialog";
+import { MoveVideoDialog } from "./move-video-dialog";
 import { useRouter } from "next/navigation";
 import type { Video } from "@/db/schema";
 
@@ -21,6 +22,7 @@ interface VideoCardMenuProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onDownload?: () => void;
+  onMove?: () => void;
 }
 
 export function VideoCardMenu({
@@ -28,9 +30,11 @@ export function VideoCardMenu({
   onEdit,
   onDelete,
   onDownload,
+  onMove,
 }: VideoCardMenuProps) {
   const [localEditOpen, setLocalEditOpen] = useState(false);
   const [localDeleteOpen, setLocalDeleteOpen] = useState(false);
+  const [localMoveOpen, setLocalMoveOpen] = useState(false);
   const router = useRouter();
 
   const handleEditClick = (e: React.MouseEvent) => {
@@ -50,6 +54,16 @@ export function VideoCardMenu({
       onDelete();
     } else {
       setLocalDeleteOpen(true);
+    }
+  };
+
+  const handleMoveClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onMove) {
+      onMove();
+    } else {
+      setLocalMoveOpen(true);
     }
   };
 
@@ -86,7 +100,7 @@ export function VideoCardMenu({
             <MoreVertical className="size-3.5" />
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end" className="w-36">
+          <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem
               onClick={handleDownloadClick}
               className="gap-2 text-xs"
@@ -101,6 +115,14 @@ export function VideoCardMenu({
             >
               <Pencil className="size-3.5 text-muted-foreground" />
               <span>Editar</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={handleMoveClick}
+              className="gap-2 text-xs"
+            >
+              <FolderInput className="size-3.5 text-muted-foreground" />
+              <span>Mover para pasta</span>
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -127,6 +149,17 @@ export function VideoCardMenu({
         />
       )}
 
+      {!onMove && (
+        <MoveVideoDialog
+          video={video}
+          open={localMoveOpen}
+          onOpenChange={setLocalMoveOpen}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
+
       {!onDelete && (
         <DeleteVideoDialog
           video={video}
@@ -140,3 +173,4 @@ export function VideoCardMenu({
     </>
   );
 }
+

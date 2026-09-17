@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, uuid, bigint, index, real } from "drizzle-orm/pg-core";
 import { accounts } from "./accounts";
+import { folders } from "./folders";
 
 export const videoStatusEnum = ["waiting_upload", "uploading", "processing", "ready", "errored"] as const;
 export type VideoStatus = (typeof videoStatusEnum)[number];
@@ -15,6 +16,7 @@ export const videos = pgTable(
     accountId: uuid("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
+    folderId: uuid("folder_id").references(() => folders.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     muxUploadId: text("mux_upload_id"),
     muxAssetId: text("mux_asset_id"),
@@ -35,6 +37,7 @@ export const videos = pgTable(
   },
   (t) => [
     index("videos_account_id_created_at_idx").on(t.accountId, t.createdAt),
+    index("videos_account_id_folder_id_idx").on(t.accountId, t.folderId),
     index("videos_public_id_idx").on(t.publicId),
     index("videos_mux_upload_id_idx").on(t.muxUploadId),
     index("videos_mux_asset_id_idx").on(t.muxAssetId),
@@ -43,3 +46,4 @@ export const videos = pgTable(
 
 export type Video = typeof videos.$inferSelect;
 export type NewVideo = typeof videos.$inferInsert;
+

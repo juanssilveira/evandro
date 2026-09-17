@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { videos, type Video } from "@/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { videos, folders, type Video, type Folder } from "@/db/schema";
+import { eq, desc, and, sql, isNull } from "drizzle-orm";
 import {
   createMuxDirectUpload,
   getMuxDirectUpload,
@@ -12,11 +12,22 @@ import { deleteAssetObject } from "@/lib/asset-storage/r2";
 import type { CreateUploadInput } from "@/lib/validations/videos";
 import { PRO_PLAN } from "@/lib/plans/catalog";
 
-export async function getVideosForAccount(accountId: string): Promise<Video[]> {
+export async function getVideosForAccount(
+  accountId: string,
+  folderId?: string | null
+): Promise<Video[]> {
+  const conditions = [eq(videos.accountId, accountId)];
+
+  if (folderId === null) {
+    conditions.push(isNull(videos.folderId));
+  } else if (typeof folderId === "string") {
+    conditions.push(eq(videos.folderId, folderId));
+  }
+
   return await db
     .select()
     .from(videos)
-    .where(eq(videos.accountId, accountId))
+    .where(and(...conditions))
     .orderBy(desc(videos.createdAt));
 }
 
@@ -31,6 +42,24 @@ export async function getVideoForAccount(
     .limit(1);
 
   return video || null;
+}
+
+export async function getVideoWithFolderForAccount(
+  videoId: string,
+  accountId: string
+): Promise<{ video: Video; folder: Folder | null } | null> {
+  const [row] = await db
+    .select({
+      video: videos,
+      folder: folders,
+    })
+    .from(videos)
+    .leftJoin(folders, eq(videos.folderId, folders.id))
+    .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)))
+    .limit(1);
+
+  if (!row) return null;
+  return { video: row.video, folder: row.folder };
 }
 
 export async function getVideoByPublicId(
@@ -79,6 +108,7 @@ export async function createVideoUploadSession(
       id: videoId,
       publicId,
       accountId,
+      folderId: input.folderId || null,
       title: input.title,
       muxUploadId: null,
       status: "waiting_upload",
@@ -93,6 +123,7 @@ export async function createVideoUploadSession(
     const { uploadId, uploadUrl } = await createMuxDirectUpload({
       videoId,
     });
+
 
     // Update video with muxUploadId
     await db

@@ -6,11 +6,12 @@ import { Film, HardDrive, Calendar } from "lucide-react";
 import { VideoIdBadge } from "./video-id-badge";
 import { VideoHeaderActions } from "./video-header-actions";
 import { Breadcrumbs } from "@/components/ui/breadcrumb";
-import type { Video } from "@/db/schema";
+import type { Video, Folder } from "@/db/schema";
 
 interface VideoPageHeaderProps {
   video: Video;
   accountName: string;
+  folder?: Folder | null;
   onTitleChange?: (newTitle: string) => void;
 }
 
@@ -32,6 +33,7 @@ function formatDate(date: Date | string): string {
 
 export function VideoPageHeader({
   video,
+  folder,
   // accountName is kept in props interface for API compatibility but not displayed per spec 015
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   accountName: _accountName,
@@ -44,19 +46,23 @@ export function VideoPageHeader({
     onTitleChange?.(newTitle);
   };
 
+  const breadcrumbItems = [
+    { label: "Biblioteca", href: "/videos" },
+    ...(folder
+      ? [{ label: folder.name, href: `/videos/folders/${folder.id}` }]
+      : []),
+    { label: title, isCurrent: true },
+  ];
+
   return (
     <div className="space-y-3 pb-4 border-b border-border/70">
       {/* Top Bar: Breadcrumb Navigation & Public ID Badge */}
       <div className="flex items-center justify-between gap-4">
-        <Breadcrumbs
-          items={[
-            { label: "Biblioteca", href: "/videos" },
-            { label: title, isCurrent: true },
-          ]}
-        />
+        <Breadcrumbs items={breadcrumbItems} />
 
         <VideoIdBadge publicId={video.publicId} />
       </div>
+
 
       {/* Title */}
       <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate" title={title}>

@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
-import { getVideoForAccount, syncVideoStatus } from "@/lib/videos";
+import {
+  getVideoForAccount,
+  getVideoWithFolderForAccount,
+  syncVideoStatus,
+} from "@/lib/videos";
+
 import { getPlayerConfig } from "@/lib/player-settings";
 import { getActivePlanForUser } from "@/lib/plans/access";
 import { DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
@@ -62,10 +67,12 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
 
   const activePlan = await getActivePlanForUser(session.user.id);
 
-  const video = await getVideoForAccount(videoId, account.id);
-  if (!video) {
+  const videoWithFolder = await getVideoWithFolderForAccount(videoId, account.id);
+  if (!videoWithFolder) {
     notFound();
   }
+
+  const { video, folder } = videoWithFolder;
 
   // If video is still processing or waiting for upload, attempt to sync status
   let currentVideo = video;
@@ -112,6 +119,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
       <main className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 py-8 space-y-6">
         <VideoDetailsView
           video={currentVideo}
+          folder={folder}
           accountName={account.name}
           playbackUrl={playbackUrl}
           posterUrl={posterUrl}
@@ -123,3 +131,4 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
     </div>
   );
 }
+

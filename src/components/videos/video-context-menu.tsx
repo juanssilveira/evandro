@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useEffect, useRef } from "react";
-import { Download, Pencil, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2, FolderInput } from "lucide-react";
 import type { Video } from "@/db/schema";
 
 export interface ContextMenuPosition {
@@ -17,6 +17,7 @@ interface VideoContextMenuProps {
   onEdit: (video: Video) => void;
   onDelete: (video: Video) => void;
   onDownload: (video: Video) => void;
+  onMove?: (video: Video) => void;
 }
 
 export function VideoContextMenu({
@@ -26,6 +27,7 @@ export function VideoContextMenu({
   onEdit,
   onDelete,
   onDownload,
+  onMove,
 }: VideoContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -65,7 +67,7 @@ export function VideoContextMenu({
 
   // Viewport clamping
   const menuWidth = 176;
-  const menuHeight = 120;
+  const menuHeight = 150;
   const clampedX = Math.max(8, Math.min(position.x, window.innerWidth - menuWidth - 8));
   const clampedY = Math.max(8, Math.min(position.y, window.innerHeight - menuHeight - 8));
 
@@ -110,6 +112,21 @@ export function VideoContextMenu({
         <span>Editar</span>
       </button>
 
+      {onMove && (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onClose();
+            onMove(video);
+          }}
+          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted focus:bg-muted transition-colors cursor-pointer text-left outline-none"
+        >
+          <FolderInput className="size-3.5 text-muted-foreground" />
+          <span>Mover para pasta</span>
+        </button>
+      )}
+
       <div className="-mx-1 my-1 h-px bg-border/60" role="separator" />
 
       <button
@@ -127,3 +144,4 @@ export function VideoContextMenu({
     </div>
   );
 }
+

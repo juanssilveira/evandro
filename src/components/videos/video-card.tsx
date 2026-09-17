@@ -14,6 +14,7 @@ interface VideoCardProps {
   onEdit: (video: Video) => void;
   onDelete: (video: Video) => void;
   onDownload: (video: Video) => void;
+  onMove?: (video: Video) => void;
 }
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -53,6 +54,7 @@ export function VideoCard({
   onEdit,
   onDelete,
   onDownload,
+  onMove,
 }: VideoCardProps) {
   const isReady = video.status === "ready";
   const isProcessing =
@@ -223,8 +225,10 @@ export function VideoCard({
           onEdit={() => onEdit(video)}
           onDelete={() => onDelete(video)}
           onDownload={() => onDownload(video)}
+          onMove={onMove ? () => onMove(video) : undefined}
         />
       </div>
     </div>
   );
 }
+

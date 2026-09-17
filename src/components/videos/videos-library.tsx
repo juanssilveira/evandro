@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +16,11 @@ import { VideoCard } from "./video-card";
 import { VideoContextMenu, type ContextMenuPosition } from "./video-context-menu";
 import { EditVideoDialog } from "./edit-video-dialog";
 import { DeleteVideoDialog } from "./delete-video-dialog";
+import { MoveVideoDialog } from "./move-video-dialog";
+import { FoldersSection } from "./folders-section";
 import { UploadButton } from "./upload-button";
 import { useToast } from "@/components/ui/toast";
+import { FOLDER_COLOR_CONFIGS } from "@/lib/folder-colors";
 import {
   Search,
   X,
@@ -24,9 +28,14 @@ import {
   ArrowUpDown,
   ChevronDown,
   Video as VideoIcon,
+  Folder as FolderIcon,
   SearchX,
+  ArrowLeft,
 } from "lucide-react";
 import type { Video } from "@/db/schema";
+import type { Folder, FolderColor } from "@/db/schema/folders";
+import type { FolderWithCount } from "@/lib/folders";
+import { cn } from "@/lib/utils";
 
 type StatusFilter = "all" | "ready" | "processing" | "errored";
 type SortOption = "newest" | "oldest" | "title";
@@ -47,9 +56,16 @@ const sortLabels: Record<SortOption, string> = {
 interface VideosLibraryProps {
   videos: Video[];
   videoPlaysMap: Record<string, number>;
+  folders?: FolderWithCount[];
+  currentFolder?: Folder | null;
 }
 
-export function VideosLibrary({ videos, videoPlaysMap }: VideosLibraryProps) {
+export function VideosLibrary({
+  videos,
+  videoPlaysMap,
+  folders = [],
+  currentFolder = null,
+}: VideosLibraryProps) {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -65,6 +81,7 @@ export function VideosLibrary({ videos, videoPlaysMap }: VideosLibraryProps) {
   // ── Dialog States ──
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [deletingVideo, setDeletingVideo] = useState<Video | null>(null);
+  const [movingVideo, setMovingVideo] = useState<Video | null>(null);
 
   // ── Filter and Sort Logic ──
   const filteredVideos = useMemo(() => {
@@ -134,21 +151,44 @@ export function VideosLibrary({ videos, videoPlaysMap }: VideosLibraryProps) {
     setDeletingVideo(video);
   }, []);
 
+  const handleMove = useCallback((video: Video) => {
+    setMovingVideo(video);
+  }, []);
+
   const handleDownload = useCallback((video: Video) => {
     if (video.status !== "ready") {
       toast("O vídeo ainda está sendo processado.", "info");
       return;
     }
-    // Respects spec: does not fabricate fake download if static renditions are not available
     toast("Download direto não disponível para este vídeo.", "info");
   }, [toast]);
 
   const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "all";
 
+  const folderConfig = currentFolder
+    ? FOLDER_COLOR_CONFIGS[(currentFolder.color as FolderColor) || "gray"] ||
+      FOLDER_COLOR_CONFIGS.gray
+    : null;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* ── Folders Section (Only on root library when folders exist) ── */}
+      {!currentFolder && folders.length > 0 && (
+        <FoldersSection folders={folders} />
+      )}
+
+      {/* ── Section Title (If on root with folders, label the videos list) ── */}
+      {!currentFolder && folders.length > 0 && (
+        <div className="flex items-center gap-2 pt-2 border-t border-border/60">
+          <VideoIcon className="size-4 text-muted-foreground" />
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Vídeos ({videos.length})
+          </h2>
+        </div>
+      )}
+
       {/* ── Toolbar ── */}
-      {videos.length > 0 && (
+      {(videos.length > 0 || hasActiveFilters) && (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-1.5 rounded-xl border border-border bg-card/60 shadow-2xs">
           {/* Search Input */}
           <div className="relative flex-1 min-w-[200px]">
@@ -247,28 +287,82 @@ export function VideosLibrary({ videos, videoPlaysMap }: VideosLibraryProps) {
 
       {/* ── Content View ── */}
       {videos.length === 0 ? (
-        /* ── Empty Library State ── */
-        <div className="rounded-xl border border-border bg-card shadow-2xs">
-          <div className="flex flex-col items-center justify-center gap-4 py-14 px-6 text-center">
-            <div className="flex size-12 items-center justify-center rounded-xl bg-primary-soft border border-primary/20 text-primary shadow-xs">
-              <VideoIcon className="size-6" />
+        currentFolder ? (
+          /* ── Empty Folder State ── */
+          <div className="rounded-xl border border-border bg-card shadow-2xs">
+            <div className="flex flex-col items-center justify-center gap-4 py-14 px-6 text-center">
+              <div
+                className={cn(
+                  "flex size-12 items-center justify-center rounded-xl border shadow-xs",
+                  folderConfig?.iconClass
+                )}
+              >
+                <FolderIcon className="size-6 fill-current/20" />
+              </div>
+              <div className="space-y-1.5 max-w-xs">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Esta pasta ainda não possui vídeos.
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Envie vídeos diretamente para esta pasta ou mova vídeos existentes da sua Biblioteca.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <Link
+                  href="/videos"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/50 transition-colors shadow-2xs"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  <span>Voltar para Biblioteca</span>
+                </Link>
+                <UploadButton
+                  size="sm"
+                  className="cursor-pointer shadow-2xs"
+                />
+              </div>
             </div>
-            <div className="space-y-1.5 max-w-xs">
-              <h3 className="text-sm font-semibold text-foreground">
-                Nenhum vídeo ainda
-              </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Envie seu primeiro vídeo para começar a configurar o player e
-                acompanhar seus dados.
+          </div>
+        ) : folders.length > 0 ? (
+          /* ── Root has folders but 0 root videos ── */
+          <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
+            <div className="space-y-1 max-w-xs mx-auto">
+              <p className="text-xs font-semibold text-foreground">
+                Nenhum vídeo na raiz
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Envie novos vídeos para a raiz ou acesse uma das pastas acima.
               </p>
             </div>
             <UploadButton
               variant="outline"
               size="sm"
-              className="cursor-pointer shadow-2xs"
+              className="cursor-pointer shadow-2xs text-xs"
             />
           </div>
-        </div>
+        ) : (
+          /* ── Completely Empty Library State ── */
+          <div className="rounded-xl border border-border bg-card shadow-2xs">
+            <div className="flex flex-col items-center justify-center gap-4 py-14 px-6 text-center">
+              <div className="flex size-12 items-center justify-center rounded-xl bg-primary-soft border border-primary/20 text-primary shadow-xs">
+                <VideoIcon className="size-6" />
+              </div>
+              <div className="space-y-1.5 max-w-xs">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Nenhum vídeo ainda
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Envie seu primeiro vídeo para começar a configurar o player e
+                  acompanhar seus dados.
+                </p>
+              </div>
+              <UploadButton
+                variant="outline"
+                size="sm"
+                className="cursor-pointer shadow-2xs"
+              />
+            </div>
+          </div>
+        )
       ) : filteredVideos.length === 0 ? (
         /* ── Search / Filter No Results State ── */
         <div className="rounded-xl border border-border bg-card shadow-2xs">
@@ -313,6 +407,7 @@ export function VideosLibrary({ videos, videoPlaysMap }: VideosLibraryProps) {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onDownload={handleDownload}
+              onMove={handleMove}
             />
           ))}
         </div>
@@ -326,6 +421,7 @@ export function VideosLibrary({ videos, videoPlaysMap }: VideosLibraryProps) {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onDownload={handleDownload}
+        onMove={handleMove}
       />
 
       {/* ── Shared Edit Video Dialog ── */}
@@ -335,6 +431,20 @@ export function VideosLibrary({ videos, videoPlaysMap }: VideosLibraryProps) {
           open={!!editingVideo}
           onOpenChange={(open) => {
             if (!open) setEditingVideo(null);
+          }}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* ── Shared Move Video Dialog ── */}
+      {movingVideo && (
+        <MoveVideoDialog
+          video={movingVideo}
+          open={!!movingVideo}
+          onOpenChange={(open) => {
+            if (!open) setMovingVideo(null);
           }}
           onSuccess={() => {
             router.refresh();

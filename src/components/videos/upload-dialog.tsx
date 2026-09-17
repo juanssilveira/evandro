@@ -24,6 +24,7 @@ export interface UploadDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   initialFile?: File | null;
+  folderId?: string | null;
 }
 
 function formatBytes(bytes: number): string {
@@ -39,6 +40,7 @@ export function UploadDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   initialFile,
+  folderId,
 }: UploadDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
@@ -150,11 +152,13 @@ export function UploadDialog({
         filename: file.name,
         mimeType: "video/mp4",
         sizeBytes: file.size,
+        folderId: folderId || null,
       });
 
       if (uploadRes.error || !uploadRes.data) {
         throw new Error(uploadRes.error || "Não foi possível obter a URL de upload.");
       }
+
 
       const { videoId, uploadUrl } = uploadRes.data;
 

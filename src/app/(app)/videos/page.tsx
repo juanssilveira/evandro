@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getVideosForAccount, syncVideoStatus } from "@/lib/videos";
+import { getFoldersForAccount } from "@/lib/folders";
 import { getActivePlanForUser, getVideoPlaysMapThisMonth } from "@/lib/plans/access";
 import { headers } from "next/headers";
 import { VideosWorkspace } from "@/components/videos/videos-workspace";
 import { UploadButton } from "@/components/videos/upload-button";
+import { CreateFolderButton } from "@/components/videos/create-folder-button";
 import { AppHeader } from "@/components/app-header";
 import { VideosListRefresher } from "@/components/videos/videos-list-refresher";
 import { VideosLibrary } from "@/components/videos/videos-library";
@@ -24,7 +26,11 @@ export default async function VideosPage() {
     ? await getCurrentAccount(session.user.id)
     : null;
 
-  const rawVideoList = account ? await getVideosForAccount(account.id) : [];
+  // Fetch folders and root videos (videos with folderId = null)
+  const [foldersList, rawVideoList] = await Promise.all([
+    account ? getFoldersForAccount(account.id) : [],
+    account ? getVideosForAccount(account.id, null) : [],
+  ]);
 
   // Fetch active plan for header
   const activePlan =
@@ -85,7 +91,8 @@ export default async function VideosPage() {
                 Gerencie sua biblioteca de vídeos e configurações.
               </p>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+              <CreateFolderButton />
               <UploadButton />
             </div>
           </div>
@@ -93,6 +100,7 @@ export default async function VideosPage() {
           {/* Videos Library Section */}
           <section aria-label="Biblioteca de vídeos">
             <VideosLibrary
+              folders={foldersList}
               videos={videoList}
               videoPlaysMap={videoPlaysMap}
             />
@@ -102,3 +110,4 @@ export default async function VideosPage() {
     </VideosWorkspace>
   );
 }
+

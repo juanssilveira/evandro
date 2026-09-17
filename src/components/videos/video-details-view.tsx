@@ -4,11 +4,12 @@ import * as React from "react";
 import { useState } from "react";
 import { VideoPageHeader } from "./video-page-header";
 import { VideoPlayerView } from "./video-player-view";
-import type { Video } from "@/db/schema";
+import type { Video, Folder } from "@/db/schema";
 import type { PlayerConfig } from "@/types/player-config";
 
 interface VideoDetailsViewProps {
   video: Video;
+  folder?: Folder | null;
   accountName: string;
   playbackUrl: string;
   posterUrl?: string | null;
@@ -19,6 +20,7 @@ interface VideoDetailsViewProps {
 
 export function VideoDetailsView({
   video,
+  folder,
   accountName,
   playbackUrl,
   posterUrl,
@@ -32,9 +34,11 @@ export function VideoDetailsView({
     <div className="space-y-6">
       <VideoPageHeader
         video={video}
+        folder={folder}
         accountName={accountName}
         onTitleChange={setCurrentTitle}
       />
+
 
       <VideoPlayerView
         videoId={video.id}

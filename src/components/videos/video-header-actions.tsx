@@ -3,9 +3,10 @@
 import * as React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, FolderInput } from "lucide-react";
 import { EditVideoDialog } from "./edit-video-dialog";
 import { DeleteVideoDialog } from "./delete-video-dialog";
+import { MoveVideoDialog } from "./move-video-dialog";
 import { useRouter } from "next/navigation";
 import type { Video } from "@/db/schema";
 
@@ -21,6 +22,7 @@ export function VideoHeaderActions({
   const [currentVideo, setCurrentVideo] = useState<Video>(video);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const router = useRouter();
 
   const handleEditSuccess = (updatedVideo: Video) => {
@@ -50,6 +52,17 @@ export function VideoHeaderActions({
         type="button"
         variant="outline"
         size="sm"
+        onClick={() => setMoveOpen(true)}
+        className="h-8 px-3 text-xs font-medium gap-1.5 cursor-pointer shadow-2xs"
+      >
+        <FolderInput className="size-3.5 text-muted-foreground" />
+        <span>Mover</span>
+      </Button>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
         onClick={() => setDeleteOpen(true)}
         className="h-8 px-3 text-xs font-medium gap-1.5 cursor-pointer shadow-2xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 hover:border-destructive/50"
       >
@@ -64,6 +77,15 @@ export function VideoHeaderActions({
         onSuccess={handleEditSuccess}
       />
 
+      <MoveVideoDialog
+        video={currentVideo}
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        onSuccess={() => {
+          router.refresh();
+        }}
+      />
+
       <DeleteVideoDialog
         video={currentVideo}
         open={deleteOpen}
@@ -73,3 +95,4 @@ export function VideoHeaderActions({
     </div>
   );
 }
+

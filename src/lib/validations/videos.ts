@@ -11,9 +11,11 @@ export const createUploadSchema = z.object({
     message: "Apenas arquivos MP4 (video/mp4) são permitidos",
   }),
   sizeBytes: z.number().positive("Tamanho do arquivo deve ser maior que zero"),
+  folderId: z.string().uuid("ID de pasta inválido").nullable().optional(),
 });
 
 export type CreateUploadInput = z.infer<typeof createUploadSchema>;
+
 
 export const syncVideoStatusSchema = z.object({
   videoId: z.string().uuid("ID de vídeo inválido"),
