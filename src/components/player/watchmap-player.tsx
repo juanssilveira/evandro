@@ -237,6 +237,16 @@ export function WatchMapPlayer({
   const defaultVolume = effectiveConfig.playback?.defaultVolume ?? 1;
 
   // Reset initial playback resolution on src or playback config change
+  const configRef = useRef(effectiveConfig);
+  const modeRef = useRef(playbackMode);
+  const attachedSrcRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    configRef.current = effectiveConfig;
+    modeRef.current = playbackMode;
+  }, [effectiveConfig, playbackMode]);
+
+  // Reset initial playback resolution on src or playback config change
   useEffect(() => {
     hasResolvedInitialPlaybackRef.current = false;
     pendingForegroundActivationRef.current = false;
@@ -247,17 +257,21 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    video.playbackRate = defaultPlaybackRate;
-    setPlaybackRate(defaultPlaybackRate);
+    const currentConfig = configRef.current;
+    const currentRate = currentConfig.playback?.defaultPlaybackRate ?? 1;
+    const currentVol = currentConfig.playback?.defaultVolume ?? 1;
 
-    if (playbackMode !== "background_autoplay") {
-      video.volume = defaultVolume;
-      video.muted = defaultVolume === 0;
-      setVolume(defaultVolume);
-      setIsMuted(defaultVolume === 0);
-      lastVolumeRef.current = defaultVolume;
+    video.playbackRate = currentRate;
+    setPlaybackRate(currentRate);
+
+    if (modeRef.current !== "background_autoplay") {
+      video.volume = currentVol;
+      video.muted = currentVol === 0;
+      setVolume(currentVol);
+      setIsMuted(currentVol === 0);
+      lastVolumeRef.current = currentVol;
     }
-  }, [defaultPlaybackRate, defaultVolume, playbackMode]);
+  }, []);
 
   // Helper to trigger initial playback resolution safely once
   const triggerInitialPlaybackIfNeeded = useCallback(() => {
@@ -276,7 +290,7 @@ export function WatchMapPlayer({
     }
   }, []);
 
-  // Update controller config when effectiveConfig changes
+  // Update controller config when effectiveConfig changes without destroying controller
   useEffect(() => {
     playbackControllerRef.current?.updateConfig(effectiveConfig);
   }, [effectiveConfig]);
@@ -286,6 +300,11 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video || !mediaSrc) return;
 
+    if (attachedSrcRef.current === mediaSrc && (hlsRef.current || video.src)) {
+      return;
+    }
+
+    attachedSrcRef.current = mediaSrc;
     setHasError(false);
     setIsLoading(true);
 
@@ -343,7 +362,7 @@ export function WatchMapPlayer({
     }
   }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded]);
 
-  // Attach media source conditionally (Only if foreground is active or autoplay requested)
+  // Attach media source conditionally once per resolved media URL
   useEffect(() => {
     if (isMediaAttached && resolvedSrc) {
       attachMediaSource(resolvedSrc);
@@ -354,10 +373,11 @@ export function WatchMapPlayer({
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      attachedSrcRef.current = null;
     };
   }, [resolvedSrc, isMediaAttached, attachMediaSource]);
 
-  // Initialize PlayerRuntime and PlaybackController lifecycle
+  // Initialize PlayerRuntime and PlaybackController lifecycle once per videoId / debug flag
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
@@ -372,7 +392,7 @@ export function WatchMapPlayer({
     const controller = new PlaybackController({
       video,
       runtime,
-      config: effectiveConfig,
+      config: configRef.current,
     });
 
     runtimeRef.current = runtime;
@@ -403,7 +423,7 @@ export function WatchMapPlayer({
       unsubscribe?.();
       runtime.destroy();
     };
-  }, [videoId, effectiveDebug, onEvent, onRuntimeReady, isMediaAttached, effectiveConfig, triggerInitialPlaybackIfNeeded]);
+  }, [videoId, effectiveDebug, onEvent, onRuntimeReady, isMediaAttached, triggerInitialPlaybackIfNeeded]);
 
   // 60fps smooth linear progress animation loop
   useEffect(() => {
