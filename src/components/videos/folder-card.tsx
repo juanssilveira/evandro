@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -16,16 +17,31 @@ import { DeleteFolderDialog } from "./delete-folder-dialog";
 import { FOLDER_COLOR_CONFIGS } from "@/lib/folder-colors";
 import type { FolderColor } from "@/db/schema/folders";
 import type { FolderWithCount } from "@/lib/folders";
-import { Folder as FolderIcon, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Folder as FolderIcon, MoreVertical, Pencil, Palette, Trash2, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FolderCardProps {
   folder: FolderWithCount;
+  onContextMenu?: (e: React.MouseEvent, folder: FolderWithCount) => void;
+  onRename?: (folder: FolderWithCount) => void;
+  onChangeColor?: (folder: FolderWithCount) => void;
+  onDelete?: (folder: FolderWithCount) => void;
+  onDropVideo?: (videoId: string, folder: FolderWithCount) => void;
 }
 
-export function FolderCard({ folder }: FolderCardProps) {
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+export function FolderCard({
+  folder,
+  onContextMenu,
+  onRename,
+  onChangeColor,
+  onDelete,
+  onDropVideo,
+}: FolderCardProps) {
+  const router = useRouter();
+  const [localEditOpen, setLocalEditOpen] = useState(false);
+  const [editMode, setEditMode] = useState<"rename" | "color">("rename");
+  const [localDeleteOpen, setLocalDeleteOpen] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const cfg =
     FOLDER_COLOR_CONFIGS[(folder.color as FolderColor) || "gray"] ||
@@ -34,12 +50,100 @@ export function FolderCard({ folder }: FolderCardProps) {
   const countLabel =
     folder.videoCount === 1 ? "1 vídeo" : `${folder.videoCount} vídeos`;
 
+  const handleOpenFolder = () => {
+    router.push(`/videos/folders/${folder.id}`);
+  };
+
+  const handleRenameClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onRename) {
+      onRename(folder);
+    } else {
+      setEditMode("rename");
+      setLocalEditOpen(true);
+    }
+  };
+
+  const handleChangeColorClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onChangeColor) {
+      onChangeColor(folder);
+    } else {
+      setEditMode("color");
+      setLocalEditOpen(true);
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete(folder);
+    } else {
+      setLocalDeleteOpen(true);
+    }
+  };
+
+  // Drag & drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    if (
+      e.dataTransfer &&
+      (e.dataTransfer.types.includes("application/x-watchmap-video") ||
+        e.dataTransfer.types.includes("text/plain"))
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      if (!isDragOver) {
+        setIsDragOver(true);
+      }
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const videoId =
+      e.dataTransfer.getData("application/x-watchmap-video") ||
+      e.dataTransfer.getData("text/plain");
+
+    if (videoId && onDropVideo) {
+      onDropVideo(videoId, folder);
+    }
+  };
+
   return (
     <>
-      <div className="group relative flex items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-xs transition-all duration-150">
+      <div
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(e, folder);
+        }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={cn(
+          "group relative flex items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card transition-all duration-150 select-none",
+          isDragOver
+            ? "ring-2 ring-primary ring-offset-1 border-primary bg-primary/5 dark:bg-primary/10 scale-[1.02] shadow-md z-20"
+            : "hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-xs active:scale-[0.99]"
+        )}
+      >
         {/* Stretched Link to folder view */}
         <Link
           href={`/videos/folders/${folder.id}`}
+          draggable={false}
           className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 rounded-xl"
           aria-label={`Abrir pasta ${folder.name}`}
         />
@@ -48,7 +152,8 @@ export function FolderCard({ folder }: FolderCardProps) {
         <div className="flex items-center gap-3 min-w-0 z-10 pointer-events-none">
           <div
             className={cn(
-              "flex size-9 sm:size-10 items-center justify-center rounded-lg border shrink-0 transition-transform duration-150 group-hover:scale-105",
+              "flex size-9 sm:size-10 items-center justify-center rounded-lg border shrink-0 transition-transform duration-150",
+              isDragOver ? "scale-110" : "group-hover:scale-105",
               cfg.iconClass
             )}
           >
@@ -57,18 +162,24 @@ export function FolderCard({ folder }: FolderCardProps) {
 
           <div className="min-w-0 space-y-0.5">
             <p
-              className="text-xs sm:text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate max-w-[180px] xs:max-w-[240px] sm:max-w-[280px]"
+              className="text-xs sm:text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate max-w-[170px] xs:max-w-[220px] sm:max-w-[260px]"
               title={folder.name}
             >
               {folder.name}
             </p>
             <p className="text-[11px] font-mono text-muted-foreground">
-              {countLabel}
+              {isDragOver ? (
+                <span className="text-primary font-medium animate-pulse">
+                  Solte para mover vídeo
+                </span>
+              ) : (
+                countLabel
+              )}
             </p>
           </div>
         </div>
 
-        {/* Right: Actions Dropdown */}
+        {/* Right: Actions Dropdown (Share exact same options as Context Menu) */}
         <div className="relative z-10 shrink-0 flex items-center">
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -89,25 +200,38 @@ export function FolderCard({ folder }: FolderCardProps) {
               <MoreVertical className="size-3.5" />
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" className="w-36">
+            <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
-                  setEditOpen(true);
+                  handleOpenFolder();
                 }}
                 className="gap-2 text-xs cursor-pointer"
               >
+                <FolderOpen className="size-3.5 text-muted-foreground" />
+                <span>Abrir</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={handleRenameClick}
+                className="gap-2 text-xs cursor-pointer"
+              >
                 <Pencil className="size-3.5 text-muted-foreground" />
-                <span>Editar pasta</span>
+                <span>Renomear</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={handleChangeColorClick}
+                className="gap-2 text-xs cursor-pointer"
+              >
+                <Palette className="size-3.5 text-muted-foreground" />
+                <span>Alterar cor</span>
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
 
               <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteOpen(true);
-                }}
+                onClick={handleDeleteClick}
                 className="gap-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
               >
                 <Trash2 className="size-3.5" />
@@ -118,19 +242,23 @@ export function FolderCard({ folder }: FolderCardProps) {
         </div>
       </div>
 
-      {/* Edit Dialog */}
-      <EditFolderDialog
-        folder={folder}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
+      {/* Local Fallback Dialogs if not controlled by parent */}
+      {!onRename && (
+        <EditFolderDialog
+          folder={folder}
+          open={localEditOpen}
+          onOpenChange={setLocalEditOpen}
+          initialMode={editMode}
+        />
+      )}
 
-      {/* Delete Dialog */}
-      <DeleteFolderDialog
-        folder={folder}
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-      />
+      {!onDelete && (
+        <DeleteFolderDialog
+          folder={folder}
+          open={localDeleteOpen}
+          onOpenChange={setLocalDeleteOpen}
+        />
+      )}
     </>
   );
 }

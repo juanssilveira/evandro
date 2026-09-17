@@ -68,10 +68,18 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
     }
   }, []);
 
+  // Helper to distinguish external file drop from internal video card drag
+  const isExternalFileDrag = (e: React.DragEvent) => {
+    if (!e.dataTransfer) return false;
+    const types = Array.from(e.dataTransfer.types || []);
+    const isInternal = types.includes("application/x-watchmap-video");
+    const hasFiles = types.includes("Files");
+    return hasFiles && !isInternal;
+  };
 
-  // ── Drag & Drop handlers (Flicker-free whole-page detection) ──
+  // ── Drag & Drop handlers (Flicker-free whole-page detection for OS Files) ──
   const handleDragEnter = (e: React.DragEvent) => {
-    if (e.dataTransfer && e.dataTransfer.types.includes("Files")) {
+    if (isExternalFileDrag(e)) {
       dragCounterRef.current += 1;
       if (dragCounterRef.current === 1) {
         setIsDraggingFile(true);
@@ -80,7 +88,7 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    if (e.dataTransfer && e.dataTransfer.types.includes("Files")) {
+    if (isExternalFileDrag(e)) {
       dragCounterRef.current -= 1;
       if (dragCounterRef.current <= 0) {
         dragCounterRef.current = 0;
@@ -90,23 +98,30 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (e.dataTransfer && e.dataTransfer.types.includes("Files")) {
+    if (isExternalFileDrag(e)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current = 0;
-    setIsDraggingFile(false);
+    // If it's an internal video drag, do not handle here
+    if (e.dataTransfer && e.dataTransfer.types.includes("application/x-watchmap-video")) {
+      return;
+    }
 
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const files = Array.from(e.dataTransfer.files);
-      const validVideo = files.find(isValidVideoFile);
+    if (isExternalFileDrag(e)) {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDraggingFile(false);
 
-      if (validVideo) {
-        openNewVideoModal(validVideo);
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const files = Array.from(e.dataTransfer.files);
+        const validVideo = files.find(isValidVideoFile);
+
+        if (validVideo) {
+          openNewVideoModal(validVideo);
+        }
       }
     }
   };
@@ -155,4 +170,3 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
     </VideosWorkspaceContext.Provider>
   );
 }
-

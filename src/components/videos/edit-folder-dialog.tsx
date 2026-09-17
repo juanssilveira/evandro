@@ -27,15 +27,22 @@ interface EditFolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  initialMode?: "rename" | "color";
 }
 
 interface EditFolderFormProps {
   folder: Folder;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  initialMode?: "rename" | "color";
 }
 
-function EditFolderForm({ folder, onOpenChange, onSuccess }: EditFolderFormProps) {
+function EditFolderForm({
+  folder,
+  onOpenChange,
+  onSuccess,
+  initialMode = "rename",
+}: EditFolderFormProps) {
   const [name, setName] = useState(folder.name);
   const [color, setColor] = useState<FolderColor>((folder.color as FolderColor) || "gray");
   const [isPending, setIsPending] = useState(false);
@@ -88,7 +95,7 @@ function EditFolderForm({ folder, onOpenChange, onSuccess }: EditFolderFormProps
             <FolderPen className="size-4" />
           </div>
           <DialogTitle className="text-base font-semibold text-foreground">
-            Editar pasta
+            {initialMode === "color" ? "Alterar cor da pasta" : "Editar pasta"}
           </DialogTitle>
         </div>
         <DialogDescription className="text-xs text-muted-foreground">
@@ -114,7 +121,7 @@ function EditFolderForm({ folder, onOpenChange, onSuccess }: EditFolderFormProps
           <Input
             id="edit-folder-name"
             type="text"
-            placeholder="Ex: VSLs de Teste..."
+            placeholder="Nome da pasta"
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -122,18 +129,18 @@ function EditFolderForm({ folder, onOpenChange, onSuccess }: EditFolderFormProps
             }}
             disabled={isPending}
             maxLength={80}
-            autoFocus
+            autoFocus={initialMode === "rename"}
             required
-            className="text-xs"
+            className="text-xs h-9 bg-white dark:bg-zinc-900"
           />
         </div>
 
-        {/* Color Picker */}
+        {/* Color Picker Swatches */}
         <div className="space-y-2">
           <Label className="text-xs font-medium text-foreground">
-            Cor da pasta
+            Cor de identificação
           </Label>
-          <div className="flex items-center gap-2.5 pt-0.5">
+          <div className="flex items-center gap-3 pt-0.5">
             {folderColors.map((c) => {
               const cfg = FOLDER_COLOR_CONFIGS[c];
               const isSelected = color === c;
@@ -144,15 +151,16 @@ function EditFolderForm({ folder, onOpenChange, onSuccess }: EditFolderFormProps
                   onClick={() => setColor(c)}
                   disabled={isPending}
                   title={cfg.label}
+                  aria-label={`Cor ${cfg.label}`}
                   className={cn(
-                    "relative flex size-8 items-center justify-center rounded-lg transition-all cursor-pointer border",
-                    cfg.iconClass,
+                    "relative flex size-7 items-center justify-center rounded-full transition-all cursor-pointer",
+                    cfg.swatchBg,
                     isSelected
-                      ? "ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-950 scale-105 border-transparent shadow-xs"
-                      : "hover:scale-105 opacity-80 hover:opacity-100"
+                      ? "ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-950 scale-110 shadow-xs"
+                      : "hover:scale-105 opacity-85 hover:opacity-100 ring-1 ring-black/10 dark:ring-white/10"
                   )}
                 >
-                  {isSelected && <Check className="size-3.5 stroke-[2.5]" />}
+                  {isSelected && <Check className="size-3.5 text-white stroke-[3]" />}
                 </button>
               );
             })}
@@ -199,6 +207,7 @@ export function EditFolderDialog({
   open,
   onOpenChange,
   onSuccess,
+  initialMode = "rename",
 }: EditFolderDialogProps) {
   if (!folder) return null;
 
@@ -206,10 +215,11 @@ export function EditFolderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup className="max-w-md">
         <EditFolderForm
-          key={folder.id}
+          key={`${folder.id}-${folder.name}-${folder.color}-${initialMode}`}
           folder={folder}
           onOpenChange={onOpenChange}
           onSuccess={onSuccess}
+          initialMode={initialMode}
         />
       </DialogPopup>
     </Dialog>

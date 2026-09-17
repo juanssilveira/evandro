@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Video as VideoIcon, Loader2, AlertCircle, PlayCircle, Calendar, HardDrive } from "lucide-react";
 import { VideoCardMenu } from "./video-card-menu";
@@ -15,6 +16,7 @@ interface VideoCardProps {
   onDelete: (video: Video) => void;
   onDownload: (video: Video) => void;
   onMove?: (video: Video) => void;
+  isDraggable?: boolean;
 }
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -55,7 +57,10 @@ export function VideoCard({
   onDelete,
   onDownload,
   onMove,
+  isDraggable = true,
 }: VideoCardProps) {
+  const [isDragging, setIsDragging] = useState(false);
+
   const isReady = video.status === "ready";
   const isProcessing =
     video.status === "processing" ||
@@ -74,20 +79,38 @@ export function VideoCard({
       ? `https://image.mux.com/${video.muxPlaybackId}/thumbnail.webp?width=480&height=270&fit_mode=smartcrop`
       : null;
 
+  const canDrag = isDraggable && isReady;
+
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!canDrag) return;
+    e.dataTransfer.setData("application/x-watchmap-video", video.id);
+    e.dataTransfer.setData("text/plain", video.id);
+    e.dataTransfer.effectAllowed = "move";
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
   return (
     <div
+      draggable={canDrag}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
         onContextMenu(e, video);
       }}
       className={cn(
-        "group relative flex flex-col sm:flex-row sm:items-center gap-3.5 sm:gap-4 p-3 sm:p-3.5 rounded-xl border border-border bg-card transition-all duration-150 overflow-hidden",
+        "group relative flex flex-col sm:flex-row sm:items-center gap-3.5 sm:gap-4 p-3 sm:p-3.5 rounded-xl border border-border bg-card transition-all duration-150 overflow-hidden select-none",
         isReady &&
           "hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-xs cursor-pointer",
         isProcessing &&
           "bg-muted/15 cursor-not-allowed opacity-90 select-none",
-        isErrored && "bg-destructive/5 border-destructive/20"
+        isErrored && "bg-destructive/5 border-destructive/20",
+        isDragging && "opacity-45 border-dashed border-primary/60 scale-[0.99] shadow-inner"
       )}
       title={
         isProcessing
@@ -117,6 +140,7 @@ export function VideoCard({
       {isReady && (
         <Link
           href={`/videos/${video.id}`}
+          draggable={false}
           className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
           aria-label={`Abrir vídeo ${video.title}`}
         />
@@ -130,6 +154,7 @@ export function VideoCard({
             src={posterUrl}
             alt={video.title}
             loading="lazy"
+            draggable={false}
             className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
           />
         ) : isProcessing ? (
@@ -231,4 +256,3 @@ export function VideoCard({
     </div>
   );
 }
-

@@ -14,12 +14,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { VideoCard } from "./video-card";
 import { VideoContextMenu, type ContextMenuPosition } from "./video-context-menu";
+import { FolderContextMenu } from "./folder-context-menu";
 import { EditVideoDialog } from "./edit-video-dialog";
 import { DeleteVideoDialog } from "./delete-video-dialog";
 import { MoveVideoDialog } from "./move-video-dialog";
+import { EditFolderDialog } from "./edit-folder-dialog";
+import { DeleteFolderDialog } from "./delete-folder-dialog";
 import { FoldersSection } from "./folders-section";
 import { UploadButton } from "./upload-button";
 import { useToast } from "@/components/ui/toast";
+import { moveVideoToFolderAction } from "@/app/actions/folders";
 import { FOLDER_COLOR_CONFIGS } from "@/lib/folder-colors";
 import {
   Search,
@@ -61,31 +65,55 @@ interface VideosLibraryProps {
 }
 
 export function VideosLibrary({
-  videos,
+  videos: initialVideos,
   videoPlaysMap,
-  folders = [],
+  folders: initialFolders = [],
   currentFolder = null,
 }: VideosLibraryProps) {
   const router = useRouter();
   const { toast } = useToast();
+
+  // Local state for optimistic UI updates (render-time sync with props)
+  const [localVideos, setLocalVideos] = useState<Video[]>(initialVideos);
+  const [prevInitialVideos, setPrevInitialVideos] = useState<Video[]>(initialVideos);
+  if (initialVideos !== prevInitialVideos) {
+    setPrevInitialVideos(initialVideos);
+    setLocalVideos(initialVideos);
+  }
+
+  const [localFolders, setLocalFolders] = useState<FolderWithCount[]>(initialFolders);
+  const [prevInitialFolders, setPrevInitialFolders] = useState<FolderWithCount[]>(initialFolders);
+  if (initialFolders !== prevInitialFolders) {
+    setPrevInitialFolders(initialFolders);
+    setLocalFolders(initialFolders);
+  }
 
   // ── Filter and Sort State ──
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
 
-  // ── Context Menu State ──
+  // ── Video Context Menu State ──
   const [contextMenuVideo, setContextMenuVideo] = useState<Video | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null);
 
-  // ── Dialog States ──
+  // ── Folder Context Menu State ──
+  const [contextMenuFolder, setContextMenuFolder] = useState<FolderWithCount | null>(null);
+  const [folderContextMenuPosition, setFolderContextMenuPosition] = useState<ContextMenuPosition | null>(null);
+
+  // ── Video Dialog States ──
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [deletingVideo, setDeletingVideo] = useState<Video | null>(null);
   const [movingVideo, setMovingVideo] = useState<Video | null>(null);
 
+  // ── Folder Dialog States ──
+  const [editingFolder, setEditingFolder] = useState<FolderWithCount | null>(null);
+  const [editFolderMode, setEditFolderMode] = useState<"rename" | "color">("rename");
+  const [deletingFolder, setDeletingFolder] = useState<FolderWithCount | null>(null);
+
   // ── Filter and Sort Logic ──
   const filteredVideos = useMemo(() => {
-    let result = [...videos];
+    let result = [...localVideos];
 
     // Text search (Title & Filename)
     if (searchQuery.trim()) {
@@ -129,10 +157,12 @@ export function VideosLibrary({
     }
 
     return result;
-  }, [videos, searchQuery, statusFilter, sortBy]);
+  }, [localVideos, searchQuery, statusFilter, sortBy]);
 
-  // ── Context Menu Handlers ──
+  // ── Video Context Menu Handlers ──
   const handleOpenContextMenu = useCallback((e: React.MouseEvent, video: Video) => {
+    setContextMenuFolder(null);
+    setFolderContextMenuPosition(null);
     setContextMenuVideo(video);
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
   }, []);
@@ -142,26 +172,121 @@ export function VideosLibrary({
     setContextMenuPosition(null);
   }, []);
 
-  // ── Action Handlers ──
-  const handleEdit = useCallback((video: Video) => {
+  // ── Folder Context Menu Handlers ──
+  const handleOpenFolderContextMenu = useCallback((e: React.MouseEvent, folder: FolderWithCount) => {
+    setContextMenuVideo(null);
+    setContextMenuPosition(null);
+    setContextMenuFolder(folder);
+    setFolderContextMenuPosition({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleCloseFolderContextMenu = useCallback(() => {
+    setContextMenuFolder(null);
+    setFolderContextMenuPosition(null);
+  }, []);
+
+  // ── Video Action Handlers ──
+  const handleEditVideo = useCallback((video: Video) => {
     setEditingVideo(video);
   }, []);
 
-  const handleDelete = useCallback((video: Video) => {
+  const handleDeleteVideo = useCallback((video: Video) => {
     setDeletingVideo(video);
   }, []);
 
-  const handleMove = useCallback((video: Video) => {
+  const handleMoveVideo = useCallback((video: Video) => {
     setMovingVideo(video);
   }, []);
 
-  const handleDownload = useCallback((video: Video) => {
+  const handleDownloadVideo = useCallback((video: Video) => {
     if (video.status !== "ready") {
       toast("O vídeo ainda está sendo processado.", "info");
       return;
     }
     toast("Download direto não disponível para este vídeo.", "info");
   }, [toast]);
+
+  // ── Folder Action Handlers ──
+  const handleOpenFolder = useCallback((folder: FolderWithCount) => {
+    router.push(`/videos/folders/${folder.id}`);
+  }, [router]);
+
+  const handleRenameFolder = useCallback((folder: FolderWithCount) => {
+    setEditFolderMode("rename");
+    setEditingFolder(folder);
+  }, []);
+
+  const handleChangeFolderColor = useCallback((folder: FolderWithCount) => {
+    setEditFolderMode("color");
+    setEditingFolder(folder);
+  }, []);
+
+  const handleDeleteFolder = useCallback((folder: FolderWithCount) => {
+    setDeletingFolder(folder);
+  }, []);
+
+  // ── Drag & Drop Move Video to Folder Handler ──
+  const handleDropVideoToFolder = useCallback(
+    async (videoId: string, targetFolder: FolderWithCount) => {
+      const targetVideo = localVideos.find((v) => v.id === videoId);
+      if (!targetVideo) return;
+
+      // Don't move if already in this folder
+      if (targetVideo.folderId === targetFolder.id) return;
+
+      const previousVideos = [...localVideos];
+      const previousFolders = [...localFolders];
+
+      // Optimistic Update:
+      // 1. If on root library, remove video from local list
+      if (!currentFolder) {
+        setLocalVideos((prev) => prev.filter((v) => v.id !== videoId));
+      } else {
+        // If inside another folder, remove video from current folder list
+        setLocalVideos((prev) => prev.filter((v) => v.id !== videoId));
+      }
+
+      // 2. Increment target folder video count
+      setLocalFolders((prev) =>
+        prev.map((f) => {
+          if (f.id === targetFolder.id) {
+            return { ...f, videoCount: f.videoCount + 1 };
+          }
+          if (targetVideo.folderId && f.id === targetVideo.folderId) {
+            return { ...f, videoCount: Math.max(0, f.videoCount - 1) };
+          }
+          return f;
+        })
+      );
+
+      try {
+        const res = await moveVideoToFolderAction({
+          videoId,
+          folderId: targetFolder.id,
+        });
+
+        if (res.error) {
+          // Revert optimistic changes
+          setLocalVideos(previousVideos);
+          setLocalFolders(previousFolders);
+          toast(res.error || "Não foi possível mover o vídeo.", "error");
+          return;
+        }
+
+        toast(
+          `Vídeo "${targetVideo.title}" movido para a pasta "${targetFolder.name}".`,
+          "success"
+        );
+        router.refresh();
+      } catch {
+        // Revert on unexpected error
+        setLocalVideos(previousVideos);
+        setLocalFolders(previousFolders);
+        toast("Erro ao mover o vídeo para a pasta.", "error");
+      }
+    },
+    [localVideos, localFolders, currentFolder, toast, router]
+  );
 
   const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "all";
 
@@ -173,22 +298,29 @@ export function VideosLibrary({
   return (
     <div className="space-y-6">
       {/* ── Folders Section (Only on root library when folders exist) ── */}
-      {!currentFolder && folders.length > 0 && (
-        <FoldersSection folders={folders} />
+      {!currentFolder && localFolders.length > 0 && (
+        <FoldersSection
+          folders={localFolders}
+          onFolderContextMenu={handleOpenFolderContextMenu}
+          onRename={handleRenameFolder}
+          onChangeColor={handleChangeFolderColor}
+          onDelete={handleDeleteFolder}
+          onDropVideo={handleDropVideoToFolder}
+        />
       )}
 
       {/* ── Section Title (If on root with folders, label the videos list) ── */}
-      {!currentFolder && folders.length > 0 && (
+      {!currentFolder && localFolders.length > 0 && (
         <div className="flex items-center gap-2 pt-2 border-t border-border/60">
           <VideoIcon className="size-4 text-muted-foreground" />
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Vídeos ({videos.length})
+            Vídeos ({localVideos.length})
           </h2>
         </div>
       )}
 
       {/* ── Toolbar ── */}
-      {(videos.length > 0 || hasActiveFilters) && (
+      {(localVideos.length > 0 || hasActiveFilters) && (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-1.5 rounded-xl border border-border bg-card/60 shadow-2xs">
           {/* Search Input */}
           <div className="relative flex-1 min-w-[200px]">
@@ -286,7 +418,7 @@ export function VideosLibrary({
       )}
 
       {/* ── Content View ── */}
-      {videos.length === 0 ? (
+      {localVideos.length === 0 ? (
         currentFolder ? (
           /* ── Empty Folder State ── */
           <div className="rounded-xl border border-border bg-card shadow-2xs">
@@ -322,7 +454,7 @@ export function VideosLibrary({
               </div>
             </div>
           </div>
-        ) : folders.length > 0 ? (
+        ) : localFolders.length > 0 ? (
           /* ── Root has folders but 0 root videos ── */
           <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
             <div className="space-y-1 max-w-xs mx-auto">
@@ -404,24 +536,36 @@ export function VideosLibrary({
               video={video}
               playsCount={videoPlaysMap[video.id] ?? 0}
               onContextMenu={handleOpenContextMenu}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onDownload={handleDownload}
-              onMove={handleMove}
+              onEdit={handleEditVideo}
+              onDelete={handleDeleteVideo}
+              onDownload={handleDownloadVideo}
+              onMove={handleMoveVideo}
+              isDraggable={true}
             />
           ))}
         </div>
       )}
 
-      {/* ── Context Menu (Right Click on Cards) ── */}
+      {/* ── Video Context Menu (Right Click on Video Cards) ── */}
       <VideoContextMenu
         video={contextMenuVideo}
         position={contextMenuPosition}
         onClose={handleCloseContextMenu}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onDownload={handleDownload}
-        onMove={handleMove}
+        onEdit={handleEditVideo}
+        onDelete={handleDeleteVideo}
+        onDownload={handleDownloadVideo}
+        onMove={handleMoveVideo}
+      />
+
+      {/* ── Folder Context Menu (Right Click on Folder Cards) ── */}
+      <FolderContextMenu
+        folder={contextMenuFolder}
+        position={folderContextMenuPosition}
+        onClose={handleCloseFolderContextMenu}
+        onOpenFolder={handleOpenFolder}
+        onRename={handleRenameFolder}
+        onChangeColor={handleChangeFolderColor}
+        onDelete={handleDeleteFolder}
       />
 
       {/* ── Shared Edit Video Dialog ── */}
@@ -459,6 +603,35 @@ export function VideosLibrary({
           open={!!deletingVideo}
           onOpenChange={(open) => {
             if (!open) setDeletingVideo(null);
+          }}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* ── Shared Edit / Color Folder Dialog ── */}
+      {editingFolder && (
+        <EditFolderDialog
+          folder={editingFolder}
+          open={!!editingFolder}
+          onOpenChange={(open) => {
+            if (!open) setEditingFolder(null);
+          }}
+          initialMode={editFolderMode}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* ── Shared Delete Folder Dialog ── */}
+      {deletingFolder && (
+        <DeleteFolderDialog
+          folder={deletingFolder}
+          open={!!deletingFolder}
+          onOpenChange={(open) => {
+            if (!open) setDeletingFolder(null);
           }}
           onSuccess={() => {
             router.refresh();

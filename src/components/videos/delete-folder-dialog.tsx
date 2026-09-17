@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { deleteFolderAction } from "@/app/actions/folders";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { Trash2, Loader2 } from "lucide-react";
 import type { Folder } from "@/db/schema/folders";
 
 interface DeleteFolderDialogProps {
@@ -64,7 +64,7 @@ export function DeleteFolderDialog({
         return;
       }
 
-      toast(`Pasta "${folder.name}" excluída. Seus vídeos voltaram para a raiz da Biblioteca.`, "success");
+      toast(`Pasta "${folder.name}" excluída.`, "success");
       handleOpenChange(false);
 
       if (redirectToLibrary) {
@@ -87,17 +87,16 @@ export function DeleteFolderDialog({
         <DialogHeader className="space-y-1.5">
           <div className="flex items-center gap-2 text-destructive">
             <div className="flex size-8 items-center justify-center rounded-lg bg-destructive/10 border border-destructive/20">
-              <AlertTriangle className="size-4" />
+              <Trash2 className="size-4" />
             </div>
             <DialogTitle className="text-base font-semibold text-foreground">
-              Excluir pasta
+              Excluir pasta?
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
             Tem certeza que deseja excluir a pasta{" "}
             <span className="font-semibold text-foreground">&quot;{folder.name}&quot;</span>?
           </DialogDescription>
-
         </DialogHeader>
 
         <div className="p-6 space-y-3">
@@ -110,12 +109,12 @@ export function DeleteFolderDialog({
             </div>
           )}
 
-          <div className="rounded-lg border border-border/80 bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+          <div className="rounded-lg border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
             <p className="font-medium text-foreground">
-              Os vídeos não serão excluídos.
+              Os vídeos desta pasta não serão apagados.
             </p>
             <p className="leading-relaxed">
-              Todos os vídeos contidos nesta pasta serão movidos automaticamente de volta para a raiz da sua Biblioteca.
+              Eles voltarão automaticamente para a raiz da Biblioteca.
             </p>
           </div>
         </div>
@@ -138,8 +137,8 @@ export function DeleteFolderDialog({
             type="button"
             variant="destructive"
             size="sm"
-            disabled={isPending}
             onClick={handleDelete}
+            disabled={isPending}
             className="cursor-pointer font-medium"
           >
             {isPending ? (

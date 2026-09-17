@@ -150,30 +150,37 @@ function MoveVideoContent({ video, onOpenChange, onSuccess }: MoveVideoContentPr
               )}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex size-7 items-center justify-center rounded-md bg-muted border border-border text-foreground">
+                <div
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md border shrink-0",
+                    selectedFolderId === null
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border bg-muted/60 text-muted-foreground"
+                  )}
+                >
                   <Library className="size-3.5" />
                 </div>
-                <div className="truncate">
-                  <p className="font-medium truncate text-foreground">
-                    Biblioteca (Raiz)
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground truncate">
+                    Raiz da Biblioteca
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Sem pasta
+                  <p className="text-[10px] text-muted-foreground">
+                    Sem pasta vinculada
                   </p>
                 </div>
               </div>
+
               {selectedFolderId === null && (
-                <Check className="size-4 text-primary shrink-0" />
+                <Check className="size-4 text-primary shrink-0 stroke-[2.5]" />
               )}
             </button>
 
-            {/* Folders List */}
+            {/* Folder List */}
             {folders.map((folder) => {
               const isSelected = selectedFolderId === folder.id;
               const cfg =
-                FOLDER_COLOR_CONFIGS[
-                  (folder.color as FolderColor) || "gray"
-                ] || FOLDER_COLOR_CONFIGS.gray;
+                FOLDER_COLOR_CONFIGS[(folder.color as FolderColor) || "gray"] ||
+                FOLDER_COLOR_CONFIGS.gray;
 
               return (
                 <button
@@ -194,18 +201,27 @@ function MoveVideoContent({ video, onOpenChange, onSuccess }: MoveVideoContentPr
                         cfg.iconClass
                       )}
                     >
-                      <FolderIcon className="size-3.5 fill-current/15" />
+                      <FolderIcon className="size-3.5 fill-current/20" />
                     </div>
-                    <span className="font-medium truncate text-foreground">
-                      {folder.name}
-                    </span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate max-w-[200px] xs:max-w-[240px]">
+                        {folder.name}
+                      </p>
+                    </div>
                   </div>
+
                   {isSelected && (
-                    <Check className="size-4 text-primary shrink-0" />
+                    <Check className="size-4 text-primary shrink-0 stroke-[2.5]" />
                   )}
                 </button>
               );
             })}
+
+            {folders.length === 0 && (
+              <div className="p-4 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                Nenhuma pasta criada ainda.
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -227,8 +243,8 @@ function MoveVideoContent({ video, onOpenChange, onSuccess }: MoveVideoContentPr
         <Button
           type="button"
           size="sm"
-          disabled={isPending || isLoadingFolders}
           onClick={handleMove}
+          disabled={isPending || isLoadingFolders || selectedFolderId === (video.folderId ?? null)}
           className="cursor-pointer font-medium"
         >
           {isPending ? (
@@ -237,7 +253,7 @@ function MoveVideoContent({ video, onOpenChange, onSuccess }: MoveVideoContentPr
               Movendo...
             </>
           ) : (
-            "Confirmar"
+            "Mover vídeo"
           )}
         </Button>
       </DialogFooter>
@@ -257,7 +273,6 @@ export function MoveVideoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup className="max-w-md">
         <MoveVideoContent
-          key={video.id}
           video={video}
           onOpenChange={onOpenChange}
           onSuccess={onSuccess}

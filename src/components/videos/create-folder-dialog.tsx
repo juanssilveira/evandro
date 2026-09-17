@@ -122,7 +122,7 @@ export function CreateFolderDialog({
               <Input
                 id="folder-name"
                 type="text"
-                placeholder="Ex: VSLs de Teste, Campanha Black Friday..."
+                placeholder="Ex: VSLs de Teste, Black Friday..."
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
@@ -132,16 +132,16 @@ export function CreateFolderDialog({
                 maxLength={80}
                 autoFocus
                 required
-                className="text-xs"
+                className="text-xs h-9 bg-white dark:bg-zinc-900"
               />
             </div>
 
-            {/* Color Picker */}
+            {/* Color Picker Swatches */}
             <div className="space-y-2">
               <Label className="text-xs font-medium text-foreground">
-                Cor da pasta
+                Cor de identificação
               </Label>
-              <div className="flex items-center gap-2.5 pt-0.5">
+              <div className="flex items-center gap-3 pt-0.5">
                 {folderColors.map((c) => {
                   const cfg = FOLDER_COLOR_CONFIGS[c];
                   const isSelected = color === c;
@@ -152,15 +152,16 @@ export function CreateFolderDialog({
                       onClick={() => setColor(c)}
                       disabled={isPending}
                       title={cfg.label}
+                      aria-label={`Cor ${cfg.label}`}
                       className={cn(
-                        "relative flex size-8 items-center justify-center rounded-lg transition-all cursor-pointer border",
-                        cfg.iconClass,
+                        "relative flex size-7 items-center justify-center rounded-full transition-all cursor-pointer",
+                        cfg.swatchBg,
                         isSelected
-                          ? "ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-950 scale-105 border-transparent shadow-xs"
-                          : "hover:scale-105 opacity-80 hover:opacity-100"
+                          ? "ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-950 scale-110 shadow-xs"
+                          : "hover:scale-105 opacity-85 hover:opacity-100 ring-1 ring-black/10 dark:ring-white/10"
                       )}
                     >
-                      {isSelected && <Check className="size-3.5 stroke-[2.5]" />}
+                      {isSelected && <Check className="size-3.5 text-white stroke-[3]" />}
                     </button>
                   );
                 })}
