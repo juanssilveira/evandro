@@ -57,6 +57,8 @@ const sortLabels: Record<SortOption, string> = {
   title: "Nome (A-Z)",
 };
 
+const DEFAULT_FOLDERS: FolderWithCount[] = [];
+
 interface VideosLibraryProps {
   videos: Video[];
   videoPlaysMap: Record<string, number>;
@@ -67,7 +69,7 @@ interface VideosLibraryProps {
 export function VideosLibrary({
   videos: initialVideos,
   videoPlaysMap,
-  folders: initialFolders = [],
+  folders: initialFolders = DEFAULT_FOLDERS,
   currentFolder = null,
 }: VideosLibraryProps) {
   const router = useRouter();
