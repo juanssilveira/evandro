@@ -20,6 +20,23 @@ export async function getMuxPosterUrl(playbackId: string): Promise<string> {
   return await getMuxSignedThumbnailUrl(playbackId, { width: 640 });
 }
 
+export async function getMuxFallbackAnimatedPreviewUrl(
+  playbackId: string,
+  duration?: number | null
+): Promise<string> {
+  const rawDuration =
+    typeof duration === "number" && Number.isFinite(duration) && duration > 0
+      ? duration
+      : 10;
+  const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
+  return await getMuxSignedAnimatedUrl(playbackId, "webp", {
+    start: 0,
+    end: previewEnd,
+    width: 640,
+    fps: 12,
+  });
+}
+
 /**
  * Generates and stores a lightweight animated background preview in R2.
  * Server-side generation using Mux Animated Image API with signed JWT.

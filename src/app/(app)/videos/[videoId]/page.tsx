@@ -93,10 +93,22 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
     ? await getMuxPosterUrl(currentVideo.muxPlaybackId)
     : null;
 
-  const backgroundPreviewUrl =
+  let backgroundPreviewUrl =
     currentVideo.backgroundPreviewStatus === "ready" && currentVideo.backgroundPreviewKey
       ? getAssetPublicUrl(currentVideo.backgroundPreviewKey)
       : null;
+
+  if (!backgroundPreviewUrl && currentVideo.muxPlaybackId) {
+    try {
+      const { getMuxFallbackAnimatedPreviewUrl } = await import("@/lib/background-preview");
+      backgroundPreviewUrl = await getMuxFallbackAnimatedPreviewUrl(
+        currentVideo.muxPlaybackId,
+        currentVideo.duration
+      );
+    } catch {
+      // ignore
+    }
+  }
 
   const cdnUrl = process.env.CDN_URL || process.env.BASE_URL || "http://localhost:3000";
 

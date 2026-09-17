@@ -158,9 +158,6 @@ export function WatchMapPlayer({
   const isControlsHidden = effectiveConfig.controls.hidden;
   const fullscreenConfig = effectiveConfig.controls.fullscreen;
 
-  // Derive highest-quality available preview (R2 WebP > R2/Custom/Signed Poster)
-  const displayPreviewSrc = backgroundPreviewUrl || posterUrl || null;
-
   // User explicit foreground activation state
   const [prevSrc, setPrevSrc] = useState(src);
   const playbackKey = `${effectiveConfig.playback?.backgroundAutoplay ? 1 : 0}`;
@@ -187,14 +184,19 @@ export function WatchMapPlayer({
     effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground
   );
 
+  // Derive highest-quality available preview (prefer animated preview if background autoplay is active, prefer static poster in normal mode)
+  const displayPreviewSrc = isBackgroundAutoplay
+    ? backgroundPreviewUrl || posterUrl || null
+    : posterUrl || backgroundPreviewUrl || null;
+
   const playbackMode: PlaybackMode = isBackgroundAutoplay ? "background_autoplay" : "foreground";
 
   // Immediate media attachment: Video is ALWAYS attached and buffered immediately upon access
   const isMediaAttached = Boolean(resolvedSrc);
 
-  // Derived Lightweight Background Preview ONLY renders when Background Autoplay is active for this video
+  // Derived Preview / Poster Layer renders until real foreground playback begins
   const isPreviewVisible = Boolean(
-    isBackgroundAutoplay && displayPreviewSrc && !hasStartedPlayingForeground
+    displayPreviewSrc && !hasStartedPlayingForeground
   );
 
   const initialVolume = effectiveConfig.playback?.defaultVolume ?? 1;
@@ -1003,6 +1005,7 @@ export function WatchMapPlayer({
       {/* Native Video Element (Real Mux HLS Playback) */}
       <video
         ref={videoRef}
+        poster={posterUrl || undefined}
         playsInline
         preload="auto"
         autoPlay={isBackgroundAutoplay}

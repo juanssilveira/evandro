@@ -76,10 +76,19 @@ export async function GET(
     }
 
     const posterUrl = await getMuxPosterUrl(video.muxPlaybackId);
-    const backgroundPreviewUrl =
+    let backgroundPreviewUrl =
       video.backgroundPreviewStatus === "ready" && video.backgroundPreviewKey
         ? getAssetPublicUrl(video.backgroundPreviewKey)
         : null;
+
+    if (!backgroundPreviewUrl && video.muxPlaybackId) {
+      try {
+        const { getMuxFallbackAnimatedPreviewUrl } = await import("@/lib/background-preview");
+        backgroundPreviewUrl = await getMuxFallbackAnimatedPreviewUrl(video.muxPlaybackId, video.duration);
+      } catch (err) {
+        console.warn("[Embed API] Fallback animated preview generation failed:", err);
+      }
+    }
 
     const config = await getPlayerConfigByVideoId(video.id);
 
