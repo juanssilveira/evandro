@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { getActivePlanForUser } from "@/lib/plans/access";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NoPlanCard } from "@/components/auth/no-plan-card";
 import { Logo } from "@/components/brand/logo";
+
+export const metadata: Metadata = {
+  title: "Acesso",
+  description: "Ative seu acesso no WatchMap.",
+};
 
 export default async function NoPlanPage() {
   const session = await auth.api.getSession({

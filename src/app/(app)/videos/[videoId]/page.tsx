@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getVideoForAccount, syncVideoStatus } from "@/lib/videos";
@@ -14,6 +15,33 @@ import { AppHeader } from "@/components/app-header";
 
 interface VideoPageProps {
   params: Promise<{ videoId: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: VideoPageProps): Promise<Metadata> {
+  const { videoId } = await params;
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    if (!session?.user?.id) {
+      return { title: "Vídeo" };
+    }
+    const account = await getCurrentAccount(session.user.id);
+    if (!account) {
+      return { title: "Vídeo" };
+    }
+    const video = await getVideoForAccount(videoId, account.id);
+    if (!video || !video.title) {
+      return { title: "Vídeo" };
+    }
+    return {
+      title: video.title,
+    };
+  } catch {
+    return { title: "Vídeo" };
+  }
 }
 
 export default async function VideoDetailsPage({ params }: VideoPageProps) {

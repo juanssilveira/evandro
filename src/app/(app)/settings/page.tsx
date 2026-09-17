@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getPlanUsage } from "@/lib/plans/access";
@@ -6,6 +7,11 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { SettingsView } from "@/components/settings/settings-view";
+
+export const metadata: Metadata = {
+  title: "Configurações",
+  description: "Gerencie sua conta, segurança e plano no WatchMap.",
+};
 
 export default async function SettingsPage() {
   const session = await auth.api.getSession({

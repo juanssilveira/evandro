@@ -1,7 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
-import { Play } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WatchMapIcon } from "@/components/brand/watchmap-icon";
 
 export interface LogoProps {
   size?: "sm" | "md" | "lg";
@@ -13,24 +13,21 @@ export interface LogoProps {
 const SIZE_CONFIGS = {
   sm: {
     container: "gap-2",
-    iconBox: "size-7 rounded-lg",
-    playIcon: "size-3",
+    iconSize: 28,
     title: "text-[12.5px] font-bold tracking-tight leading-none",
     subtitle: "text-[8.5px] font-medium tracking-normal text-muted-foreground/75 leading-none",
     spacing: "mt-1",
   },
   md: {
     container: "gap-2.5",
-    iconBox: "size-8 rounded-[9px]",
-    playIcon: "size-3.5",
+    iconSize: 32,
     title: "text-[14px] font-bold tracking-tight leading-none",
     subtitle: "text-[9.5px] font-medium tracking-normal text-muted-foreground/75 leading-none",
     spacing: "mt-1",
   },
   lg: {
     container: "gap-3",
-    iconBox: "size-10 rounded-xl",
-    playIcon: "size-4.5",
+    iconSize: 40,
     title: "text-[17px] font-bold tracking-tight leading-none",
     subtitle: "text-[11px] font-medium tracking-normal text-muted-foreground/75 leading-none",
     spacing: "mt-1.5",
@@ -53,15 +50,7 @@ export function Logo({
         className
       )}
     >
-      <span
-        className={cn(
-          "flex shrink-0 items-center justify-center bg-gradient-to-b from-violet-500 to-[#7C3AED] text-white font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_1px_2px_rgba(0,0,0,0.1),0_1.5px_0_#6D28D9] border border-[#6D28D9]",
-          config.iconBox
-        )}
-        aria-hidden="true"
-      >
-        <Play className={cn("fill-white ml-0.5", config.playIcon)} />
-      </span>
+      <WatchMapIcon size={config.iconSize} />
 
       <div className="flex flex-col justify-center leading-none text-left">
         <span
@@ -101,3 +90,4 @@ export function Logo({
 
   return content;
 }
+

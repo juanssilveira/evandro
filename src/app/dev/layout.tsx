@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { assertLocalDevPanelAccess } from "@/lib/dev/guard";
 import { DevHeader } from "@/components/dev/dev-header";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Painel Dev",
+};
 
 export default async function DevLayout({
   children,

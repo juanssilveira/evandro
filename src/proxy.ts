@@ -28,6 +28,8 @@ const BYPASS_PREFIXES = [
   "/_next",
   "/favicon",
   "/embed",
+  "/brand",
+  "/icon",
 ];
 
 export function proxy(request: NextRequest) {
@@ -54,7 +56,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization)
      * - favicon.ico
+     * - brand assets
+     * - icon.svg
      */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|favicon.ico|brand|icon.svg).*)",
   ],
 };

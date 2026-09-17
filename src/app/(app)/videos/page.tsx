@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getVideosForAccount, syncVideoStatus } from "@/lib/videos";
@@ -8,6 +9,11 @@ import { UploadButton } from "@/components/videos/upload-button";
 import { AppHeader } from "@/components/app-header";
 import { VideosListRefresher } from "@/components/videos/videos-list-refresher";
 import { VideosLibrary } from "@/components/videos/videos-library";
+
+export const metadata: Metadata = {
+  title: "Biblioteca",
+  description: "Gerencie seus vídeos no WatchMap.",
+};
 
 export default async function VideosPage() {
   const session = await auth.api.getSession({
