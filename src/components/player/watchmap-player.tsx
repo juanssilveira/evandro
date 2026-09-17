@@ -86,8 +86,7 @@ export function WatchMapPlayer({
   const hlsRef = useRef<Hls | null>(null);
   const hasResolvedInitialPlaybackRef = useRef(false);
 
-  const [activatedSrc, setActivatedSrc] = useState<string | null>(null);
-  const resolvedSrc = activatedSrc || src || "";
+  const resolvedSrc = src || "";
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Play session ID for server-side activation and quota tracking (idempotent per instance)
@@ -464,68 +463,47 @@ export function WatchMapPlayer({
     }
   };
 
-  // Deduplicated single-flight playback authorization
-  const pendingAuthPromiseRef = useRef<Promise<string> | null>(null);
+  // Deduped session activation for quota tracking
+  const hasActivatedSessionRef = useRef(false);
 
-  const authorizePlaybackOnce = useCallback(async (): Promise<string> => {
-    if (activatedSrc) {
-      return activatedSrc;
-    }
+  useEffect(() => {
+    hasActivatedSessionRef.current = false;
+  }, [src, videoId]);
 
-    if (pendingAuthPromiseRef.current) {
-      return pendingAuthPromiseRef.current;
-    }
+  const activateSession = useCallback(async () => {
+    if (hasActivatedSessionRef.current) return;
+    hasActivatedSessionRef.current = true;
+    try {
+      const base = (apiBase || "").replace(/\/$/, "");
+      const activateEndpoint = `${base}/api/embed/videos/${encodeURIComponent(videoId)}/activate`;
+      const response = await fetch(activateEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          playSessionId: getPlaySessionId(),
+          isEditor: Boolean(isEditor),
+        }),
+      });
 
-    setIsLoading(true);
-    setHasError(false);
-    setErrorMessage(null);
-
-    const promise = (async () => {
-      try {
-        const base = (apiBase || "").replace(/\/$/, "");
-        const activateEndpoint = `${base}/api/embed/videos/${encodeURIComponent(videoId)}/activate`;
-        const response = await fetch(activateEndpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            playSessionId: getPlaySessionId(),
-            isEditor: Boolean(isEditor),
-          }),
-        });
-
-        if (!response.ok) {
-          const errorJson = await response.json().catch(() => ({}));
-          throw new Error(errorJson.error || "Este vídeo está temporariamente indisponível.");
-        }
-
-        const resData = await response.json();
-        const playbackUrl = resData.playback?.url || resData.playbackUrl;
-        if (!playbackUrl) {
-          throw new Error("Este vídeo está temporariamente indisponível.");
-        }
-
-        setActivatedSrc(playbackUrl);
-        return playbackUrl;
-      } catch (err: unknown) {
-        console.error("[WatchMap Player] Playback authorization failed:", err);
-        setIsLoading(false);
-        setHasError(true);
-        const msg =
-          err instanceof Error ? err.message : "Este vídeo está temporariamente indisponível.";
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        const msg = errorJson.error || "Este vídeo está temporariamente indisponível.";
         setErrorMessage(msg);
-        pendingAuthPromiseRef.current = null;
-        throw err;
+        setHasError(true);
+        const video = videoRef.current;
+        if (video) {
+          video.pause();
+        }
       }
-    })();
+    } catch (err) {
+      console.error("[WatchMap Player] Play activation failed:", err);
+    }
+  }, [apiBase, videoId, getPlaySessionId, isEditor]);
 
-    pendingAuthPromiseRef.current = promise;
-    return promise;
-  }, [activatedSrc, apiBase, videoId, getPlaySessionId, isEditor]);
-
-  // Main foreground playback activation (seamless preview -> HLS transition with server authorization)
+  // Main foreground playback activation (seamless preview -> HLS transition with volume restore)
   const activateForegroundPlayback = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
@@ -542,44 +520,32 @@ export function WatchMapPlayer({
     setIsMuted(targetVol === 0);
     setPlaybackRate(targetRate);
 
-    try {
-      const activeMediaUrl = await authorizePlaybackOnce();
+    activateSession();
 
-      // Attach HLS media source if not yet attached
-      if (!hlsRef.current && (!video.src || video.src === "")) {
-        pendingForegroundActivationRef.current = true;
-        attachMediaSource(activeMediaUrl);
-      } else {
-        pendingForegroundActivationRef.current = false;
-        if (playbackControllerRef.current) {
-          await playbackControllerRef.current.startForegroundPlayback(targetVol);
-        } else {
-          video.loop = false;
-          if (video.currentTime !== 0) {
-            try {
-              video.currentTime = 0;
-            } catch {
-              // ignore
-            }
-          }
-          const onSeeked = () => {
-            video.removeEventListener("seeked", onSeeked);
-            if (video.paused) {
-              video.play().catch(() => {});
-            }
-          };
-          video.addEventListener("seeked", onSeeked, { once: true });
-          video.play().catch(() => {});
+    if (playbackControllerRef.current) {
+      await playbackControllerRef.current.startForegroundPlayback(targetVol);
+    } else {
+      video.loop = false;
+      if (video.currentTime !== 0) {
+        try {
+          video.currentTime = 0;
+        } catch {
+          // ignore
         }
       }
-    } catch {
-      // Handled inside authorizePlaybackOnce
+      const onSeeked = () => {
+        video.removeEventListener("seeked", onSeeked);
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+      };
+      video.addEventListener("seeked", onSeeked, { once: true });
+      video.play().catch(() => {});
     }
   }, [
-    attachMediaSource,
     defaultPlaybackRate,
     defaultVolume,
-    authorizePlaybackOnce,
+    activateSession,
   ]);
 
   // Play / Pause toggle
@@ -608,11 +574,13 @@ export function WatchMapPlayer({
     }
 
     if (playbackControllerRef.current) {
+      activateSession();
       playbackControllerRef.current.handleUserPlayToggle(lastVolumeRef.current);
       return;
     }
 
     if (video.paused || video.ended) {
+      activateSession();
       video.play().catch(() => {});
     } else {
       video.pause();
@@ -625,6 +593,7 @@ export function WatchMapPlayer({
     isMuted,
     defaultVolume,
     activateForegroundPlayback,
+    activateSession,
   ]);
 
   // Mute toggle

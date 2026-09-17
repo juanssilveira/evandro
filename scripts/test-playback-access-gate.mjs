@@ -2,7 +2,6 @@ import * as dotenv from "dotenv";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { neon, neonConfig } from "@neondatabase/serverless";
-import Mux from "@mux/mux-node";
 
 const rootDir = process.cwd();
 dotenv.config({ path: path.join(rootDir, ".env.local") });
@@ -20,21 +19,6 @@ if (!connectionString) {
 
 const sql = neon(connectionString);
 
-// Test signing key setup
-const { privateKey } = crypto.generateKeyPairSync("rsa", {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: "spki", format: "pem" },
-  privateKeyEncoding: { type: "pkcs1", format: "pem" },
-});
-const testKeyId = "test_signing_key_id";
-
-const mux = new Mux({
-  tokenId: process.env.MUX_TOKEN_ID || "dummy_token_id",
-  tokenSecret: process.env.MUX_TOKEN_SECRET || "dummy_token_secret",
-  jwtSigningKey: testKeyId,
-  jwtPrivateKey: privateKey,
-});
-
 let testsPassed = 0;
 let testsFailed = 0;
 
@@ -48,15 +32,16 @@ function assert(condition, message) {
   }
 }
 
+function getHlsPlaybackUrl(playbackId) {
+  return `https://stream.mux.com/${playbackId}.m3u8`;
+}
+
 function getCurrentPeriodKey(date = new Date()) {
   const year = date.getUTCFullYear();
   const month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
   return `${year}-${month}`;
 }
 
-// -------------------------------------------------------------
-// Emulated resolvePlaybackEntitlement according to spec
-// -------------------------------------------------------------
 async function testResolvePlaybackEntitlement(publicId) {
   if (!publicId || typeof publicId !== "string" || !publicId.trim()) {
     return {
@@ -66,7 +51,6 @@ async function testResolvePlaybackEntitlement(publicId) {
     };
   }
 
-  // 1. Minimum query by publicId ONLY (id and accountId)
   const minVideoRows = await sql`
     SELECT id, account_id
     FROM videos
@@ -84,7 +68,6 @@ async function testResolvePlaybackEntitlement(publicId) {
 
   const minVideo = minVideoRows[0];
 
-  // 2. Resolve account owner userId
   const ownerRows = await sql`
     SELECT user_id
     FROM account_members
@@ -103,7 +86,6 @@ async function testResolvePlaybackEntitlement(publicId) {
 
   const ownerUserId = ownerRows[0].user_id;
 
-  // 3. Verify owner has active plan
   const subRows = await sql`
     SELECT id, user_id, plan_code, status, expires_at
     FROM subscriptions
@@ -131,9 +113,6 @@ async function testResolvePlaybackEntitlement(publicId) {
   };
 }
 
-// -------------------------------------------------------------
-// Emulated validateAndActivatePlayback according to spec
-// -------------------------------------------------------------
 async function testValidateAndActivatePlayback({ publicId, playSessionId, isEditorAdmin, adminUserId }) {
   if (!playSessionId || typeof playSessionId !== "string" || !playSessionId.trim()) {
     return {
@@ -186,13 +165,10 @@ async function testValidateAndActivatePlayback({ publicId, playSessionId, isEdit
   const video = videoRows[0];
 
   if (isVerifiedEditor) {
-    const token = await mux.jwt.signPlaybackId(video.mux_playback_id, {
-      type: "video",
-      expiration: "3600s",
-    });
+    const playbackUrl = getHlsPlaybackUrl(video.mux_playback_id);
     return {
       authorized: true,
-      playbackUrl: `https://stream.mux.com/${video.mux_playback_id}.m3u8?token=${token}`,
+      playbackUrl,
       statusCode: 200,
     };
   }
@@ -235,35 +211,32 @@ async function testValidateAndActivatePlayback({ publicId, playSessionId, isEdit
     }
   }
 
-  const token = await mux.jwt.signPlaybackId(video.mux_playback_id, {
-    type: "video",
-    expiration: "3600s",
-  });
+  const playbackUrl = getHlsPlaybackUrl(video.mux_playback_id);
 
   return {
     authorized: true,
-    playbackUrl: `https://stream.mux.com/${video.mux_playback_id}.m3u8?token=${token}`,
+    playbackUrl,
     statusCode: 200,
   };
 }
 
 async function runTests() {
-  console.log("=== STARTING SPEC 036 SECURE PLAYBACK INTEGRATION SUITE ===\n");
+  console.log("=== STARTING SPEC 037 PLAYBACK ACCESS GATE INTEGRATION SUITE ===\n");
 
-  const testEmail = `test_sec_${Date.now()}@evandro.watch`;
-  const testUserId = `user_sec_${Date.now()}`;
+  const testEmail = `test_gate_${Date.now()}@evandro.watch`;
+  const testUserId = `user_gate_${Date.now()}`;
   const testAccountId = crypto.randomUUID();
 
   try {
     console.log("Setting up test environment...");
     await sql`
       INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
-      VALUES (${testUserId}, 'Test Secure', ${testEmail}, true, NOW(), NOW())
+      VALUES (${testUserId}, 'Test Gate', ${testEmail}, true, NOW(), NOW())
     `;
 
     await sql`
       INSERT INTO accounts (id, name, created_at, updated_at)
-      VALUES (${testAccountId}, 'Secure Account', NOW(), NOW())
+      VALUES (${testAccountId}, 'Gate Account', NOW(), NOW())
     `;
 
     await sql`
@@ -273,7 +246,6 @@ async function runTests() {
 
     // -------------------------------------------------------------
     // TEST 1: Conta SEM plano + Vídeo NÃO ready
-    // Ordem arquitetural: DEVE falhar no entitlement antes de verificar status
     // -------------------------------------------------------------
     console.log("\n1. Teste de Ordem: Conta SEM plano + Vídeo NÃO ready");
     const videoNotReadyPublicId = crypto.randomUUID();
@@ -305,7 +277,7 @@ async function runTests() {
 
     await sql`
       INSERT INTO videos (id, public_id, account_id, title, status, mux_playback_id, original_filename, mime_type, size_bytes, created_at, updated_at)
-      VALUES (${videoReadyId}, ${videoReadyPublicId}, ${testAccountId}, 'Ready Video', 'ready', 'signed_pb_123', 'ready.mp4', 'video/mp4', 1000, NOW(), NOW())
+      VALUES (${videoReadyId}, ${videoReadyPublicId}, ${testAccountId}, 'Ready Video', 'ready', 'public_pb_123', 'ready.mp4', 'video/mp4', 1000, NOW(), NOW())
     `;
 
     const activation2 = await testValidateAndActivatePlayback({
@@ -349,16 +321,17 @@ async function runTests() {
     assert(activation4.statusCode === 404, "Status 404 (Fase 2 detectou vídeo indisponível)");
 
     // -------------------------------------------------------------
-    // TEST 5: Conta COM plano + Vídeo READY -> Sucesso com URL assinada
+    // TEST 5: Conta COM plano + Vídeo READY -> Sucesso com HLS público
     // -------------------------------------------------------------
-    console.log("\n5. Teste: Conta COM plano + Vídeo READY");
+    console.log("\n5. Teste: Conta COM plano + Vídeo READY -> HLS público simples");
     const activation5 = await testValidateAndActivatePlayback({
       publicId: videoReadyPublicId,
       playSessionId: "session_success_5",
     });
     assert(activation5.authorized === true, "Ativação autorizada");
     assert(activation5.statusCode === 200, "Status 200");
-    assert(Boolean(activation5.playbackUrl?.includes("stream.mux.com/signed_pb_123.m3u8?token=")), "URL assinada HLS gerada");
+    assert(activation5.playbackUrl === "https://stream.mux.com/public_pb_123.m3u8", "URL HLS pública gerada");
+    assert(!activation5.playbackUrl.includes("?token="), "Nenhum token JWT na URL");
 
     // -------------------------------------------------------------
     // TEST 6: Editor COM plano -> Isento de quota
@@ -371,7 +344,7 @@ async function runTests() {
       adminUserId: testUserId,
     });
     assert(activation6.authorized === true, "Editor autenticado autorizado");
-    assert(Boolean(activation6.playbackUrl?.includes("signed_pb_123")), "URL assinada entregue ao editor");
+    assert(activation6.playbackUrl === "https://stream.mux.com/public_pb_123.m3u8", "URL pública entregue ao editor");
 
     // -------------------------------------------------------------
     // TEST 7: Assinatura EXPIRADA -> 403 no entitlement
@@ -395,14 +368,26 @@ async function runTests() {
     assert(activation7.statusCode === 403, "Status 403 na ativação");
 
     // -------------------------------------------------------------
-    // TEST 8: Signed Playback e Thumbnail JWT
+    // TEST 8: Reativação e Remoção de plano
     // -------------------------------------------------------------
-    console.log("\n8. Teste: Mux JWT Tokens");
-    const pbToken = await mux.jwt.signPlaybackId("signed_pb_123", { type: "video", expiration: "3600s" });
-    assert(Boolean(pbToken && pbToken.length > 50), "Token JWT de playback gerado");
+    console.log("\n8. Teste: Reativação e Remoção de Plano");
+    await sql`
+      UPDATE subscriptions
+      SET expires_at = NULL, status = 'active'
+      WHERE user_id = ${testUserId}
+    `;
 
-    const thumbToken = await mux.jwt.signPlaybackId("signed_pb_123", { type: "thumbnail", expiration: "3600s", params: { width: "640" } });
-    assert(Boolean(thumbToken && thumbToken.length > 50), "Token JWT de thumbnail gerado");
+    const entitlement8 = await testResolvePlaybackEntitlement(videoReadyPublicId);
+    assert(entitlement8.authorized === true, "Entitlement autorizado após reativação");
+
+    await sql`
+      UPDATE subscriptions
+      SET status = 'canceled'
+      WHERE user_id = ${testUserId}
+    `;
+
+    const entitlement8Canceled = await testResolvePlaybackEntitlement(videoReadyPublicId);
+    assert(entitlement8Canceled.authorized === false, "Entitlement 403 após cancelamento");
 
   } finally {
     console.log("\nLimpando dados de teste...");

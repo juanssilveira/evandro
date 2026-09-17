@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getVideoByPublicId, syncVideoStatus } from "@/lib/videos";
 import { getPlayerConfigByVideoId } from "@/lib/player-settings";
 import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
-import { getMuxPosterUrl } from "@/lib/background-preview";
+import {
+  getMuxPosterUrl,
+  getMuxFallbackAnimatedPreviewUrl,
+} from "@/lib/background-preview";
+import { getHlsPlaybackUrl } from "@/lib/mux";
 import { resolvePlaybackEntitlement } from "@/lib/plans/playback";
 
 const CORS_HEADERS = {
@@ -33,7 +37,7 @@ export async function GET(
     }
 
     // -------------------------------------------------------------
-    // FASE 1 — ENTITLEMENT (Validate plan before inspecting media)
+    // FASE 1 — ENTITLEMENT (Validate active plan before inspecting media)
     // -------------------------------------------------------------
     const entitlement = await resolvePlaybackEntitlement(publicId);
     if (!entitlement.authorized) {
@@ -50,7 +54,7 @@ export async function GET(
     }
 
     // -------------------------------------------------------------
-    // FASE 2 — VISUAL CONFIG & DETAILS (No HLS or direct playback URLs)
+    // FASE 2 — MEDIA RELEASE & VISUAL CONFIG
     // -------------------------------------------------------------
     let video = await getVideoByPublicId(publicId);
     if (!video) {
@@ -75,7 +79,9 @@ export async function GET(
       );
     }
 
-    const posterUrl = await getMuxPosterUrl(video.muxPlaybackId);
+    const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
+    const posterUrl = getMuxPosterUrl(video.muxPlaybackId);
+
     let backgroundPreviewUrl =
       video.backgroundPreviewStatus === "ready" && video.backgroundPreviewKey
         ? getAssetPublicUrl(video.backgroundPreviewKey)
@@ -83,8 +89,10 @@ export async function GET(
 
     if (!backgroundPreviewUrl && video.muxPlaybackId) {
       try {
-        const { getMuxFallbackAnimatedPreviewUrl } = await import("@/lib/background-preview");
-        backgroundPreviewUrl = await getMuxFallbackAnimatedPreviewUrl(video.muxPlaybackId, video.duration);
+        backgroundPreviewUrl = getMuxFallbackAnimatedPreviewUrl(
+          video.muxPlaybackId,
+          video.duration
+        );
       } catch (err) {
         console.warn("[Embed API] Fallback animated preview generation failed:", err);
       }
@@ -97,6 +105,11 @@ export async function GET(
         videoId: video.publicId,
         title: video.title,
         duration: video.duration,
+        playbackUrl,
+        playback: {
+          type: "hls",
+          url: playbackUrl,
+        },
         posterUrl,
         backgroundPreviewUrl,
         config,

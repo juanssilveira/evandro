@@ -86,7 +86,11 @@ export function VideoCard({
       ? "1 Play"
       : `${playsCount.toLocaleString("pt-BR")} Plays`;
 
-  const posterUrl = customPosterUrl || null;
+  const posterUrl =
+    customPosterUrl ||
+    (isReady && video.muxPlaybackId
+      ? `https://image.mux.com/${video.muxPlaybackId}/thumbnail.webp?width=480&height=270&fit_mode=smartcrop`
+      : null);
 
   const canDrag = isDraggable && isReady;
 

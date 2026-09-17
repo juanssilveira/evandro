@@ -3,11 +3,6 @@ import { db } from "@/db";
 import { videos } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-import {
-  getMuxSignedThumbnailUrl,
-  getMuxSignedAnimatedUrl,
-} from "./mux";
-
 export interface GenerateBackgroundPreviewParams {
   videoId: string;
   publicId: string;
@@ -16,30 +11,25 @@ export interface GenerateBackgroundPreviewParams {
   duration?: number | null;
 }
 
-export async function getMuxPosterUrl(playbackId: string): Promise<string> {
-  return await getMuxSignedThumbnailUrl(playbackId, { width: 640 });
+export function getMuxPosterUrl(playbackId: string): string {
+  return `https://image.mux.com/${playbackId}/thumbnail.webp?width=640`;
 }
 
-export async function getMuxFallbackAnimatedPreviewUrl(
+export function getMuxFallbackAnimatedPreviewUrl(
   playbackId: string,
   duration?: number | null
-): Promise<string> {
+): string {
   const rawDuration =
     typeof duration === "number" && Number.isFinite(duration) && duration > 0
       ? duration
       : 10;
   const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
-  return await getMuxSignedAnimatedUrl(playbackId, "webp", {
-    start: 0,
-    end: previewEnd,
-    width: 640,
-    fps: 12,
-  });
+  return `https://image.mux.com/${playbackId}/animated.webp?start=0&end=${previewEnd}&width=640&fps=12`;
 }
 
 /**
  * Generates and stores a lightweight animated background preview in R2.
- * Server-side generation using Mux Animated Image API with signed JWT.
+ * Server-side generation using Mux public Animated Image API.
  * Idempotent and fails gracefully without blocking video readiness.
  */
 export async function generateAndStoreBackgroundPreview(
@@ -55,19 +45,17 @@ export async function generateAndStoreBackgroundPreview(
   }
 
   // Calculate preview end time: Mux maximum duration is 10s, clamped to video duration
-  const rawDuration = typeof duration === "number" && Number.isFinite(duration) && duration > 0 ? duration : 10;
+  const rawDuration =
+    typeof duration === "number" && Number.isFinite(duration) && duration > 0
+      ? duration
+      : 10;
   const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
 
   try {
     // 1. Try Animated WebP first (preferred for bandwidth & performance)
     let format = "webp";
     let contentType = "image/webp";
-    let apiUrl = await getMuxSignedAnimatedUrl(muxPlaybackId, "webp", {
-      start: 0,
-      end: previewEnd,
-      width: 640,
-      fps: 12,
-    });
+    let apiUrl = `https://image.mux.com/${muxPlaybackId}/animated.webp?start=0&end=${previewEnd}&width=640&fps=12`;
 
     let response = await fetch(apiUrl, {
       headers: {
@@ -83,12 +71,7 @@ export async function generateAndStoreBackgroundPreview(
       );
       format = "gif";
       contentType = "image/gif";
-      apiUrl = await getMuxSignedAnimatedUrl(muxPlaybackId, "gif", {
-        start: 0,
-        end: previewEnd,
-        width: 640,
-        fps: 12,
-      });
+      apiUrl = `https://image.mux.com/${muxPlaybackId}/animated.gif?start=0&end=${previewEnd}&width=640&fps=12`;
       response = await fetch(apiUrl);
     }
 
@@ -112,7 +95,7 @@ export async function generateAndStoreBackgroundPreview(
       throw new Error("Received empty buffer from Mux animated image API.");
     }
 
-    // 3. Imutable versioned key tied to publicId and muxAssetId
+    // 3. Immutable versioned key tied to publicId and muxAssetId
     const key = `background-previews/${publicId}/${muxAssetId}.${format}`;
 
     // 4. Store in R2 with immutable caching
@@ -161,7 +144,10 @@ export async function generateAndStoreBackgroundPreview(
     };
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[Background Preview] Error generating preview for videoId=${videoId}:`, error);
+    console.error(
+      `[Background Preview] Error generating preview for videoId=${videoId}:`,
+      error
+    );
 
     try {
       await db

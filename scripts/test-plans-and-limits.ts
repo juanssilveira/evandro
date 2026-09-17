@@ -7,16 +7,6 @@ const rootDir = process.cwd();
 dotenv.config({ path: path.join(rootDir, ".env.local") });
 dotenv.config({ path: path.join(rootDir, ".env") });
 
-if (!process.env.MUX_SIGNING_KEY_ID || !process.env.MUX_SIGNING_PRIVATE_KEY) {
-  const { privateKey } = crypto.generateKeyPairSync("rsa", {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: "spki", format: "pem" },
-    privateKeyEncoding: { type: "pkcs1", format: "pem" },
-  });
-  process.env.MUX_SIGNING_KEY_ID = "test_signing_key_id";
-  process.env.MUX_SIGNING_PRIVATE_KEY = privateKey;
-}
-
 if (!process.env.MUX_TOKEN_ID) process.env.MUX_TOKEN_ID = "dummy_token_id";
 if (!process.env.MUX_TOKEN_SECRET) process.env.MUX_TOKEN_SECRET = "dummy_token_secret";
 

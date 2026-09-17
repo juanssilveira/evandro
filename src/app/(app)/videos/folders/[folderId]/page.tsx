@@ -4,7 +4,6 @@ import { getCurrentAccount } from "@/lib/accounts";
 import { getVideosForAccount, syncVideoStatus } from "@/lib/videos";
 import { getFolderForAccount } from "@/lib/folders";
 import { getActivePlanForUser, getVideoPlaysMapThisMonth } from "@/lib/plans/access";
-import { getMuxSignedThumbnailUrl } from "@/lib/mux";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { VideosWorkspace } from "@/components/videos/videos-workspace";
@@ -90,26 +89,9 @@ export default async function FolderPage({ params }: FolderPageProps) {
     })
   );
 
-  // Fetch real monthly Plays and signed thumbnails per video server-side
+  // Fetch real monthly Plays per video server-side
   const videoIds = videoList.map((v) => v.id);
   const videoPlaysMap = await getVideoPlaysMapThisMonth(videoIds);
-
-  const videoThumbnailsMap: Record<string, string> = {};
-  await Promise.all(
-    videoList.map(async (v) => {
-      if (v.status === "ready" && v.muxPlaybackId) {
-        try {
-          videoThumbnailsMap[v.id] = await getMuxSignedThumbnailUrl(v.muxPlaybackId, {
-            width: 480,
-            height: 270,
-            fit_mode: "smartcrop",
-          });
-        } catch (err) {
-          console.error(`[Thumbnail] Failed to sign thumbnail for video ${v.id}:`, err);
-        }
-      }
-    })
-  );
 
   const hasPendingVideos = videoList.some(
     (v) =>
@@ -181,7 +163,6 @@ export default async function FolderPage({ params }: FolderPageProps) {
             <VideosLibrary
               videos={videoList}
               videoPlaysMap={videoPlaysMap}
-              videoThumbnailsMap={videoThumbnailsMap}
               currentFolder={folder}
             />
           </section>

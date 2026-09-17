@@ -12,8 +12,6 @@ import { AppHeader } from "@/components/app-header";
 import { VideosListRefresher } from "@/components/videos/videos-list-refresher";
 import { VideosLibrary } from "@/components/videos/videos-library";
 
-import { getMuxSignedThumbnailUrl } from "@/lib/mux";
-
 export const metadata: Metadata = {
   title: "Biblioteca",
   description: "Gerencie seus vídeos no WatchMap.",
@@ -55,26 +53,9 @@ export default async function VideosPage() {
     })
   );
 
-  // Fetch real monthly Plays and signed thumbnails per video server-side
+  // Fetch real monthly Plays per video server-side
   const videoIds = videoList.map((v) => v.id);
   const videoPlaysMap = await getVideoPlaysMapThisMonth(videoIds);
-
-  const videoThumbnailsMap: Record<string, string> = {};
-  await Promise.all(
-    videoList.map(async (v) => {
-      if (v.status === "ready" && v.muxPlaybackId) {
-        try {
-          videoThumbnailsMap[v.id] = await getMuxSignedThumbnailUrl(v.muxPlaybackId, {
-            width: 480,
-            height: 270,
-            fit_mode: "smartcrop",
-          });
-        } catch (err) {
-          console.error(`[Thumbnail] Failed to sign thumbnail for video ${v.id}:`, err);
-        }
-      }
-    })
-  );
 
   // Calculate folder metrics (videoCount, totalSizeBytes, totalPlays) from videos list and plays map
   const enrichedFoldersList = foldersList.map((folder) => {
@@ -141,7 +122,6 @@ export default async function VideosPage() {
               folders={enrichedFoldersList}
               videos={videoList}
               videoPlaysMap={videoPlaysMap}
-              videoThumbnailsMap={videoThumbnailsMap}
             />
           </section>
         </main>

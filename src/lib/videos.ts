@@ -263,19 +263,19 @@ export async function syncVideoStatus(
       }
 
       if (asset.status === "ready") {
-        const signedPlayback = asset.playback_ids?.find((p) => p.policy === "signed");
-        let playbackId = signedPlayback?.id || null;
+        const publicPlayback = asset.playback_ids?.find((p) => p.policy === "public");
+        let playbackId = publicPlayback?.id || null;
 
         if (!playbackId && currentMuxAssetId) {
           try {
             const mux = getMuxClient();
             const newPlayback = await mux.video.assets.createPlaybackId(currentMuxAssetId, {
-              policy: "signed",
+              policy: "public",
             });
             playbackId = newPlayback.id;
           } catch (createErr) {
             console.error(
-              `[Mux Sync] Failed to create signed playback ID for asset ${currentMuxAssetId}:`,
+              `[Mux Sync] Failed to create public playback ID for asset ${currentMuxAssetId}:`,
               createErr
             );
           }

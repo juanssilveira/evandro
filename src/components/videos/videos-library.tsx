@@ -63,7 +63,6 @@ const DEFAULT_FOLDERS: FolderWithCount[] = [];
 interface VideosLibraryProps {
   videos: Video[];
   videoPlaysMap: Record<string, number>;
-  videoThumbnailsMap?: Record<string, string>;
   folders?: FolderWithCount[];
   currentFolder?: Folder | null;
 }
@@ -71,7 +70,6 @@ interface VideosLibraryProps {
 export function VideosLibrary({
   videos: initialVideos,
   videoPlaysMap,
-  videoThumbnailsMap,
   folders: initialFolders = DEFAULT_FOLDERS,
   currentFolder = null,
 }: VideosLibraryProps) {
@@ -606,7 +604,6 @@ export function VideosLibrary({
                 <VideoCard
                   key={video.id}
                   video={video}
-                  posterUrl={videoThumbnailsMap?.[video.id]}
                   folder={!currentFolder && video.folderId ? folderMap.get(video.folderId) : undefined}
                   playsCount={videoPlaysMap[video.id] ?? 0}
                   onContextMenu={handleOpenContextMenu}

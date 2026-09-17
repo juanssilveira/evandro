@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { videos, accountMembers } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { getMuxSignedPlaybackUrl } from "@/lib/mux";
+import { getHlsPlaybackUrl } from "@/lib/mux";
 import {
   getActivePlanForUser,
   getCurrentPeriodKey,
@@ -178,7 +178,7 @@ export async function validateAndActivatePlayback(
 
   // 3. Editor preview exemption: authenticated account member skips quota consumption
   if (isVerifiedEditor) {
-    const playbackUrl = await getMuxSignedPlaybackUrl(video.muxPlaybackId);
+    const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
     return {
       authorized: true,
       playbackUrl,
@@ -227,7 +227,7 @@ export async function validateAndActivatePlayback(
       }
     });
 
-    const playbackUrl = await getMuxSignedPlaybackUrl(video.muxPlaybackId);
+    const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
     return {
       authorized: true,
       playbackUrl,

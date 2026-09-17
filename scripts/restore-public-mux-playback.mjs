@@ -10,7 +10,7 @@ dotenv.config({ path: path.join(rootDir, ".env") });
 const isDryRun = process.argv.includes("--dry-run");
 
 async function runMigration() {
-  console.log("=== WATCHMAP — SECURE MUX PLAYBACK MIGRATION ===");
+  console.log("=== WATCHMAP — RESTORE PUBLIC MUX PLAYBACK MIGRATION ===");
   if (isDryRun) {
     console.log(">>> DRY-RUN MODE: No changes will be persisted to DB or Mux. <<<\n");
   } else {
@@ -70,79 +70,79 @@ async function runMigration() {
       }
 
       const playbackIds = asset.playback_ids || [];
-      const signedIds = playbackIds.filter((p) => p.policy === "signed");
       const publicIds = playbackIds.filter((p) => p.policy === "public");
+      const signedIds = playbackIds.filter((p) => p.policy === "signed");
 
-      console.log(`  Playback IDs no Mux: ${signedIds.length} signed, ${publicIds.length} public.`);
+      console.log(`  Playback IDs no Mux: ${publicIds.length} public, ${signedIds.length} signed.`);
 
-      let targetSignedPlaybackId = signedIds[0]?.id || null;
+      let targetPublicPlaybackId = publicIds[0]?.id || null;
 
-      // 2. Create signed Playback ID if none exists
-      if (!targetSignedPlaybackId) {
+      // 2. Create public Playback ID if none exists
+      if (!targetPublicPlaybackId) {
         if (isDryRun) {
-          console.log(`  [DRY-RUN] Criaria signed Playback ID para Asset ${assetId}.`);
-          targetSignedPlaybackId = "dry_run_signed_id";
+          console.log(`  [DRY-RUN] Criaria public Playback ID para Asset ${assetId}.`);
+          targetPublicPlaybackId = "dry_run_public_id";
         } else {
-          console.log(`  Criando novo signed Playback ID no Mux...`);
+          console.log(`  Criando novo public Playback ID no Mux...`);
           const newPb = await mux.video.assets.createPlaybackId(assetId, {
-            policy: "signed",
+            policy: "public",
           });
-          targetSignedPlaybackId = newPb.id;
-          console.log(`  Novo signed Playback ID criado: ${targetSignedPlaybackId}`);
+          targetPublicPlaybackId = newPb.id;
+          console.log(`  Novo public Playback ID criado: ${targetPublicPlaybackId}`);
         }
       } else {
-        console.log(`  Signed Playback ID já existente: ${targetSignedPlaybackId}`);
+        console.log(`  Public Playback ID já existente: ${targetPublicPlaybackId}`);
       }
 
-      // 3. Persist signed Playback ID in database
-      if (currentPlaybackId !== targetSignedPlaybackId) {
+      // 3. Persist public Playback ID in database
+      if (currentPlaybackId !== targetPublicPlaybackId) {
         if (isDryRun) {
-          console.log(`  [DRY-RUN] Atualizaria mux_playback_id no DB de ${currentPlaybackId} para ${targetSignedPlaybackId}.`);
+          console.log(`  [DRY-RUN] Atualizaria mux_playback_id no DB de ${currentPlaybackId} para ${targetPublicPlaybackId}.`);
         } else {
-          console.log(`  Persistindo signed Playback ID no DB...`);
+          console.log(`  Persistindo public Playback ID no DB...`);
           const updateRes = await sql`
             UPDATE videos
-            SET mux_playback_id = ${targetSignedPlaybackId}, updated_at = NOW()
+            SET mux_playback_id = ${targetPublicPlaybackId}, updated_at = NOW()
             WHERE id = ${videoId}
             RETURNING id, mux_playback_id
           `;
 
-          if (updateRes.length === 0 || updateRes[0].mux_playback_id !== targetSignedPlaybackId) {
+          if (updateRes.length === 0 || updateRes[0].mux_playback_id !== targetPublicPlaybackId) {
             throw new Error(`Falha ao confirmar persistência no DB para vídeo ${videoId}`);
           }
           console.log(`  Persistência no DB confirmada com sucesso.`);
         }
       } else {
-        console.log(`  DB já contém o signed Playback ID correto.`);
+        console.log(`  DB já contém o public Playback ID correto.`);
       }
 
-      // 4. Remove all public Playback IDs from Mux
-      if (publicIds.length > 0) {
-        for (const pub of publicIds) {
+      // 4. Safe Order: Only delete signed Playback IDs AFTER public ID is created and saved
+      if (signedIds.length > 0) {
+        for (const signed of signedIds) {
           if (isDryRun) {
-            console.log(`  [DRY-RUN] Removeria public Playback ID ${pub.id} do Mux.`);
+            console.log(`  [DRY-RUN] Removeria signed Playback ID ${signed.id} do Mux.`);
           } else {
-            console.log(`  Removendo public Playback ID ${pub.id} do Mux...`);
-            await mux.video.assets.deletePlaybackId(assetId, pub.id);
-            console.log(`  Public Playback ID ${pub.id} removido.`);
+            console.log(`  Removendo signed Playback ID ${signed.id} do Mux...`);
+            await mux.video.assets.deletePlaybackId(assetId, signed.id);
+            console.log(`  Signed Playback ID ${signed.id} removido.`);
           }
         }
 
-        // 5. Confirm absence of public Playback IDs
+        // 5. Confirm absence of signed Playback IDs
         if (!isDryRun) {
           const reloadedAsset = await mux.video.assets.retrieve(assetId);
-          const remainingPublic = (reloadedAsset.playback_ids || []).filter((p) => p.policy === "public");
-          if (remainingPublic.length > 0) {
-            throw new Error(`Asset ${assetId} ainda possui ${remainingPublic.length} Playback IDs públicos.`);
+          const remainingSigned = (reloadedAsset.playback_ids || []).filter((p) => p.policy === "signed");
+          if (remainingSigned.length > 0) {
+            throw new Error(`Asset ${assetId} ainda possui ${remainingSigned.length} Playback IDs signed.`);
           }
-          console.log(`  Confirmação: Nenhum Playback ID público restante no Asset.`);
+          console.log(`  Confirmação: Nenhum Playback ID signed restante no Asset.`);
         }
       } else {
-        console.log(`  Nenhum Playback ID público pendente de remoção.`);
+        console.log(`  Nenhum Playback ID signed pendente de remoção.`);
       }
 
       totalMigrated++;
-      console.log(`  [OK] Vídeo migrado/validado com sucesso.\n`);
+      console.log(`  [OK] Vídeo migrado/validado para public com sucesso.\n`);
     } catch (err) {
       console.error(`  [ERRO] Falha ao processar vídeo ${videoId}:`, err?.message || err, "\n");
       totalErrors++;
