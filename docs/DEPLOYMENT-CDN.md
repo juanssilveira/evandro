@@ -39,7 +39,7 @@ A branch `development` não deve gerar deployment remoto na Vercel.
 ```text
 App: http://localhost:3000
 Database: Neon development
-Storage: watchmap-videos-development
+Video Infra: Mux Development environment
 ```
 
 ### Production
@@ -48,10 +48,10 @@ Storage: watchmap-videos-development
 App: https://app.evandro.watch
 Player CDN: https://cdn.evandro.watch
 Database: Neon production
-Storage: watchmap-videos-production
+Video Infra: Mux Production environment
 ```
 
-Nenhum ambiente pode utilizar banco, storage ou secrets de outro ambiente como fallback.
+Nenhum ambiente pode utilizar banco, credenciais Mux ou secrets de outro ambiente como fallback.
 
 ---
 
@@ -103,7 +103,7 @@ Domínio:
 https://cdn.evandro.watch
 ```
 
-Esse projeto não deve receber credenciais de banco, R2 ou autenticação.
+Esse projeto não deve receber credenciais de banco, Mux ou autenticação.
 
 ---
 
@@ -156,9 +156,9 @@ cdn.evandro.watch/embed/v1/watchmap-player.js
     ↓
 app.evandro.watch/api/embed/videos/{publicId}
     ↓
-playbackUrl assinado
+HLS Playback URL
     ↓
-R2
+Mux Video (stream.mux.com)
 ```
 
 O CDN não hospeda a API do embed.

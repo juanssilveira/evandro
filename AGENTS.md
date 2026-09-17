@@ -66,7 +66,7 @@ O agente deve assumir `development` como branch padrão para qualquer trabalho d
 Ambiente associado:
 * Aplicação: `http://localhost:3000`
 * Banco de dados: Neon development
-* Storage: `watchmap-videos-development`
+* Video Infra: Mux Development environment
 
 #### main
 
@@ -76,7 +76,7 @@ Ambiente associado:
 * Aplicação: `https://app.evandro.watch`
 * Player CDN: `https://cdn.evandro.watch`
 * Banco de dados: Neon production
-* Storage: `watchmap-videos-production`
+* Video Infra: Mux Production environment
 
 `main` recebe código somente através de promoção explícita de `development`. Nunca implementar funcionalidades ou criar commits normais de desenvolvimento diretamente em `main`.
 
@@ -188,7 +188,7 @@ Nunca versionar:
 * `.env.local`
 * `.env.*.local`
 * Credenciais Neon
-* Credenciais Cloudflare R2
+* Credenciais Mux (`MUX_TOKEN_SECRET`)
 * `BETTER_AUTH_SECRET`
 * Tokens ou chaves privadas
 * Arquivos locais da Vercel (`.vercel/`)
@@ -207,8 +207,8 @@ Se um secret for encontrado no histórico Git:
 
 Nenhum ambiente pode utilizar recursos de outro ambiente como fallback.
 
-* **Development:** Neon development + R2 development (`watchmap-videos-development`)
-* **Production:** Neon production + R2 production (`watchmap-videos-production`)
+* **Development:** Neon development + Mux Development environment
+* **Production:** Neon production + Mux Production environment
 
 Se uma variável obrigatória estiver ausente, a aplicação deve falhar claramente. Nunca utilizar silenciosamente credenciais ou recursos de outro ambiente.
 

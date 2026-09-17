@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createUploadUrlAction, finalizeUploadAction } from "@/app/actions/videos";
+import { createUploadUrlAction, syncVideoStatusAction } from "@/app/actions/videos";
 import { UploadCloud, Film, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 interface UploadDialogProps {
@@ -37,7 +37,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
   const [title, setTitle] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
-  const [status, setStatus] = useState<"idle" | "uploading" | "finalizing" | "success" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,8 +57,8 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (status === "uploading" || status === "finalizing") {
-      return; // prevent closing while uploading
+    if (status === "uploading") {
+      return; // prevent closing while sending binary
     }
     setOpen(nextOpen);
     if (!nextOpen) {
@@ -82,7 +82,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (status === "uploading" || status === "finalizing") return;
+    if (status === "uploading") return;
     setIsDragging(true);
   };
 
@@ -94,7 +94,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (status === "uploading" || status === "finalizing") return;
+    if (status === "uploading") return;
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFileSelect(e.dataTransfer.files[0]);
@@ -110,8 +110,9 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
     setErrorMessage(null);
 
     try {
-      // 1. Get presigned URL from server
+      // 1. Get Direct Upload URL from server
       const uploadRes = await createUploadUrlAction({
+        title: title.trim(),
         filename: file.name,
         mimeType: "video/mp4",
         sizeBytes: file.size,
@@ -123,11 +124,11 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
 
       const { videoId, uploadUrl } = uploadRes.data;
 
-      // 2. Direct upload to Cloudflare R2 via XMLHttpRequest to track progress
+      // 2. Direct upload to Mux via XMLHttpRequest with progress tracking
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", uploadUrl, true);
-        xhr.setRequestHeader("Content-Type", "video/mp4");
+        xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
@@ -140,42 +141,26 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve();
           } else {
-            reject(new Error(`Falha no envio para o storage (HTTP ${xhr.status}).`));
+            reject(new Error(`Falha no envio do vídeo (HTTP ${xhr.status}).`));
           }
         };
 
         xhr.onerror = () => {
-          reject(new Error("Erro de conexão durante o upload para o storage."));
+          reject(new Error("Erro de conexão durante o upload do vídeo."));
         };
 
         xhr.send(file);
       });
 
-      // 3. Finalize upload on server
-      setStatus("finalizing");
-      const finalizeRes = await finalizeUploadAction({
-        videoId,
-        title: title.trim(),
-        originalFilename: file.name,
-        sizeBytes: file.size,
-      });
+      // 3. Immediately trigger initial status sync & close modal without trapping user
+      syncVideoStatusAction({ videoId }).catch(() => {});
 
-      if (finalizeRes.error || !finalizeRes.success) {
-        throw new Error(finalizeRes.error || "Falha ao registrar o vídeo.");
-      }
-
-      setStatus("success");
-      setProgress(100);
-
-      // Refresh library & close dialog after brief confirmation
       startTransition(() => {
         router.refresh();
       });
 
-      setTimeout(() => {
-        setOpen(false);
-        resetState();
-      }, 1200);
+      setOpen(false);
+      resetState();
     } catch (err: unknown) {
       console.error(err);
       setStatus("error");
@@ -185,7 +170,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
     }
   };
 
-  const isBusy = status === "uploading" || status === "finalizing";
+  const isBusy = status === "uploading";
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -302,13 +287,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
                     {status === "uploading" && (
                       <>
                         <Loader2 className="size-3.5 animate-spin text-primary" />
-                        Enviando para o storage...
-                      </>
-                    )}
-                    {status === "finalizing" && (
-                      <>
-                        <Loader2 className="size-3.5 animate-spin text-primary" />
-                        Registrando vídeo...
+                        Enviando vídeo...
                       </>
                     )}
                     {status === "success" && (
@@ -320,11 +299,11 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
                     {status === "error" && (
                       <>
                         <AlertCircle className="size-3.5 text-destructive" />
-                        Erro no upload
+                        Erro no envio
                       </>
                     )}
                   </span>
-                  {progress !== null && status !== "error" && (
+                  {progress !== null && status === "uploading" && (
                     <span className="text-muted-foreground font-mono text-[11px]">{progress}%</span>
                   )}
                 </div>
@@ -333,12 +312,14 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
                   <div
                     className={`h-full transition-all duration-200 ${
                       status === "error"
-                        ? "bg-destructive"
+                        ? "bg-destructive w-full"
                         : status === "success"
-                        ? "bg-emerald-600"
+                        ? "bg-emerald-600 w-full"
                         : "bg-primary"
                     }`}
-                    style={{ width: `${progress || 0}%` }}
+                    style={{
+                      width: `${progress || 0}%`,
+                    }}
                   />
                 </div>
               </div>
@@ -369,7 +350,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
               {isBusy ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin mr-1.5" />
-                  {status === "uploading" ? "Enviando..." : "Finalizando..."}
+                  Enviando...
                 </>
               ) : (
                 "Iniciar upload"

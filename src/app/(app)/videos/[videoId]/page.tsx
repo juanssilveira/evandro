@@ -1,9 +1,9 @@
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
-import { getVideoForAccount } from "@/lib/videos";
+import { getVideoForAccount, syncVideoStatus } from "@/lib/videos";
 import { getPlayerConfig } from "@/lib/player-settings";
 import { DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
-import { generatePresignedPlaybackUrl } from "@/lib/r2";
+import { getHlsPlaybackUrl } from "@/lib/mux";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { VideoDetailsView } from "@/components/videos/video-details-view";
@@ -34,8 +34,24 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
     notFound();
   }
 
-  const playerConfig = (await getPlayerConfig(video.id, account.id)) ?? DEFAULT_PLAYER_CONFIG;
-  const playbackUrl = await generatePresignedPlaybackUrl(video.storageKey, 3600);
+  // If video is still processing or waiting for upload, attempt to sync status
+  let currentVideo = video;
+  if (video.status !== "ready" && (video.muxAssetId || video.muxUploadId)) {
+    const syncRes = await syncVideoStatus(video.id, account.id);
+    if (syncRes.video) {
+      currentVideo = syncRes.video;
+    }
+  }
+
+  // If video is still processing or not ready, block entry and redirect to library
+  if (currentVideo.status !== "ready") {
+    redirect("/videos");
+  }
+
+  const playerConfig = (await getPlayerConfig(currentVideo.id, account.id)) ?? DEFAULT_PLAYER_CONFIG;
+  const playbackUrl = currentVideo.muxPlaybackId
+    ? getHlsPlaybackUrl(currentVideo.muxPlaybackId)
+    : "";
 
   const cdnUrl = process.env.CDN_URL || process.env.BASE_URL || "http://localhost:3000";
 
@@ -52,7 +68,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
       {/* Main Page Area */}
       <main className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 py-8 space-y-6">
         <VideoDetailsView
-          video={video}
+          video={currentVideo}
           accountName={account.name}
           playbackUrl={playbackUrl}
           initialConfig={playerConfig}
@@ -62,5 +78,3 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
     </div>
   );
 }
-
-

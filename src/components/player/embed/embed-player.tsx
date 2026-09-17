@@ -71,8 +71,11 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
         const json = await response.json();
 
-        if (!json.playbackUrl) {
-          throw new Error("Invalid embed payload: missing playbackUrl");
+        const resolvedPlaybackUrl =
+          json.playback?.url || json.playbackUrl;
+
+        if (!resolvedPlaybackUrl) {
+          throw new Error("Invalid embed payload: missing playback url");
         }
 
         const parsedConfig = json.config
@@ -85,7 +88,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
             data: {
               videoId: json.videoId || videoId,
               title: json.title || "",
-              playbackUrl: json.playbackUrl,
+              playbackUrl: resolvedPlaybackUrl,
               config: parsedConfig,
             },
             errorMessage: null,

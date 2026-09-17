@@ -43,6 +43,13 @@
       "when": 1789581901955,
       "tag": "0005_aromatic_roughhouse",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789609904897,
+      "tag": "0006_mux_video_infrastructure",
+      "breakpoints": true
     }
   ]
 }

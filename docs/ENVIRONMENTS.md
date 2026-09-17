@@ -8,7 +8,7 @@
 - **BASE_URL:** `http://localhost:3000`
 - **CDN_URL:** `http://localhost:3000`
 - **Database:** Neon development
-- **Storage:** `watchmap-videos-development`
+- **Video Infra:** Mux Development environment
 - **Finalidade:** desenvolvimento livre e local.
  
 ## Production
@@ -20,7 +20,7 @@
 - **BASE_URL:** `https://app.evandro.watch`
 - **CDN_URL:** `https://cdn.evandro.watch`
 - **Database:** Neon production
-- **Storage:** `watchmap-videos-production`
+- **Video Infra:** Mux Production environment
 - **Finalidade:** ambiente oficial de produção utilizado pelos clientes.
  
 ## Regras de Isolamento

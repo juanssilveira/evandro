@@ -4,16 +4,14 @@ import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import {
   createVideoUploadSession,
-  finalizeVideoUpload,
+  syncVideoStatus,
   updateVideoTitle,
   deleteVideo,
 } from "@/lib/videos";
-import {
-  updatePlayerConfig,
-} from "@/lib/player-settings";
+import { updatePlayerConfig } from "@/lib/player-settings";
 import {
   createUploadSchema,
-  finalizeUploadSchema,
+  syncVideoStatusSchema,
   updatePlayerConfigActionSchema,
   updateVideoDebugSchema,
   updateVideoTitleSchema,
@@ -46,11 +44,11 @@ export async function createUploadUrlAction(rawInput: unknown) {
     return { data };
   } catch (error) {
     console.error("Error creating upload URL:", error);
-    return { error: "Falha ao gerar URL de upload." };
+    return { error: "Falha ao gerar URL de upload no Mux." };
   }
 }
 
-export async function finalizeUploadAction(rawInput: unknown) {
+export async function syncVideoStatusAction(rawInput: unknown) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -64,22 +62,26 @@ export async function finalizeUploadAction(rawInput: unknown) {
     return { error: "Conta não encontrada para o usuário." };
   }
 
-  const parsed = finalizeUploadSchema.safeParse(rawInput);
+  const parsed = syncVideoStatusSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message || "Dados inválidos." };
   }
 
   try {
-    const result = await finalizeVideoUpload(account.id, parsed.data);
+    const result = await syncVideoStatus(parsed.data.videoId, account.id);
     if (!result.success) {
-      return { error: result.error || "Falha ao finalizar o upload." };
+      return { error: result.error || "Falha ao sincronizar o estado do vídeo." };
     }
 
-    revalidatePath("/videos");
+    if (result.video?.status === "ready") {
+      revalidatePath("/videos");
+      revalidatePath(`/videos/${parsed.data.videoId}`);
+    }
+
     return { success: true, video: result.video };
   } catch (error) {
-    console.error("Error finalizing upload:", error);
-    return { error: "Erro interno ao processar o vídeo." };
+    console.error("Error syncing video status:", error);
+    return { error: "Erro ao sincronizar status do vídeo com o Mux." };
   }
 }
 

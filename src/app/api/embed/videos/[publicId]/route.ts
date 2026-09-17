@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVideoByPublicId } from "@/lib/videos";
+import { getVideoByPublicId, syncVideoStatus } from "@/lib/videos";
 import { getPlayerConfigByVideoId } from "@/lib/player-settings";
-import { generatePresignedPlaybackUrl } from "@/lib/r2";
+import { getHlsPlaybackUrl } from "@/lib/mux";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +30,7 @@ export async function GET(
       );
     }
 
-    const video = await getVideoByPublicId(publicId);
+    let video = await getVideoByPublicId(publicId);
     if (!video) {
       return NextResponse.json(
         { error: "Vídeo não encontrado." },
@@ -38,16 +38,33 @@ export async function GET(
       );
     }
 
-    const [config, playbackUrl] = await Promise.all([
-      getPlayerConfigByVideoId(video.id),
-      generatePresignedPlaybackUrl(video.storageKey, 3600),
-    ]);
+    // If video is not marked as ready yet, attempt to sync with Mux
+    if (video.status !== "ready" && (video.muxAssetId || video.muxUploadId)) {
+      const syncRes = await syncVideoStatus(video.id);
+      if (syncRes.video) {
+        video = syncRes.video;
+      }
+    }
 
-    // Return only public data for the embed player
+    if (video.status !== "ready" || !video.muxPlaybackId) {
+      return NextResponse.json(
+        { error: "Vídeo em processamento ou indisponível para reprodução." },
+        { status: 404, headers: CORS_HEADERS }
+      );
+    }
+
+    const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
+    const config = await getPlayerConfigByVideoId(video.id);
+
+    // Return public data for embed and preview players
     return NextResponse.json(
       {
         videoId: video.publicId,
         title: video.title,
+        playback: {
+          type: "hls",
+          url: playbackUrl,
+        },
         playbackUrl,
         config,
       },

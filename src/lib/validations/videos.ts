@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 export const createUploadSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "O título é obrigatório")
+    .max(120, "O título deve ter no máximo 120 caracteres"),
   filename: z.string().min(1, "Nome do arquivo é obrigatório"),
   mimeType: z.literal("video/mp4", {
     message: "Apenas arquivos MP4 (video/mp4) são permitidos",
@@ -10,14 +15,11 @@ export const createUploadSchema = z.object({
 
 export type CreateUploadInput = z.infer<typeof createUploadSchema>;
 
-export const finalizeUploadSchema = z.object({
+export const syncVideoStatusSchema = z.object({
   videoId: z.string().uuid("ID de vídeo inválido"),
-  title: z.string().trim().min(1, "O título é obrigatório").max(255, "Título muito longo"),
-  originalFilename: z.string().min(1, "Nome original do arquivo é obrigatório"),
-  sizeBytes: z.number().positive("Tamanho do arquivo deve ser maior que zero"),
 });
 
-export type FinalizeUploadInput = z.infer<typeof finalizeUploadSchema>;
+export type SyncVideoStatusInput = z.infer<typeof syncVideoStatusSchema>;
 
 export const updatePlayerConfigActionSchema = z.object({
   videoId: z.string().uuid("ID de vídeo inválido"),
@@ -91,4 +93,3 @@ export const deleteVideoSchema = z.object({
 });
 
 export type DeleteVideoInput = z.infer<typeof deleteVideoSchema>;
-

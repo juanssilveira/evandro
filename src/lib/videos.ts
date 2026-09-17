@@ -2,12 +2,12 @@ import { db } from "@/db";
 import { videos, type Video } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import {
-  generatePresignedUploadUrl,
-  getVideoStorageKey,
-  verifyObjectExists,
-  deleteObjectFromR2,
-} from "@/lib/r2";
-import type { CreateUploadInput, FinalizeUploadInput } from "@/lib/validations/videos";
+  createMuxDirectUpload,
+  getMuxDirectUpload,
+  getMuxAsset,
+  deleteMuxAsset,
+} from "@/lib/mux";
+import type { CreateUploadInput } from "@/lib/validations/videos";
 
 export async function getVideosForAccount(accountId: string): Promise<Video[]> {
   return await db
@@ -45,60 +45,159 @@ export async function getVideoByPublicId(
 export async function createVideoUploadSession(
   accountId: string,
   input: CreateUploadInput
-): Promise<{ videoId: string; uploadUrl: string }> {
+): Promise<{ videoId: string; uploadUrl: string; muxUploadId: string }> {
   const videoId = crypto.randomUUID();
 
-  const uploadUrl = await generatePresignedUploadUrl({
-    accountId,
+  // 1. Create Direct Upload session in Mux
+  const { uploadId, uploadUrl } = await createMuxDirectUpload({
     videoId,
-    mimeType: input.mimeType,
-    expiresIn: 900,
   });
 
-  return { videoId, uploadUrl };
+  // 2. Persist initial video record in database
+  await db.insert(videos).values({
+    id: videoId,
+    publicId: crypto.randomUUID(),
+    accountId,
+    title: input.title,
+    muxUploadId: uploadId,
+    status: "waiting_upload",
+    originalFilename: input.filename,
+    mimeType: input.mimeType,
+    sizeBytes: input.sizeBytes,
+  });
+
+  return { videoId, uploadUrl, muxUploadId: uploadId };
 }
 
-export async function finalizeVideoUpload(
-  accountId: string,
-  input: FinalizeUploadInput
+export async function syncVideoStatus(
+  videoId: string,
+  accountId?: string
 ): Promise<{ success: boolean; video?: Video; error?: string }> {
-  const storageKey = getVideoStorageKey(accountId, input.videoId);
+  const [video] = accountId
+    ? await db
+        .select()
+        .from(videos)
+        .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)))
+        .limit(1)
+    : await db.select().from(videos).where(eq(videos.id, videoId)).limit(1);
 
-  // Check if video already exists (retry safety)
-  const [existingVideo] = await db
-    .select()
-    .from(videos)
-    .where(eq(videos.id, input.videoId))
-    .limit(1);
-
-  if (existingVideo) {
-    return { success: true, video: existingVideo };
-  }
-
-  // Verify object actually exists in R2
-  const exists = await verifyObjectExists(storageKey);
-  if (!exists) {
+  if (!video) {
     return {
       success: false,
-      error: "O arquivo do vídeo não foi encontrado no storage.",
+      error: "Vídeo não encontrado ou não pertence a esta conta.",
     };
   }
 
-  const [newVideo] = await db
-    .insert(videos)
-    .values({
-      id: input.videoId,
-      publicId: crypto.randomUUID(),
-      accountId,
-      title: input.title,
-      storageKey,
-      originalFilename: input.originalFilename,
-      mimeType: "video/mp4",
-      sizeBytes: input.sizeBytes,
-    })
-    .returning();
+  // If already ready, no sync needed
+  if (video.status === "ready" && video.muxPlaybackId) {
+    return { success: true, video };
+  }
 
-  return { success: true, video: newVideo };
+  let currentMuxAssetId = video.muxAssetId;
+
+  // Step A: If assetId is not known yet, check Direct Upload status in Mux
+  if (!currentMuxAssetId && video.muxUploadId) {
+    try {
+      const upload = await getMuxDirectUpload(video.muxUploadId);
+
+      if (upload.status === "asset_created" && upload.asset_id) {
+        currentMuxAssetId = upload.asset_id;
+        await db
+          .update(videos)
+          .set({
+            muxAssetId: upload.asset_id,
+            status: "processing",
+          })
+          .where(eq(videos.id, videoId));
+      } else if (upload.status === "errored") {
+        const [erroredVideo] = await db
+          .update(videos)
+          .set({
+            status: "errored",
+            errorMessage: upload.error?.message || "Erro no upload do vídeo.",
+          })
+          .where(eq(videos.id, videoId))
+          .returning();
+
+        return { success: true, video: erroredVideo };
+      }
+    } catch (error) {
+      console.error(`[Mux Sync] Failed to retrieve direct upload ${video.muxUploadId}:`, error);
+    }
+  }
+
+  // Step B: If assetId is known, check Asset status in Mux
+  if (currentMuxAssetId) {
+    try {
+      const asset = await getMuxAsset(currentMuxAssetId);
+
+      if (asset.status === "ready") {
+        const publicPlayback =
+          asset.playback_ids?.find((p) => p.policy === "public") ||
+          asset.playback_ids?.[0];
+        const playbackId = publicPlayback?.id || null;
+        const duration =
+          typeof asset.duration === "number" && Number.isFinite(asset.duration)
+            ? asset.duration
+            : null;
+
+        const [readyVideo] = await db
+          .update(videos)
+          .set({
+            status: "ready",
+            muxAssetId: currentMuxAssetId,
+            muxPlaybackId: playbackId,
+            duration,
+            errorMessage: null,
+          })
+          .where(eq(videos.id, videoId))
+          .returning();
+
+        return { success: true, video: readyVideo };
+      }
+
+      if (asset.status === "errored") {
+        const errorMsg =
+          asset.errors?.messages?.[0] || "Erro no processamento do vídeo no Mux.";
+
+        const [erroredVideo] = await db
+          .update(videos)
+          .set({
+            status: "errored",
+            muxAssetId: currentMuxAssetId,
+            errorMessage: errorMsg,
+          })
+          .where(eq(videos.id, videoId))
+          .returning();
+
+        return { success: true, video: erroredVideo };
+      }
+
+      if (asset.status === "preparing") {
+        const [processingVideo] = await db
+          .update(videos)
+          .set({
+            status: "processing",
+            muxAssetId: currentMuxAssetId,
+          })
+          .where(eq(videos.id, videoId))
+          .returning();
+
+        return { success: true, video: processingVideo };
+      }
+    } catch (error) {
+      console.error(`[Mux Sync] Failed to retrieve asset ${currentMuxAssetId}:`, error);
+    }
+  }
+
+  // Return current state from DB
+  const [updatedVideo] = await db
+    .select()
+    .from(videos)
+    .where(eq(videos.id, videoId))
+    .limit(1);
+
+  return { success: true, video: updatedVideo || video };
 }
 
 export async function updateVideoTitle(
@@ -119,7 +218,7 @@ export async function deleteVideo(
   videoId: string,
   accountId: string
 ): Promise<{ success: boolean; error?: string }> {
-  // 1. Verify existence and ownership, retrieving storageKey from DB
+  // 1. Verify existence and ownership
   const video = await getVideoForAccount(videoId, accountId);
   if (!video) {
     return {
@@ -128,19 +227,19 @@ export async function deleteVideo(
     };
   }
 
-  const storageKey = video.storageKey;
+  // 2. If Mux asset exists, delete from Mux (idempotent)
+  if (video.muxAssetId) {
+    try {
+      await deleteMuxAsset(video.muxAssetId);
+    } catch (error) {
+      console.error(`[Mux Cleanup] Error deleting asset ${video.muxAssetId}:`, error);
+    }
+  }
 
-  // 2. Delete database record (cascades to videoPlayerSettings)
+  // 3. Delete database record (cascades to videoPlayerSettings)
   await db
     .delete(videos)
     .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)));
-
-  // 3. Delete object from Cloudflare R2
-  try {
-    await deleteObjectFromR2(storageKey);
-  } catch (error) {
-    console.error(`[R2 Cleanup] Failed to delete object ${storageKey}:`, error);
-  }
 
   return { success: true };
 }

@@ -30,6 +30,7 @@ import {
   PLAYER_ACCENT_PRESETS,
 } from "@/types/player-config";
 import { calculateFakeProgress } from "@/lib/player/fake-progress-engine";
+import Hls from "hls.js";
 
 interface WatchMapPlayerProps {
   src: string;
@@ -74,6 +75,7 @@ export function WatchMapPlayer({
   const volumeTrackRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<PlayerRuntime | null>(null);
   const playbackControllerRef = useRef<PlaybackController | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const hasResolvedInitialPlaybackRef = useRef(false);
 
   // Effective configuration
@@ -164,6 +166,81 @@ export function WatchMapPlayer({
   useEffect(() => {
     hasResolvedInitialPlaybackRef.current = false;
   }, [src]);
+
+  // Media source attachment (Prioritize HLS.js for all MSE browsers, fallback to native Safari)
+  const attachMediaSource = useCallback((mediaSrc: string) => {
+    const video = videoRef.current;
+    if (!video || !mediaSrc) return;
+
+    setHasError(false);
+    setIsLoading(true);
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const isHls = mediaSrc.includes(".m3u8") || mediaSrc.includes("stream.mux.com");
+
+    if (isHls && Hls.isSupported()) {
+      // 1. MSE-capable browsers (Chrome, Edge, Firefox, etc.)
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+      });
+
+      hls.loadSource(mediaSrc);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setIsLoading(false);
+        setHasError(false);
+        if (!hasResolvedInitialPlaybackRef.current && playbackControllerRef.current) {
+          hasResolvedInitialPlaybackRef.current = true;
+          playbackControllerRef.current.resolveInitialPlayback();
+        }
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          console.error("[WatchMap Player HLS Fatal Error]", data);
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn("[WatchMap Player HLS] Retrying network error...");
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn("[WatchMap Player HLS] Recovering media error...");
+              hls.recoverMediaError();
+              break;
+            default:
+              hls.destroy();
+              setHasError(true);
+              setIsLoading(false);
+              break;
+          }
+        }
+      });
+
+      hlsRef.current = hls;
+    } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
+      // 2. Native HLS only when MSE is not available (Safari / iOS WebKit)
+      video.src = mediaSrc;
+    } else {
+      video.src = mediaSrc;
+    }
+  }, []);
+
+  useEffect(() => {
+    attachMediaSource(src);
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [src, attachMediaSource]);
 
   // Initialize PlayerRuntime and PlaybackController lifecycle
   useEffect(() => {
@@ -566,13 +643,24 @@ export function WatchMapPlayer({
   };
 
   const handleError = () => {
-    setHasError(true);
-    setIsLoading(false);
+    const video = videoRef.current;
+    // When HLS.js is active, error handling is delegated to Hls.Events.ERROR
+    if (hlsRef.current) {
+      return;
+    }
+    // Only trigger error overlay if video has an actual native error code and valid src
+    if (video?.error && src) {
+      console.error("[WatchMap Player Native Video Error]", video.error);
+      setHasError(true);
+      setIsLoading(false);
+    }
   };
 
   const handleLoadStart = () => {
-    setIsLoading(true);
-    setHasError(false);
+    if (src) {
+      setIsLoading(true);
+      setHasError(false);
+    }
   };
 
   // Real progress for native timeline (always currentTime / duration)
@@ -611,7 +699,6 @@ export function WatchMapPlayer({
       {/* Native Video Element */}
       <video
         ref={videoRef}
-        src={src}
         playsInline
         preload="metadata"
         autoPlay={false}
@@ -651,18 +738,12 @@ export function WatchMapPlayer({
               Não foi possível reproduzir o vídeo
             </h3>
             <p className="text-xs text-zinc-400 max-w-sm">
-              Ocorreu uma falha ao carregar o arquivo do storage. Verifique sua conexão e tente novamente.
+              Ocorreu uma falha ao carregar a mídia. Verifique sua conexão e tente novamente.
             </p>
           </div>
           <button
-            onClick={() => {
-              setHasError(false);
-              setIsLoading(true);
-              if (videoRef.current) {
-                videoRef.current.load();
-                videoRef.current.play().catch(() => {});
-              }
-            }}
+            type="button"
+            onClick={() => attachMediaSource(src)}
             className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors cursor-pointer"
           >
             <RotateCcw className="size-3.5" />
