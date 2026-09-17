@@ -35,11 +35,11 @@ export function SettingsView({
   const [activeTab, setActiveTab] = React.useState<SettingsTab>(defaultTab);
 
   return (
-    <div className="flex flex-col lg:flex-row items-start gap-8">
+    <div className="flex flex-col lg:flex-row items-start gap-6">
       {/* Left Navigation Sidebar */}
-      <aside className="w-full lg:w-64 xl:w-72 shrink-0">
+      <aside className="w-full lg:w-60 xl:w-64 shrink-0">
         <nav
-          className="flex flex-row lg:flex-col gap-1.5 p-1 rounded-xl bg-muted/40 border border-border/80 lg:bg-transparent lg:p-0 lg:border-0"
+          className="flex flex-row lg:flex-col gap-1.5 p-1.5 rounded-xl border border-border bg-card/60 shadow-2xs"
           aria-label="Navegação de configurações"
         >
           {/* Tab 1: Configurações Gerais */}
@@ -47,24 +47,24 @@ export function SettingsView({
             type="button"
             onClick={() => setActiveTab("general")}
             className={cn(
-              "flex-1 lg:flex-initial flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-left transition-all cursor-pointer",
+              "flex-1 lg:flex-initial flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all cursor-pointer",
               activeTab === "general"
-                ? "bg-white dark:bg-zinc-800 text-foreground font-semibold shadow-xs border border-border"
-                : "text-muted-foreground hover:text-foreground hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50"
+                ? "bg-white dark:bg-zinc-900 text-foreground font-semibold shadow-2xs border border-border"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
             )}
           >
             <div
               className={cn(
                 "flex size-8 shrink-0 items-center justify-center rounded-md transition-colors",
                 activeTab === "general"
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted text-muted-foreground"
+                  ? "bg-primary/10 text-primary border border-primary/20"
+                  : "bg-muted border border-border text-muted-foreground"
               )}
             >
               <User className="size-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-sm leading-none truncate">
+              <p className="text-xs sm:text-sm font-medium text-foreground leading-none truncate">
                 Configurações gerais
               </p>
               <p className="hidden sm:block text-[11px] text-muted-foreground font-normal mt-1 leading-none truncate">
@@ -78,24 +78,24 @@ export function SettingsView({
             type="button"
             onClick={() => setActiveTab("plan")}
             className={cn(
-              "flex-1 lg:flex-initial flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-left transition-all cursor-pointer",
+              "flex-1 lg:flex-initial flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all cursor-pointer",
               activeTab === "plan"
-                ? "bg-white dark:bg-zinc-800 text-foreground font-semibold shadow-xs border border-border"
-                : "text-muted-foreground hover:text-foreground hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50"
+                ? "bg-white dark:bg-zinc-900 text-foreground font-semibold shadow-2xs border border-border"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
             )}
           >
             <div
               className={cn(
                 "flex size-8 shrink-0 items-center justify-center rounded-md transition-colors",
                 activeTab === "plan"
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted text-muted-foreground"
+                  ? "bg-primary/10 text-primary border border-primary/20"
+                  : "bg-muted border border-border text-muted-foreground"
               )}
             >
               <CreditCard className="size-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-sm leading-none truncate">
+              <p className="text-xs sm:text-sm font-medium text-foreground leading-none truncate">
                 Plano e faturamento
               </p>
               <p className="hidden sm:block text-[11px] text-muted-foreground font-normal mt-1 leading-none truncate">
@@ -106,8 +106,8 @@ export function SettingsView({
         </nav>
       </aside>
 
-      {/* Right Column: Tab Content */}
-      <div className="flex-1 w-full max-w-4xl space-y-6">
+      {/* Right Column: Tab Content occupying full remaining space */}
+      <div className="flex-1 w-full min-w-0 space-y-6">
         {activeTab === "general" && (
           <>
             <section aria-label="Informações da conta">

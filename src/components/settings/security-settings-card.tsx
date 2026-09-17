@@ -139,65 +139,64 @@ export function SecuritySettingsCard() {
             </div>
           )}
 
-          <div className="space-y-4 max-w-xl">
-            {/* Current Password */}
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="current-password"
-                className="text-xs font-medium text-foreground"
-              >
-                Senha atual
-              </Label>
-              <div className="relative">
-                <Input
-                  id="current-password"
-                  type={showCurrentPassword ? "text" : "password"}
-                  value={currentPassword}
-                  disabled={isPending}
-                  onChange={(e) => {
-                    setCurrentPassword(e.target.value);
-                    setSuccess(false);
-                    if (errors.currentPassword || errors.general) {
-                      setErrors((prev) => ({
-                        ...prev,
-                        currentPassword: undefined,
-                        general: undefined,
-                      }));
-                    }
-                  }}
-                  placeholder="••••••••"
-                  className="h-9 pr-10"
-                  required
-                  autoComplete="current-password"
-                  aria-invalid={!!errors.currentPassword}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPassword((prev) => !prev)}
-                  tabIndex={-1}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 size-7 inline-flex items-center justify-center text-muted-foreground hover:text-foreground rounded-md transition-colors"
-                  aria-label={
-                    showCurrentPassword
-                      ? "Ocultar senha atual"
-                      : "Mostrar senha atual"
-                  }
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Current Password */}
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="current-password"
+                  className="text-xs font-medium text-foreground"
                 >
-                  {showCurrentPassword ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
+                  Senha atual
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="current-password"
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={currentPassword}
+                    disabled={isPending}
+                    onChange={(e) => {
+                      setCurrentPassword(e.target.value);
+                      setSuccess(false);
+                      if (errors.currentPassword || errors.general) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          currentPassword: undefined,
+                          general: undefined,
+                        }));
+                      }
+                    }}
+                    placeholder="••••••••"
+                    className="h-9 pr-10"
+                    required
+                    autoComplete="current-password"
+                    aria-invalid={!!errors.currentPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword((prev) => !prev)}
+                    tabIndex={-1}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 size-7 inline-flex items-center justify-center text-muted-foreground hover:text-foreground rounded-md transition-colors"
+                    aria-label={
+                      showCurrentPassword
+                        ? "Ocultar senha atual"
+                        : "Mostrar senha atual"
+                    }
+                  >
+                    {showCurrentPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
+                {errors.currentPassword && (
+                  <p className="text-[11px] text-destructive font-medium">
+                    {errors.currentPassword}
+                  </p>
+                )}
               </div>
-              {errors.currentPassword && (
-                <p className="text-[11px] text-destructive font-medium">
-                  {errors.currentPassword}
-                </p>
-              )}
-            </div>
 
-            {/* New Password & Confirm Password */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* New Password */}
               <div className="space-y-1.5">
                 <Label
