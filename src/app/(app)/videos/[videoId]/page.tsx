@@ -78,10 +78,6 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
           email: session.user.email,
           planName: activePlan?.plan ? `Plano ${activePlan.plan.name}` : "Plano Pro",
         }}
-        breadcrumbs={[
-          { label: "Vídeos", href: "/videos" },
-          { label: currentVideo.title, isCurrent: true },
-        ]}
       />
 
       {/* Main Page Area */}

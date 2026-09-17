@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getVideosForAccount, syncVideoStatus } from "@/lib/videos";
-import { getPlanUsage, getVideoPlaysMapThisMonth } from "@/lib/plans/access";
+import { getActivePlanForUser, getVideoPlaysMapThisMonth } from "@/lib/plans/access";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { VideosWorkspace } from "@/components/videos/videos-workspace";
@@ -16,8 +16,6 @@ import {
   Loader2,
   AlertCircle,
   PlayCircle,
-  Film,
-  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,10 +44,10 @@ export default async function VideosPage() {
 
   const rawVideoList = account ? await getVideosForAccount(account.id) : [];
 
-  // Fetch real plan usage stats server-side
-  const usageStats =
-    session?.user.id && account
-      ? await getPlanUsage(session.user.id, account.id)
+  // Fetch active plan for header
+  const activePlan =
+    session?.user.id
+      ? await getActivePlanForUser(session.user.id)
       : null;
 
   // Sync any non-terminal video with Mux on page load
@@ -86,7 +84,7 @@ export default async function VideosPage() {
           user={{
             name: session?.user.name,
             email: session?.user.email,
-            planName: usageStats?.plan ? `Plano ${usageStats.plan.name}` : "Plano Pro",
+            planName: activePlan?.plan ? `Plano ${activePlan.plan.name}` : "Plano Pro",
           }}
         />
 
@@ -110,97 +108,8 @@ export default async function VideosPage() {
             </div>
           </div>
 
-        {/* ── Section 1: USO DO PLANO ── */}
-        {usageStats && (
-          <section className="space-y-3" aria-labelledby="plan-usage-heading">
-            <div className="flex items-center justify-between">
-              <h2
-                id="plan-usage-heading"
-                className="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-              >
-                Uso do Plano {usageStats.plan?.name || "Pro"}
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {/* Card: Vídeos */}
-              <div className="flex items-center justify-between p-3.5 sm:p-4 rounded-xl border border-border bg-card shadow-2xs">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
-                    <Film className="size-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground font-medium">Vídeos</p>
-                    <p className="text-sm font-semibold text-foreground mt-0.5">
-                      {usageStats.videoCount}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        / {usageStats.maxVideos}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] font-mono text-muted-foreground">
-                    {Math.round(
-                      (usageStats.videoCount / usageStats.maxVideos) * 100
-                    )}
-                    %
-                  </span>
-                </div>
-              </div>
-
-              {/* Card: Plays no mês */}
-              <div className="flex items-center justify-between p-3.5 sm:p-4 rounded-xl border border-border bg-card shadow-2xs">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500 border border-violet-500/20">
-                    <PlayCircle className="size-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground font-medium">Plays no mês</p>
-                    <p className="text-sm font-semibold text-foreground mt-0.5">
-                      {usageStats.playsThisMonth.toLocaleString("pt-BR")}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        / {usageStats.maxPlays.toLocaleString("pt-BR")}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] font-mono text-muted-foreground">
-                    {(
-                      (usageStats.playsThisMonth / usageStats.maxPlays) *
-                      100
-                    ).toFixed(1)}
-                    %
-                  </span>
-                </div>
-              </div>
-
-              {/* Card: Qualidade & Duração */}
-              <div className="hidden lg:flex items-center justify-between p-3.5 sm:p-4 rounded-xl border border-border bg-card shadow-2xs">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                    <Sparkles className="size-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground font-medium">
-                      Qualidade & Duração
-                    </p>
-                    <p className="text-sm font-semibold text-foreground mt-0.5">
-                      Até 1080p{" "}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        · máx. 20 min
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── Section 2: SEUS VÍDEOS ── */}
-        <section className="space-y-3.5 pt-2" aria-labelledby="your-videos-heading">
+        {/* ── Section: SEUS VÍDEOS ── */}
+        <section className="space-y-3.5" aria-labelledby="your-videos-heading">
           <div className="flex items-center justify-between">
             <h2
               id="your-videos-heading"

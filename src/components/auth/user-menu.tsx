@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, LogOut, Loader2 } from "lucide-react";
+import { ChevronDown, LogOut, Loader2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface UserMenuProps {
@@ -116,6 +116,14 @@ export function UserMenu({ name, email, planName }: UserMenuProps) {
         </div>
 
         <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onClick={() => router.push("/settings")}
+          className="gap-2 text-xs text-foreground/80 cursor-pointer"
+        >
+          <Settings className="size-3.5 text-muted-foreground" />
+          <span>Configurações</span>
+        </DropdownMenuItem>
 
         <DropdownMenuItem
           onClick={handleLogout}

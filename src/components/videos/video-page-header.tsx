@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Film, HardDrive, Calendar } from "lucide-react";
+import { Film, HardDrive, Calendar } from "lucide-react";
 import { VideoIdBadge } from "./video-id-badge";
 import { VideoHeaderActions } from "./video-header-actions";
+import { Breadcrumbs } from "@/components/ui/breadcrumb";
 import type { Video } from "@/db/schema";
 
 interface VideoPageHeaderProps {
@@ -46,15 +46,14 @@ export function VideoPageHeader({
 
   return (
     <div className="space-y-3 pb-4 border-b border-border/70">
-      {/* Top Bar: Back Link & Public ID Badge */}
-      <div className="flex items-center justify-between">
-        <Link
-          href="/videos"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
-        >
-          <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
-          <span>Voltar para biblioteca</span>
-        </Link>
+      {/* Top Bar: Breadcrumb Navigation & Public ID Badge */}
+      <div className="flex items-center justify-between gap-4">
+        <Breadcrumbs
+          items={[
+            { label: "Biblioteca", href: "/videos" },
+            { label: title, isCurrent: true },
+          ]}
+        />
 
         <VideoIdBadge publicId={video.publicId} />
       </div>
