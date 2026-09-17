@@ -16,6 +16,8 @@ interface EmbedVideoData {
   videoId: string;
   title: string;
   playbackUrl: string;
+  posterUrl?: string | null;
+  backgroundPreviewUrl?: string | null;
   config: PlayerConfig;
 }
 
@@ -89,6 +91,8 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
               videoId: json.videoId || videoId,
               title: json.title || "",
               playbackUrl: resolvedPlaybackUrl,
+              posterUrl: json.posterUrl || null,
+              backgroundPreviewUrl: json.backgroundPreviewUrl || null,
               config: parsedConfig,
             },
             errorMessage: null,
@@ -198,6 +202,8 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
   return (
     <WatchMapPlayer
       src={data.playbackUrl}
+      posterUrl={data.posterUrl}
+      backgroundPreviewUrl={data.backgroundPreviewUrl}
       videoId={data.videoId}
       title={data.title}
       config={data.config}

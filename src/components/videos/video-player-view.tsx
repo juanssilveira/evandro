@@ -9,6 +9,8 @@ import type { PlayerConfig } from "@/types/player-config";
 interface VideoPlayerViewProps {
   videoId: string;
   playbackUrl: string;
+  posterUrl?: string | null;
+  backgroundPreviewUrl?: string | null;
   title: string;
   initialConfig: PlayerConfig;
   publicId: string;
@@ -18,6 +20,8 @@ interface VideoPlayerViewProps {
 export function VideoPlayerView({
   videoId,
   playbackUrl,
+  posterUrl,
+  backgroundPreviewUrl,
   title,
   initialConfig,
   publicId,
@@ -34,7 +38,7 @@ export function VideoPlayerView({
       {/* Left Column (Sticky Preview Canvas + Embed Code) */}
       <div className="w-full lg:sticky lg:top-20 space-y-4 lg:self-start">
         {/* Preview Canvas */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <span className="size-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
@@ -59,6 +63,9 @@ export function VideoPlayerView({
             <div className="w-full aspect-video flex items-center justify-center">
               <WatchMapPlayer
                 src={playbackUrl}
+                posterUrl={posterUrl}
+                backgroundPreviewUrl={backgroundPreviewUrl}
+                isEditor={true}
                 videoId={videoId}
                 title={title}
                 config={config}

@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import * as React from "react";
@@ -38,13 +39,16 @@ interface WatchMapPlayerProps {
   title?: string;
   className?: string;
   autoPlay?: boolean;
+  posterUrl?: string | null;
+  backgroundPreviewUrl?: string | null;
+  isEditor?: boolean;
   config?: PlayerConfig;
   debugEnabled?: boolean;
   onEvent?: PlayerEventListener;
   onRuntimeReady?: (runtime: PlayerRuntime) => void;
 }
 
-const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2];
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds) || seconds < 0) return "00:00";
@@ -63,7 +67,8 @@ export function WatchMapPlayer({
   videoId = "default-video",
   title,
   className,
-  autoPlay,
+  posterUrl,
+  backgroundPreviewUrl,
   config = DEFAULT_PLAYER_CONFIG,
   debugEnabled,
   onEvent,
@@ -87,7 +92,8 @@ export function WatchMapPlayer({
       },
       playback: {
         ...config.playback,
-        autoplay: autoPlay ?? config.playback?.autoplay ?? false,
+        autoplay: false,
+        backgroundAutoplay: config.playback?.backgroundAutoplay ?? false,
       },
       controls: {
         ...config.controls,
@@ -110,7 +116,7 @@ export function WatchMapPlayer({
         debug: debugEnabled ?? config.development?.debug ?? false,
       },
     }),
-    [config, autoPlay, debugEnabled]
+    [config, debugEnabled]
   );
 
   const accentPreset =
@@ -133,39 +139,127 @@ export function WatchMapPlayer({
   const isControlsHidden = effectiveConfig.controls.hidden;
   const fullscreenConfig = effectiveConfig.controls.fullscreen;
 
-  // Playback mode state (derived from controller/runtime)
-  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("foreground");
+  // Extract Mux Playback ID from src if present
+  const muxPlaybackId = React.useMemo(() => {
+    if (!src) return null;
+    const match = src.match(/stream\.mux\.com\/([a-zA-Z0-9_-]+)\.m3u8/);
+    return match ? match[1] : null;
+  }, [src]);
+
+  // Derive highest-quality available preview (R2 WebP > Mux Animated WebP > R2/Custom Poster > Mux Thumbnail)
+  const displayPreviewSrc =
+    backgroundPreviewUrl ||
+    (muxPlaybackId ? `https://image.mux.com/${muxPlaybackId}/animated.webp?start=0&end=10&width=640&fps=12` : null) ||
+    posterUrl ||
+    (muxPlaybackId ? `https://image.mux.com/${muxPlaybackId}/thumbnail.webp?width=640` : null);
+
+  // User explicit foreground activation state
+  const [prevSrc, setPrevSrc] = useState(src);
+  const playbackKey = `${effectiveConfig.playback?.backgroundAutoplay ? 1 : 0}`;
+  const [prevPlaybackKey, setPrevPlaybackKey] = useState(playbackKey);
+  const [userActivatedForeground, setUserActivatedForeground] = useState(false);
+  const pendingForegroundActivationRef = useRef(false);
+  const [hasStartedPlayingForeground, setHasStartedPlayingForeground] = useState(false);
+  const [isTransitioningPreviewOut, setIsTransitioningPreviewOut] = useState(false);
+
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setUserActivatedForeground(false);
+    setHasStartedPlayingForeground(false);
+  }
+
+  if (playbackKey !== prevPlaybackKey) {
+    setPrevPlaybackKey(playbackKey);
+    setUserActivatedForeground(false);
+    setHasStartedPlayingForeground(false);
+  }
+
+  // Dynamic mode resolution based on config and user interaction
+  const isBackgroundAutoplay = Boolean(
+    effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground
+  );
+
+  const playbackMode: PlaybackMode = isBackgroundAutoplay ? "background_autoplay" : "foreground";
+
+  // Lazy media attachment: HLS is deferred when in background autoplay until user interaction
+  const isMediaAttached = Boolean(
+    userActivatedForeground || !effectiveConfig.playback?.backgroundAutoplay
+  );
+
+  // Derived Lightweight Background Preview ONLY renders when Background Autoplay is active for this video
+  const isPreviewVisible = Boolean(
+    isBackgroundAutoplay && displayPreviewSrc && !hasStartedPlayingForeground
+  );
+
+  const initialVolume = effectiveConfig.playback?.defaultVolume ?? 1;
+  const initialPlaybackRate = effectiveConfig.playback?.defaultPlaybackRate ?? 1;
 
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [bufferedEnd, setBufferedEnd] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
+  const [volume, setVolume] = useState(initialVolume);
+  const [isMuted, setIsMuted] = useState(initialVolume === 0);
+  const [playbackRate, setPlaybackRate] = useState(initialPlaybackRate);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // UI state
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isDraggingSeek, setIsDraggingSeek] = useState(false);
-  const lastVolumeRef = useRef(1);
+  const lastVolumeRef = useRef(initialVolume);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Keep effectiveConfig ref fresh
-  const effectiveConfigRef = useRef(effectiveConfig);
-  useEffect(() => {
-    effectiveConfigRef.current = effectiveConfig;
-    playbackControllerRef.current?.updateConfig(effectiveConfig);
-  }, [effectiveConfig]);
+  const defaultPlaybackRate = effectiveConfig.playback?.defaultPlaybackRate ?? 1;
+  const defaultVolume = effectiveConfig.playback?.defaultVolume ?? 1;
 
-  // Reset initial playback resolution on src change
+  // Reset initial playback resolution on src or playback config change
   useEffect(() => {
     hasResolvedInitialPlaybackRef.current = false;
-  }, [src]);
+    pendingForegroundActivationRef.current = false;
+  }, [src, playbackKey]);
+
+  // Apply default media settings (volume and rate) on fresh playback init
+  const applyInitialMediaSettings = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.playbackRate = defaultPlaybackRate;
+    setPlaybackRate(defaultPlaybackRate);
+
+    if (playbackMode !== "background_autoplay") {
+      video.volume = defaultVolume;
+      video.muted = defaultVolume === 0;
+      setVolume(defaultVolume);
+      setIsMuted(defaultVolume === 0);
+      lastVolumeRef.current = defaultVolume;
+    }
+  }, [defaultPlaybackRate, defaultVolume, playbackMode]);
+
+  // Helper to trigger initial playback resolution safely once
+  const triggerInitialPlaybackIfNeeded = useCallback(() => {
+    if (!playbackControllerRef.current || !videoRef.current) return;
+
+    if (pendingForegroundActivationRef.current) {
+      pendingForegroundActivationRef.current = false;
+      hasResolvedInitialPlaybackRef.current = true;
+      playbackControllerRef.current.startForegroundPlayback(lastVolumeRef.current);
+      return;
+    }
+
+    if (!hasResolvedInitialPlaybackRef.current) {
+      hasResolvedInitialPlaybackRef.current = true;
+      playbackControllerRef.current.resolveInitialPlayback();
+    }
+  }, []);
+
+  // Update controller config when effectiveConfig changes
+  useEffect(() => {
+    playbackControllerRef.current?.updateConfig(effectiveConfig);
+  }, [effectiveConfig]);
 
   // Media source attachment (Prioritize HLS.js for all MSE browsers, fallback to native Safari)
   const attachMediaSource = useCallback((mediaSrc: string) => {
@@ -195,10 +289,8 @@ export function WatchMapPlayer({
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
         setHasError(false);
-        if (!hasResolvedInitialPlaybackRef.current && playbackControllerRef.current) {
-          hasResolvedInitialPlaybackRef.current = true;
-          playbackControllerRef.current.resolveInitialPlayback();
-        }
+        applyInitialMediaSettings();
+        triggerInitialPlaybackIfNeeded();
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -229,10 +321,13 @@ export function WatchMapPlayer({
     } else {
       video.src = mediaSrc;
     }
-  }, []);
+  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded]);
 
+  // Attach media source conditionally (Only if foreground is active or autoplay requested)
   useEffect(() => {
-    attachMediaSource(src);
+    if (isMediaAttached) {
+      attachMediaSource(src);
+    }
 
     return () => {
       if (hlsRef.current) {
@@ -240,7 +335,7 @@ export function WatchMapPlayer({
         hlsRef.current = null;
       }
     };
-  }, [src, attachMediaSource]);
+  }, [src, isMediaAttached, attachMediaSource]);
 
   // Initialize PlayerRuntime and PlaybackController lifecycle
   useEffect(() => {
@@ -257,8 +352,7 @@ export function WatchMapPlayer({
     const controller = new PlaybackController({
       video,
       runtime,
-      config: effectiveConfigRef.current,
-      onModeChange: (mode) => setPlaybackMode(mode),
+      config: effectiveConfig,
     });
 
     runtimeRef.current = runtime;
@@ -271,16 +365,15 @@ export function WatchMapPlayer({
 
     onRuntimeReady?.(runtime);
 
-    // If metadata is already ready, attempt initial resolution
-    if (video.readyState >= 1) {
-      if (video.duration && Number.isFinite(video.duration)) {
-        setDuration(video.duration);
+    // If media is attached and metadata is already available
+    if (isMediaAttached) {
+      if (video.readyState >= 1) {
+        if (video.duration && Number.isFinite(video.duration)) {
+          setDuration(video.duration);
+        }
+        setIsLoading(false);
       }
-      setIsLoading(false);
-      if (!hasResolvedInitialPlaybackRef.current) {
-        hasResolvedInitialPlaybackRef.current = true;
-        controller.resolveInitialPlayback();
-      }
+      triggerInitialPlaybackIfNeeded();
     }
 
     return () => {
@@ -290,7 +383,7 @@ export function WatchMapPlayer({
       unsubscribe?.();
       runtime.destroy();
     };
-  }, [videoId, effectiveDebug, onEvent, onRuntimeReady]);
+  }, [videoId, effectiveDebug, onEvent, onRuntimeReady, isMediaAttached, effectiveConfig, triggerInitialPlaybackIfNeeded]);
 
   // 60fps smooth linear progress animation loop
   useEffect(() => {
@@ -341,27 +434,84 @@ export function WatchMapPlayer({
     }
   };
 
+  // Main foreground playback activation (seamless preview -> HLS transition)
+  const activateForegroundPlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // 1. Transition mode
+    setUserActivatedForeground(true);
+
+    // 2. Resolve volume and rate according to config / user choice
+    const targetVol = lastVolumeRef.current;
+    const targetRate = defaultPlaybackRate;
+
+    video.volume = targetVol;
+    video.muted = targetVol === 0;
+    video.playbackRate = targetRate;
+    setVolume(targetVol);
+    setIsMuted(targetVol === 0);
+    setPlaybackRate(targetRate);
+
+    // 3. Attach HLS media source if not yet attached
+    if (!hlsRef.current && (!video.src || video.src === "")) {
+      pendingForegroundActivationRef.current = true;
+      attachMediaSource(src);
+    } else {
+      pendingForegroundActivationRef.current = false;
+      // 4. Delegate immediately to playback controller
+      if (playbackControllerRef.current) {
+        playbackControllerRef.current.startForegroundPlayback(targetVol);
+      } else {
+        if (video.currentTime !== 0) {
+          video.currentTime = 0;
+        }
+        video.play().catch(() => {});
+      }
+    }
+  }, [attachMediaSource, defaultPlaybackRate, src]);
+
   // Play / Pause toggle
   const togglePlay = useCallback(() => {
-    if (playbackControllerRef.current) {
-      playbackControllerRef.current.handleUserPlayToggle(lastVolumeRef.current);
+    if (playbackMode === "background_autoplay") {
+      activateForegroundPlayback();
       return;
     }
 
     const video = videoRef.current;
     if (!video) return;
 
+    // If currently playing muted due to browser autoplay fallback, clicking anywhere on the player immediately unmutes with audio
+    if (isPlaying && (video.muted || isMuted)) {
+      const restored = lastVolumeRef.current > 0 ? lastVolumeRef.current : 1;
+      video.muted = false;
+      video.volume = restored;
+      setVolume(restored);
+      setIsMuted(false);
+      return;
+    }
+
+    if (!isMediaAttached) {
+      activateForegroundPlayback();
+      return;
+    }
+
+    if (playbackControllerRef.current) {
+      playbackControllerRef.current.handleUserPlayToggle(lastVolumeRef.current);
+      return;
+    }
+
     if (video.paused || video.ended) {
       video.play().catch(() => {});
     } else {
       video.pause();
     }
-  }, []);
+  }, [playbackMode, isMediaAttached, isPlaying, isMuted, activateForegroundPlayback]);
 
   // Mute toggle
   const toggleMute = useCallback(() => {
-    if (playbackMode === "background_autoplay" && playbackControllerRef.current) {
-      playbackControllerRef.current.startForegroundPlayback(lastVolumeRef.current);
+    if (playbackMode === "background_autoplay") {
+      activateForegroundPlayback();
       return;
     }
 
@@ -379,7 +529,7 @@ export function WatchMapPlayer({
       video.muted = true;
       setIsMuted(true);
     }
-  }, [isMuted, playbackMode]);
+  }, [isMuted, playbackMode, activateForegroundPlayback]);
 
   // Volume drag/click
   const updateVolumeFromPosition = (clientX: number) => {
@@ -597,6 +747,9 @@ export function WatchMapPlayer({
     if (videoRef.current) {
       setVolume(videoRef.current.volume);
       setIsMuted(videoRef.current.muted || videoRef.current.volume === 0);
+      if (videoRef.current.volume > 0 && !videoRef.current.muted) {
+        lastVolumeRef.current = videoRef.current.volume;
+      }
     }
   };
 
@@ -606,10 +759,8 @@ export function WatchMapPlayer({
         setDuration(videoRef.current.duration);
       }
       setIsLoading(false);
-      if (!hasResolvedInitialPlaybackRef.current && playbackControllerRef.current) {
-        hasResolvedInitialPlaybackRef.current = true;
-        playbackControllerRef.current.resolveInitialPlayback();
-      }
+      applyInitialMediaSettings();
+      triggerInitialPlaybackIfNeeded();
     }
   };
 
@@ -618,10 +769,7 @@ export function WatchMapPlayer({
       setDuration((prev) => (prev === 0 ? videoRef.current!.duration : prev));
     }
     setIsLoading(false);
-    if (!hasResolvedInitialPlaybackRef.current && playbackControllerRef.current) {
-      hasResolvedInitialPlaybackRef.current = true;
-      playbackControllerRef.current.resolveInitialPlayback();
-    }
+    triggerInitialPlaybackIfNeeded();
   };
 
   const handleWaiting = () => {
@@ -631,6 +779,15 @@ export function WatchMapPlayer({
   const handlePlaying = () => {
     setIsLoading(false);
     setIsPlaying(true);
+    setHasStartedPlayingForeground(true);
+
+    // Fade out preview layer seamlessly once real video frames are rendering
+    if (displayPreviewSrc) {
+      setIsTransitioningPreviewOut(true);
+      setTimeout(() => {
+        setIsTransitioningPreviewOut(false);
+      }, 200);
+    }
   };
 
   const handlePause = () => {
@@ -657,7 +814,7 @@ export function WatchMapPlayer({
   };
 
   const handleLoadStart = () => {
-    if (src) {
+    if (src && isMediaAttached) {
       setIsLoading(true);
       setHasError(false);
     }
@@ -696,12 +853,30 @@ export function WatchMapPlayer({
         className
       )}
     >
-      {/* Native Video Element */}
+      {/* Derived Lightweight Background Preview / Poster Layer (R2 / Mux Animated WebP / GIF / Poster) */}
+      {isPreviewVisible && displayPreviewSrc && (
+        <div
+          aria-hidden="true"
+          className={cn(
+            "absolute inset-0 z-5 pointer-events-none overflow-hidden transition-opacity duration-200 ease-out",
+            isTransitioningPreviewOut ? "opacity-0" : "opacity-100"
+          )}
+        >
+          <img
+            src={displayPreviewSrc}
+            alt=""
+            className="w-full h-full object-contain pointer-events-none select-none"
+          />
+        </div>
+      )}
+
+      {/* Native Video Element (Real Mux HLS Playback) */}
       <video
         ref={videoRef}
         playsInline
         preload="metadata"
-        autoPlay={false}
+        autoPlay={isBackgroundAutoplay}
+        muted={isBackgroundAutoplay}
         controls={false}
         onClick={togglePlay}
         onLoadStart={handleLoadStart}
@@ -743,7 +918,10 @@ export function WatchMapPlayer({
           </div>
           <button
             type="button"
-            onClick={() => attachMediaSource(src)}
+            onClick={() => {
+              setUserActivatedForeground(true);
+              attachMediaSource(src);
+            }}
             className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors cursor-pointer"
           >
             <RotateCcw className="size-3.5" />
@@ -755,7 +933,7 @@ export function WatchMapPlayer({
       {/* Background Autoplay Active Overlay */}
       {playbackMode === "background_autoplay" && !hasError && (
         <div
-          onClick={() => playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current)}
+          onClick={activateForegroundPlayback}
           style={{
             background: "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
           }}
@@ -777,7 +955,7 @@ export function WatchMapPlayer({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                playbackControllerRef.current?.startForegroundPlayback(lastVolumeRef.current);
+                activateForegroundPlayback();
               }}
               style={{ backgroundColor: "var(--player-accent)" }}
               className={cn(
@@ -949,87 +1127,80 @@ export function WatchMapPlayer({
                 <button
                   type="button"
                   onClick={toggleMute}
-                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
-                  title={isMuted || volume === 0 ? "Ativar som (M)" : "Desativar som (M)"}
-                  aria-label={isMuted || volume === 0 ? "Ativar som" : "Desativar som"}
+                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer"
+                  title={isMuted || effectiveVolume === 0 ? "Ativar som (M)" : "Silenciar (M)"}
+                  aria-label={isMuted || effectiveVolume === 0 ? "Ativar som" : "Silenciar"}
                 >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="size-4.5 @min-[380px]:size-5 text-white/90" />
-                  ) : volume < 0.5 ? (
+                  {isMuted || effectiveVolume === 0 ? (
+                    <VolumeX className="size-4.5 @min-[380px]:size-5 text-white/80" />
+                  ) : effectiveVolume < 0.5 ? (
                     <Volume1 className="size-4.5 @min-[380px]:size-5 text-white/90" />
                   ) : (
                     <Volume2 className="size-4.5 @min-[380px]:size-5 text-white/90" />
                   )}
                 </button>
 
-                {/* Volume Slider - Hidden in Minimal/Compact (<480px container width) */}
                 <div
                   ref={volumeTrackRef}
                   onMouseDown={handleVolumeMouseDown}
-                  className="w-14 @min-[560px]:w-16 h-4 hidden @min-[480px]:flex items-center cursor-pointer py-1 select-none"
-                  title={`Volume: ${Math.round(effectiveVolume * 100)}%`}
+                  className="w-12 @min-[440px]:w-16 h-4 flex items-center cursor-pointer select-none"
                 >
-                  <div className="relative w-full h-1 bg-white/30 rounded-full overflow-hidden">
+                  <div className="relative w-full h-1 bg-white/25 rounded-full overflow-hidden">
                     <div
                       className="absolute left-0 top-0 bottom-0 rounded-full"
                       style={{
                         width: `${effectiveVolume * 100}%`,
-                        backgroundColor: "var(--player-accent)",
+                        backgroundColor: "var(--player-accent, #7C3AED)",
                       }}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Time Display - Hidden in Minimal (<340px container width) */}
-              <div className="hidden @min-[340px]:block text-[11px] @min-[420px]:text-xs font-mono text-white/80 tabular-nums truncate select-none">
+              {/* Time Display */}
+              <div className="text-[11px] @min-[400px]:text-xs font-mono text-zinc-300 tabular-nums whitespace-nowrap shrink-0">
                 <span>{formatTime(currentTime)}</span>
-                <span className="text-white/40 mx-1">/</span>
+                <span className="text-zinc-500 mx-1">/</span>
                 <span>{formatTime(duration)}</span>
               </div>
             </div>
 
-            {/* Right: Playback Speed, Fullscreen */}
-            <div className="flex items-center gap-1 @min-[380px]:gap-1.5 relative shrink-0">
-              {/* Playback Speed Menu (Gauge Icon) */}
+            {/* Right: Playback Speed & Fullscreen */}
+            <div className="flex items-center gap-1 @min-[380px]:gap-1.5 shrink-0">
+              {/* Settings / Speed Popup */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowSettings(!showSettings)}
-                  style={playbackRate !== 1 ? { color: "var(--player-accent)" } : undefined}
                   className={cn(
-                    "p-1.5 @min-[440px]:px-2 @min-[440px]:py-1 rounded-md text-xs font-medium flex items-center gap-1.5 hover:bg-white/15 transition-colors focus:outline-none cursor-pointer",
-                    playbackRate !== 1 && "font-semibold"
+                    "p-1.5 rounded-md hover:bg-white/15 transition-colors focus:outline-none cursor-pointer",
+                    showSettings ? "bg-white/20 text-white" : "text-white/80 hover:text-white"
                   )}
-                  title={`Velocidade de reprodução (${playbackRate}x)`}
-                  aria-label={`Velocidade de reprodução (${playbackRate}x)`}
+                  title="Velocidade de reprodução"
+                  aria-label="Velocidade de reprodução"
                 >
-                  <Gauge className="size-4 shrink-0" />
-                  <span className="hidden @min-[440px]:inline">{playbackRate}x</span>
+                  <Gauge className="size-4.5 @min-[380px]:size-5" />
                 </button>
 
-                {/* Speed Popover */}
                 {showSettings && (
-                  <div className="absolute bottom-full right-0 mb-2 w-32 bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-lg p-1 shadow-2xl z-40 text-xs">
-                    <div className="px-2 py-1 text-[10px] uppercase font-semibold text-zinc-400 border-b border-white/10 mb-1 flex items-center gap-1.5">
-                      <Gauge className="size-3" />
-                      <span>Velocidade</span>
+                  <div className="absolute right-0 bottom-full mb-2 bg-zinc-900/95 border border-white/15 backdrop-blur-md rounded-lg shadow-xl py-1.5 px-1 min-w-[120px] z-30 font-sans">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 px-2.5 py-1">
+                      Velocidade
                     </div>
                     {PLAYBACK_RATES.map((rate) => (
                       <button
                         key={rate}
                         type="button"
                         onClick={() => handleRateChange(rate)}
-                        style={playbackRate === rate ? { color: "var(--player-accent)" } : undefined}
                         className={cn(
-                          "w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-white/10 text-left transition-colors cursor-pointer",
-                          playbackRate === rate ? "font-semibold" : "text-white/80"
+                          "w-full flex items-center justify-between px-2.5 py-1 text-xs rounded-md text-left transition-colors cursor-pointer",
+                          playbackRate === rate
+                            ? "bg-white/15 text-white font-medium"
+                            : "text-zinc-300 hover:bg-white/10 hover:text-white"
                         )}
                       >
-                        <span>{rate}x</span>
-                        {playbackRate === rate && (
-                          <Check className="size-3.5" style={{ color: "var(--player-accent)" }} />
-                        )}
+                        <span>{rate === 1 ? "Normal" : `${rate}x`}</span>
+                        {playbackRate === rate && <Check className="size-3 text-white" />}
                       </button>
                     ))}
                   </div>
@@ -1041,7 +1212,7 @@ export function WatchMapPlayer({
                 <button
                   type="button"
                   onClick={() => toggleFullscreen("button")}
-                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer"
+                  className="p-1.5 rounded-md hover:bg-white/15 text-white/80 hover:text-white transition-colors focus:outline-none cursor-pointer"
                   title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
                   aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
                 >

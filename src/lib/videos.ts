@@ -7,6 +7,8 @@ import {
   getMuxAsset,
   deleteMuxAsset,
 } from "@/lib/mux";
+import { generateAndStoreBackgroundPreview } from "@/lib/background-preview";
+import { deleteAssetObject } from "@/lib/asset-storage/r2";
 import type { CreateUploadInput } from "@/lib/validations/videos";
 
 export async function getVideosForAccount(accountId: string): Promise<Video[]> {
@@ -88,8 +90,30 @@ export async function syncVideoStatus(
     };
   }
 
-  // If already ready, no sync needed
+  // If already ready, check if background preview needs generation
   if (video.status === "ready" && video.muxPlaybackId) {
+    if (
+      video.backgroundPreviewStatus !== "ready" &&
+      video.muxAssetId &&
+      video.backgroundPreviewStatus !== "errored"
+    ) {
+      await generateAndStoreBackgroundPreview({
+        videoId: video.id,
+        publicId: video.publicId,
+        muxAssetId: video.muxAssetId,
+        muxPlaybackId: video.muxPlaybackId,
+        duration: video.duration,
+      });
+
+      const [refreshedVideo] = await db
+        .select()
+        .from(videos)
+        .where(eq(videos.id, videoId))
+        .limit(1);
+
+      return { success: true, video: refreshedVideo || video };
+    }
+
     return { success: true, video };
   }
 
@@ -152,6 +176,25 @@ export async function syncVideoStatus(
           })
           .where(eq(videos.id, videoId))
           .returning();
+
+        // Trigger background preview generation if playbackId exists
+        if (playbackId) {
+          await generateAndStoreBackgroundPreview({
+            videoId: readyVideo.id,
+            publicId: readyVideo.publicId,
+            muxAssetId: currentMuxAssetId,
+            muxPlaybackId: playbackId,
+            duration,
+          });
+
+          const [refreshed] = await db
+            .select()
+            .from(videos)
+            .where(eq(videos.id, videoId))
+            .limit(1);
+
+          return { success: true, video: refreshed || readyVideo };
+        }
 
         return { success: true, video: readyVideo };
       }
@@ -236,7 +279,19 @@ export async function deleteVideo(
     }
   }
 
-  // 3. Delete database record (cascades to videoPlayerSettings)
+  // 3. If derived background preview asset exists in R2, delete it (idempotent)
+  if (video.backgroundPreviewKey) {
+    try {
+      await deleteAssetObject(video.backgroundPreviewKey);
+    } catch (error) {
+      console.error(
+        `[R2 Asset Cleanup] Error deleting preview key ${video.backgroundPreviewKey}:`,
+        error
+      );
+    }
+  }
+
+  // 4. Delete database record (cascades to videoPlayerSettings)
   await db
     .delete(videos)
     .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)));

@@ -11,6 +11,8 @@ interface VideoDetailsViewProps {
   video: Video;
   accountName: string;
   playbackUrl: string;
+  posterUrl?: string | null;
+  backgroundPreviewUrl?: string | null;
   initialConfig: PlayerConfig;
   cdnUrl: string;
 }
@@ -19,6 +21,8 @@ export function VideoDetailsView({
   video,
   accountName,
   playbackUrl,
+  posterUrl,
+  backgroundPreviewUrl,
   initialConfig,
   cdnUrl,
 }: VideoDetailsViewProps) {
@@ -35,6 +39,8 @@ export function VideoDetailsView({
       <VideoPlayerView
         videoId={video.id}
         playbackUrl={playbackUrl}
+        posterUrl={posterUrl}
+        backgroundPreviewUrl={backgroundPreviewUrl}
         title={currentTitle}
         initialConfig={initialConfig}
         publicId={video.publicId}

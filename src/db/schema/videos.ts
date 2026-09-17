@@ -25,6 +25,8 @@ export const videos = pgTable(
     mimeType: text("mime_type").notNull(),
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
     errorMessage: text("error_message"),
+    backgroundPreviewStatus: text("background_preview_status").notNull().default("pending"),
+    backgroundPreviewKey: text("background_preview_key"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()

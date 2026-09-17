@@ -55,46 +55,17 @@ export class PlaybackController {
    */
   public async resolveInitialPlayback(): Promise<void> {
     if (this.isDisposed) return;
-
-    const { autoplay, backgroundAutoplay } = this.config.playback;
-    const debug = this.config.development.debug;
-
-    if (autoplay) {
-      // 1. Attempt real Autoplay (foreground, unmuted)
-      this.setContext("foreground", "autoplay");
-      this.video.loop = false;
-
-      try {
-        await this.video.play();
-        // Successfully started unmuted foreground autoplay
-        return;
-      } catch {
-        // Autoplay blocked by browser policy
-        if (debug) {
-          console.log("[WatchMap Player] AUTOPLAY_BLOCKED");
-        }
-
-        if (this.isDisposed) return;
-
-        // Fallback to Background Autoplay if configured
-        if (backgroundAutoplay) {
-          await this.startBackgroundAutoplay();
-          return;
-        }
-
-        // Otherwise, stay waiting for user
-        this.setContext("foreground", "user");
-        return;
-      }
+    if (this.runtime.getPlaybackMode() === "foreground" && this.runtime.getPlaybackInitiator() === "user") {
+      return;
     }
 
+    const { backgroundAutoplay } = this.config.playback;
+
     if (backgroundAutoplay) {
-      // 2. Autoplay false, Background Autoplay true
       await this.startBackgroundAutoplay();
       return;
     }
 
-    // 3. Both false
     this.video.loop = false;
     this.setContext("foreground", "user");
   }
@@ -120,56 +91,46 @@ export class PlaybackController {
   }
 
   /**
-   * Transitions from Background Autoplay to Real Foreground Playback:
+   * Transitions to Real Foreground Playback:
    * - desativar loop
    * - currentTime = 0
    * - muted = false (restaura áudio)
    * - playbackMode = foreground, playbackInitiator = user
    * - PLAYBACK_CONTEXT_CHANGE emitido pelo Runtime
    */
-  public async startForegroundPlayback(preferredVolume = 1): Promise<void> {
+  public async startForegroundPlayback(preferredVolume?: number): Promise<void> {
     if (this.isDisposed) return;
 
-    const currentMode = this.runtime.getPlaybackMode();
-
-    if (currentMode === "background_autoplay") {
-      // 1. Emit typed PLAYBACK_CONTEXT_CHANGE in Runtime
-      this.setContext("foreground", "user");
-
-      // 2. Disable loop
-      this.video.loop = false;
-
-      // 3. Reset to beginning
+    this.setContext("foreground", "user");
+    this.video.loop = false;
+    if (this.video.currentTime !== 0) {
       this.video.currentTime = 0;
-
-      // 4. Restore audio
-      this.video.muted = false;
-      if (typeof this.video.volume === "number" && this.video.volume === 0) {
-        this.video.volume = preferredVolume > 0 ? preferredVolume : 1;
-      }
-
-      // 5. Ensure playing
-      try {
-        await this.video.play();
-      } catch {
-        // User gesture should allow play
-      }
-      return;
     }
 
-    // Normal foreground play
-    this.setContext("foreground", "user");
+    const resolvedVolume =
+      preferredVolume !== undefined
+        ? preferredVolume
+        : (this.config.playback.defaultVolume ?? 1);
+
+    const resolvedRate = this.config.playback.defaultPlaybackRate ?? 1;
+
+    this.video.volume = resolvedVolume;
+    this.video.muted = resolvedVolume === 0;
+    this.video.playbackRate = resolvedRate;
+
     try {
       await this.video.play();
-    } catch {
-      // Play interrupted or blocked
+    } catch (err) {
+      if (this.config.development.debug) {
+        console.warn("[WatchMap Player] Foreground play failed on user gesture:", err);
+      }
     }
   }
 
   /**
    * Handles user Play/Pause toggle
    */
-  public async handleUserPlayToggle(preferredVolume = 1): Promise<void> {
+  public async handleUserPlayToggle(preferredVolume?: number): Promise<void> {
     if (this.isDisposed) return;
 
     const isBackground = this.runtime.getPlaybackMode() === "background_autoplay";

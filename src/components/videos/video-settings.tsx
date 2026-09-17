@@ -10,7 +10,6 @@ import {
   PlayCircle,
   Play,
   Loader2,
-  Volume2,
   VolumeX,
   Palette,
   Check,
@@ -21,6 +20,7 @@ import {
   Keyboard,
   Sparkles,
   Activity,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -29,6 +29,7 @@ import {
   type PlayerAccentColor,
   type PlayerAspectRatio,
   playerAccentColors,
+  playerPlaybackRates,
   PLAYER_ACCENT_PRESETS,
 } from "@/types/player-config";
 
@@ -82,8 +83,8 @@ export function VideoSettings({
     };
 
     onConfigChange(nextConfig);
-    setError(null);
     setPendingField(fieldKey);
+    setError(null);
 
     startTransition(async () => {
       const result = await updatePlayerConfigAction({
@@ -92,6 +93,7 @@ export function VideoSettings({
       });
 
       setPendingField(null);
+
       if (result.error) {
         onConfigChange(previousConfig);
         setError(result.error);
@@ -101,29 +103,38 @@ export function VideoSettings({
     });
   };
 
-  const handleAutoplayToggle = (checked: boolean) => {
-    handleConfigUpdate(
-      {
-        playback: {
-          autoplay: checked,
-          // Se ativar autoplay, desativa backgroundAutoplay obrigatoriamente
-          backgroundAutoplay: checked ? false : config.playback.backgroundAutoplay,
-        },
-      },
-      "autoplay"
-    );
-  };
-
   const handleBackgroundAutoplayToggle = (checked: boolean) => {
     handleConfigUpdate(
       {
         playback: {
           backgroundAutoplay: checked,
-          // Se ativar backgroundAutoplay, desativa autoplay obrigatoriamente
-          autoplay: checked ? false : config.playback.autoplay,
+          autoplay: false,
         },
       },
       "backgroundAutoplay"
+    );
+  };
+
+  const handlePlaybackRateSelect = (rate: number) => {
+    if (config.playback?.defaultPlaybackRate === rate) return;
+    handleConfigUpdate(
+      {
+        playback: {
+          defaultPlaybackRate: rate,
+        },
+      },
+      "defaultPlaybackRate"
+    );
+  };
+
+  const handleVolumeChange = (val: number) => {
+    handleConfigUpdate(
+      {
+        playback: {
+          defaultVolume: val,
+        },
+      },
+      "defaultVolume"
     );
   };
 
@@ -155,6 +166,8 @@ export function VideoSettings({
 
   const currentAccent = config.appearance?.accentColor ?? "purple";
   const currentAspectRatio = config.appearance?.aspectRatio ?? "16:9";
+  const currentPlaybackRate = config.playback?.defaultPlaybackRate ?? 1;
+  const currentVolume = config.playback?.defaultVolume ?? 1;
   const isFullscreenEnabled = config.controls?.fullscreen?.enabled ?? true;
   const currentFakeHeight = config.progress?.fake?.height ?? 4;
   const isFakeProgressEnabled = config.progress?.fake?.enabled ?? false;
@@ -397,56 +410,6 @@ export function VideoSettings({
         </CardHeader>
 
         <CardContent className="pt-4 space-y-3">
-          {/* Autoplay Toggle */}
-          <div
-            className={cn(
-              "flex items-center justify-between gap-4 rounded-lg border py-3 px-3.5 sm:py-3 sm:px-4 transition-colors",
-              config.playback.autoplay
-                ? "border-primary/50 bg-primary/5"
-                : "border-border/80 bg-muted/20 hover:bg-muted/30"
-            )}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={cn(
-                  "size-8 rounded-md flex items-center justify-center shrink-0 transition-colors",
-                  config.playback.autoplay
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                )}
-              >
-                <Volume2 className="size-4" />
-              </div>
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <Label
-                    htmlFor={`autoplay-switch-${videoId}`}
-                    className="text-xs font-semibold text-foreground cursor-pointer"
-                  >
-                    Autoplay
-                  </Label>
-                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    Com áudio
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
-                  Inicia o vídeo automaticamente como uma reprodução normal. Alguns navegadores podem bloquear autoplay com áudio.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {isPending && pendingField === "autoplay" && (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-              )}
-              <Switch
-                id={`autoplay-switch-${videoId}`}
-                checked={config.playback.autoplay}
-                disabled={isPending}
-                onCheckedChange={handleAutoplayToggle}
-              />
-            </div>
-          </div>
-
           {/* Background Autoplay Toggle */}
           <div
             className={cn(
@@ -467,7 +430,7 @@ export function VideoSettings({
               >
                 <VolumeX className="size-4" />
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Label
                     htmlFor={`background-autoplay-switch-${videoId}`}
@@ -480,8 +443,14 @@ export function VideoSettings({
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
-                  Mantém o vídeo reproduzindo automaticamente no mudo como fundo antes da interação do espectador. Essa reprodução não representa uma visualização real.
+                  Mantém o vídeo reproduzindo continuamente em loop mudo de fundo até que o espectador interaja com o player.
                 </p>
+                <div className="pt-0.5">
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-[10.5px] font-medium">
+                    <Info className="size-3 shrink-0" />
+                    <span>Não contabiliza visualização até o clique para ativar o som</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -494,6 +463,101 @@ export function VideoSettings({
                 disabled={isPending}
                 onCheckedChange={handleBackgroundAutoplayToggle}
               />
+            </div>
+          </div>
+
+          {/* Default Playback Rate Section */}
+          <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Velocidade padrão
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Define a velocidade inicial com que o vídeo começará a ser reproduzido.
+                </p>
+              </div>
+              {isPending && pendingField === "defaultPlaybackRate" && (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground shrink-0" />
+              )}
+            </div>
+
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-0.5">
+              {playerPlaybackRates.map((rate) => {
+                const isSelected = currentPlaybackRate === rate;
+
+                return (
+                  <button
+                    key={rate}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handlePlaybackRateSelect(rate)}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border transition-all text-center cursor-pointer",
+                      isSelected
+                        ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                        : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "text-xs font-mono font-medium",
+                        isSelected ? "text-foreground font-bold text-primary" : "text-muted-foreground"
+                      )}
+                    >
+                      {rate}x
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Default Volume Section */}
+          <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor={`default-volume-range-${videoId}`}
+                  className="text-xs font-semibold text-foreground cursor-pointer"
+                >
+                  Volume padrão
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Define o nível de volume inicial quando o vídeo principal for ativado.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {isPending && pendingField === "defaultVolume" && (
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                )}
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-muted text-foreground border border-border/70">
+                  {currentVolume === 0 ? "0% (Mudo)" : `${Math.round(currentVolume * 100)}%`}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-mono text-muted-foreground w-6 text-right">0%</span>
+                <input
+                  id={`default-volume-range-${videoId}`}
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={currentVolume}
+                  disabled={isPending}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!isNaN(val) && val >= 0 && val <= 1) {
+                      handleVolumeChange(Math.round(val * 100) / 100);
+                    }
+                  }}
+                  className="flex-1 accent-primary h-1.5 bg-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+                />
+                <span className="text-[11px] font-mono text-muted-foreground w-8">100%</span>
+              </div>
             </div>
           </div>
         </CardContent>

@@ -50,6 +50,13 @@
       "when": 1789609904897,
       "tag": "0006_mux_video_infrastructure",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789613500000,
+      "tag": "0007_background_preview_assets",
+      "breakpoints": true
     }
   ]
 }

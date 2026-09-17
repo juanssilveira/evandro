@@ -9,6 +9,7 @@
 - **CDN_URL:** `http://localhost:3000`
 - **Database:** Neon development
 - **Video Infra:** Mux Development environment
+- **Derived Assets:** Cloudflare R2 (`evandro-assets-development`)
 - **Finalidade:** desenvolvimento livre e local.
  
 ## Production
@@ -21,6 +22,7 @@
 - **CDN_URL:** `https://cdn.evandro.watch`
 - **Database:** Neon production
 - **Video Infra:** Mux Production environment
+- **Derived Assets:** Cloudflare R2 (`evandro-assets-production`)
 - **Finalidade:** ambiente oficial de produção utilizado pelos clientes.
  
 ## Regras de Isolamento

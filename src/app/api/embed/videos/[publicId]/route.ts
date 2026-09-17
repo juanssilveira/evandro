@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getVideoByPublicId, syncVideoStatus } from "@/lib/videos";
 import { getPlayerConfigByVideoId } from "@/lib/player-settings";
 import { getHlsPlaybackUrl } from "@/lib/mux";
+import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
+import { getMuxPosterUrl } from "@/lib/background-preview";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -54,6 +56,12 @@ export async function GET(
     }
 
     const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
+    const posterUrl = getMuxPosterUrl(video.muxPlaybackId);
+    const backgroundPreviewUrl =
+      video.backgroundPreviewStatus === "ready" && video.backgroundPreviewKey
+        ? getAssetPublicUrl(video.backgroundPreviewKey)
+        : null;
+
     const config = await getPlayerConfigByVideoId(video.id);
 
     // Return public data for embed and preview players
@@ -66,6 +74,8 @@ export async function GET(
           url: playbackUrl,
         },
         playbackUrl,
+        posterUrl,
+        backgroundPreviewUrl,
         config,
       },
       {

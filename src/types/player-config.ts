@@ -79,6 +79,9 @@ export const PLAYER_ACCENT_PRESETS: Record<PlayerAccentColor, PlayerAccentPreset
 export const playerAspectRatios = ["16:9", "9:16"] as const;
 export type PlayerAspectRatio = (typeof playerAspectRatios)[number];
 
+export const playerPlaybackRates = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
+export type PlaybackRate = (typeof playerPlaybackRates)[number];
+
 export const playerConfigSchema = z.object({
   version: z.literal(1).default(1),
 
@@ -98,10 +101,14 @@ export const playerConfigSchema = z.object({
     .object({
       autoplay: z.boolean().default(false),
       backgroundAutoplay: z.boolean().default(false),
+      defaultPlaybackRate: z.number().min(0.25).max(4).default(1),
+      defaultVolume: z.number().min(0).max(1).default(1),
     })
     .default({
       autoplay: false,
       backgroundAutoplay: false,
+      defaultPlaybackRate: 1,
+      defaultVolume: 1,
     }),
 
   controls: z
@@ -179,6 +186,8 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
   playback: {
     autoplay: false,
     backgroundAutoplay: false,
+    defaultPlaybackRate: 1,
+    defaultVolume: 1,
   },
 
   controls: {

@@ -207,8 +207,8 @@ Se um secret for encontrado no histórico Git:
 
 Nenhum ambiente pode utilizar recursos de outro ambiente como fallback.
 
-* **Development:** Neon development + Mux Development environment
-* **Production:** Neon production + Mux Production environment
+* **Development:** Neon development + Mux Development environment + R2 derived assets (`evandro-assets-development`)
+* **Production:** Neon production + Mux Production environment + R2 derived assets (`evandro-assets-production`)
 
 Se uma variável obrigatória estiver ausente, a aplicação deve falhar claramente. Nunca utilizar silenciosamente credenciais ou recursos de outro ambiente.
 

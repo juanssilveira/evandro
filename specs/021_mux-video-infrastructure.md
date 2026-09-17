@@ -53,7 +53,7 @@ Player Runtime
 Evandro
 ```
 
-Cloudflare R2 deixa completamente de fazer parte da infraestrutura de vídeo.
+Cloudflare R2 deixa de fazer parte da infraestrutura de playback principal e do armazenamento dos vídeos originais (reservado exclusivamente para assets derivados leves).
 
 ---
 
