@@ -190,7 +190,7 @@ export async function getMuxSignedAnimatedUrl(
   if (options?.end !== undefined) params.end = String(options.end);
 
   const token = await mux.jwt.signPlaybackId(playbackId, {
-    type: "thumbnail",
+    type: "gif",
     expiration: `${ttl}s`,
     params: Object.keys(params).length > 0 ? params : undefined,
   });
