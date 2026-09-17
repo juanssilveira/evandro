@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { MoreVertical, Download, Pencil, Trash2 } from "lucide-react";
 import { EditVideoDialog } from "./edit-video-dialog";
 import { DeleteVideoDialog } from "./delete-video-dialog";
 import { useRouter } from "next/navigation";
@@ -18,12 +18,46 @@ import type { Video } from "@/db/schema";
 
 interface VideoCardMenuProps {
   video: Video;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onDownload?: () => void;
 }
 
-export function VideoCardMenu({ video }: VideoCardMenuProps) {
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+export function VideoCardMenu({
+  video,
+  onEdit,
+  onDelete,
+  onDownload,
+}: VideoCardMenuProps) {
+  const [localEditOpen, setLocalEditOpen] = useState(false);
+  const [localDeleteOpen, setLocalDeleteOpen] = useState(false);
   const router = useRouter();
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onEdit) {
+      onEdit();
+    } else {
+      setLocalEditOpen(true);
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete();
+    } else {
+      setLocalDeleteOpen(true);
+    }
+  };
+
+  const handleDownloadClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDownload?.();
+  };
 
   return (
     <>
@@ -54,11 +88,15 @@ export function VideoCardMenu({ video }: VideoCardMenuProps) {
 
           <DropdownMenuContent align="end" className="w-36">
             <DropdownMenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setEditOpen(true);
-              }}
+              onClick={handleDownloadClick}
+              className="gap-2 text-xs"
+            >
+              <Download className="size-3.5 text-muted-foreground" />
+              <span>Baixar</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={handleEditClick}
               className="gap-2 text-xs"
             >
               <Pencil className="size-3.5 text-muted-foreground" />
@@ -68,11 +106,7 @@ export function VideoCardMenu({ video }: VideoCardMenuProps) {
             <DropdownMenuSeparator />
 
             <DropdownMenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDeleteOpen(true);
-              }}
+              onClick={handleDeleteClick}
               className="gap-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive"
             >
               <Trash2 className="size-3.5" />
@@ -82,23 +116,27 @@ export function VideoCardMenu({ video }: VideoCardMenuProps) {
         </DropdownMenu>
       </div>
 
-      <EditVideoDialog
-        video={video}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        onSuccess={() => {
-          router.refresh();
-        }}
-      />
+      {!onEdit && (
+        <EditVideoDialog
+          video={video}
+          open={localEditOpen}
+          onOpenChange={setLocalEditOpen}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
 
-      <DeleteVideoDialog
-        video={video}
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        onSuccess={() => {
-          router.refresh();
-        }}
-      />
+      {!onDelete && (
+        <DeleteVideoDialog
+          video={video}
+          open={localDeleteOpen}
+          onOpenChange={setLocalDeleteOpen}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
     </>
   );
 }
