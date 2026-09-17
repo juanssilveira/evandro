@@ -127,7 +127,7 @@ export default async function VideosPage() {
                       {formatBytes(video.sizeBytes)}
                     </span>
                     <span className="text-border" aria-hidden="true">·</span>
-                    <span className="flex items-center gap-1">
+                    <span suppressHydrationWarning className="flex items-center gap-1">
                       <Calendar className="size-3 shrink-0" />
                       {formatDate(video.createdAt)}
                     </span>

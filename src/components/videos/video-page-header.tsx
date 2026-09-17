@@ -86,7 +86,7 @@ export function VideoPageHeader({
 
           <div className="flex items-center gap-1.5">
             <Calendar className="size-3.5 text-muted-foreground shrink-0" />
-            <span>{formatDate(video.createdAt)}</span>
+            <span suppressHydrationWarning>{formatDate(video.createdAt)}</span>
           </div>
 
 

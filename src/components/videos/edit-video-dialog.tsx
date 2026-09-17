@@ -158,7 +158,7 @@ function EditVideoForm({ video, onClose, onSuccess }: EditVideoFormProps) {
             <Calendar className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
             <div className="min-w-0">
               <span className="text-[10px] text-muted-foreground block">Enviado em</span>
-              <p className="font-mono text-[11px] text-foreground">
+              <p suppressHydrationWarning className="font-mono text-[11px] text-foreground">
                 {formatDate(video.createdAt)}
               </p>
             </div>
