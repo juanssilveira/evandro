@@ -12,23 +12,20 @@ Branches permanentes:
 
 ```text
 development → desenvolvimento local
-stage       → homologação
 main        → produção
 ```
 
 Fluxo oficial:
 
 ```text
-development → stage → main
+development → main
 ```
 
 Regras:
 
 - `development` é a default branch do GitHub;
-- desenvolvimento normal acontece em `development`;
-- `stage` recebe código apenas por promoção explícita de `development`;
-- `main` recebe código apenas por promoção explícita de `stage`;
-- não promover `development` diretamente para `main`;
+- desenvolvimento normal acontece em `development` (ambiente local);
+- `main` recebe código apenas por promoção explícita de `development`;
 - não usar force push nas branches permanentes.
 
 A branch `development` não deve gerar deployment remoto na Vercel.
@@ -45,18 +42,11 @@ Database: Neon development
 Storage: watchmap-videos-development
 ```
 
-### Stage
-
-```text
-App: https://stage.evandro.watch
-Database: Neon stage
-Storage: watchmap-videos-stage
-```
-
 ### Production
 
 ```text
 App: https://app.evandro.watch
+Player CDN: https://cdn.evandro.watch
 Database: Neon production
 Storage: watchmap-videos-production
 ```
@@ -67,7 +57,7 @@ Nenhum ambiente pode utilizar banco, storage ou secrets de outro ambiente como f
 
 ## 3. Projetos Vercel
 
-O mesmo repositório GitHub alimenta dois projetos Vercel.
+O mesmo repositório GitHub alimenta dois projetos Vercel na produção.
 
 ### `watchmap`
 
@@ -121,7 +111,7 @@ Esse projeto não deve receber credenciais de banco, R2 ou autenticação.
 
 O player continua no mesmo repositório da aplicação.
 
-O build atual:
+O build:
 
 ```text
 scripts/build-embed.mjs
@@ -133,7 +123,7 @@ gera:
 public/embed/v1/watchmap-player.js
 ```
 
-URL pública atual:
+URL pública de produção:
 
 ```text
 https://cdn.evandro.watch/embed/v1/watchmap-player.js
@@ -208,15 +198,6 @@ BASE_URL=https://app.evandro.watch
 CDN_URL=https://cdn.evandro.watch
 ```
 
-### Stage
-
-Quando configurado:
-
-```env
-BASE_URL=https://stage.evandro.watch
-CDN_URL=https://cdn-stage.evandro.watch
-```
-
 Não usar `NEXT_PUBLIC_CDN_URL`.
 
 Preferir resolver `BASE_URL` e `CDN_URL` no servidor e passar os valores como props para Client Components.
@@ -231,8 +212,7 @@ O snippet deve usar o CDN para o script e a aplicação para a API:
 <script src="https://cdn.evandro.watch/embed/v1/watchmap-player.js" defer></script>
 
 <watchmap-player
-  video-id="PUBLIC_VIDEO_ID"
-  api-base="https://app.evandro.watch">
+  video-id="PUBLIC_VIDEO_ID">
 </watchmap-player>
 ```
 
@@ -240,10 +220,8 @@ Regra:
 
 ```text
 script src → CDN_URL
-api-base   → BASE_URL
+API base   → incorporada no bundle via BASE_URL durante build:embed
 ```
-
-O `api-base` é necessário porque o Web Component usa a origem do próprio script como fallback. Como o script é servido por `cdn.evandro.watch`, sem `api-base` ele tentaria acessar a API no domínio do CDN.
 
 ---
 
@@ -257,10 +235,7 @@ Fluxo:
 development
 → implementação e testes locais
 
-development → stage
-→ homologação
-
-stage → main
+development → main
 → produção
 ```
 
@@ -275,3 +250,4 @@ watchmap-player-cdn
 ```
 
 Não é necessário trocar de repositório para desenvolver o player.
+

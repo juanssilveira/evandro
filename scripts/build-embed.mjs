@@ -14,7 +14,7 @@ let apiBaseUrl = process.env.BASE_URL;
 if (!apiBaseUrl) {
   if (process.env.VERCEL) {
     throw new Error(
-      "[Build Embed] BASE_URL environment variable is required during remote build (Stage/Production)."
+      "[Build Embed] BASE_URL environment variable is required during remote production build."
     );
   }
   // Local development fallback

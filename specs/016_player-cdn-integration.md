@@ -34,10 +34,6 @@ Valores:
 BASE_URL=http://localhost:3000
 CDN_URL=http://localhost:3000
 
-# Stage
-BASE_URL=https://stage.evandro.watch
-CDN_URL=https://cdn-stage.evandro.watch
-
 # Production
 BASE_URL=https://app.evandro.watch
 CDN_URL=https://cdn.evandro.watch
@@ -76,7 +72,7 @@ api-base
 
 A URL da API deve ser determinada pelo ambiente utilizado durante o build.
 
-Em Stage e Production, ausência de `BASE_URL` deve causar falha explícita do build.
+Em Production, ausência de `BASE_URL` deve causar falha explícita do build.
 
 Development pode utilizar:
 
@@ -122,7 +118,6 @@ Nenhuma chamada de API deve ser enviada para:
 
 ```text
 cdn.evandro.watch
-cdn-stage.evandro.watch
 ```
 
 O CDN serve somente arquivos estáticos.
@@ -201,7 +196,6 @@ Não alterar ainda para `/player/v1/`.
 - nenhum request de API é feito ao domínio CDN;
 - embed funciona em página externa;
 - Development funciona com API local;
-- Stage aponta para `stage.evandro.watch`;
 - Production aponta para `app.evandro.watch`;
 - snippet exibido e copiado não contém `api-base`;
 - `pnpm typecheck`, `pnpm lint` e `pnpm build` passam.

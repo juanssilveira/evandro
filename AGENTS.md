@@ -44,15 +44,14 @@ Uma feature só está concluída quando todos os critérios de aceite definidos 
 
 ### Branches oficiais
 
-Existem apenas três branches permanentes do produto:
+Existem apenas duas branches permanentes do produto:
 
 * `development`
-* `stage`
 * `main`
 
 #### development
 
-É a branch padrão de trabalho do projeto. Todo desenvolvimento normal deve acontecer nela.
+É a branch padrão de trabalho do projeto para desenvolvimento local.
 
 Inclui:
 * implementação de specs;
@@ -69,40 +68,29 @@ Ambiente associado:
 * Banco de dados: Neon development
 * Storage: `watchmap-videos-development`
 
-#### stage
-
-É exclusivamente a branch de homologação.
-
-Ambiente associado:
-* Aplicação: `https://stage.evandro.watch`
-* Banco de dados: Neon stage
-* Storage: `watchmap-videos-stage`
-
-`stage` recebe código somente através de promoção explícita de `development`. Nunca implementar funcionalidades ou criar commits normais de desenvolvimento diretamente em `stage`.
-
 #### main
 
 É exclusivamente a branch de produção.
 
 Ambiente associado:
-* Aplicação: `https://evandro.watch`
+* Aplicação: `https://app.evandro.watch`
+* Player CDN: `https://cdn.evandro.watch`
 * Banco de dados: Neon production
 * Storage: `watchmap-videos-production`
 
-`main` recebe código somente através de promoção explícita de `stage`. Nunca implementar funcionalidades ou criar commits normais de desenvolvimento diretamente em `main`.
+`main` recebe código somente através de promoção explícita de `development`. Nunca implementar funcionalidades ou criar commits normais de desenvolvimento diretamente em `main`.
 
 ---
 
 ### Fluxo oficial
 
-O único fluxo de promoção permitido é:
+O fluxo de promoção é:
 
 ```text
-development → stage → main
+development → main
 ```
 
-* Nunca promover diretamente `development → main`.
-* Production (`main`) deve receber exatamente uma versão que tenha sido previamente validada em `stage`.
+* `main` representa exclusivamente código validado para produção.
 
 ---
 
@@ -110,7 +98,7 @@ development → stage → main
 
 Antes de modificar código, o agente deve verificar a branch atual. O estado esperado para desenvolvimento normal é `development`.
 
-* Se estiver em `stage` ou `main`, não iniciar implementação diretamente nessa branch.
+* Se estiver em `main`, não iniciar implementação diretamente nessa branch.
 * Se o working tree estiver limpo, mudar para `development`.
 * Se existirem alterações não commitadas que tornem a troca de branch insegura ou ambígua, não descartar, sobrescrever ou fazer stash automaticamente: parar e informar o estado encontrado.
 
@@ -122,7 +110,7 @@ Toda spec deve ser implementada na branch `development`.
 
 Ciclo de vida de milestone:
 1. Ler `AGENTS.md`;
-2. Ler documentação relevante em `/docs` (`00-PRODUCT.md`, `01-ARCHITECTURE.md`, `02-MODEL.md`, `03-DESIGN.md`, `ENVIRONMENTS.md`);
+2. Ler documentação relevante em `/docs` (`00-PRODUCT.md`, `01-ARCHITECTURE.md`, `02-MODEL.md`, `03-DESIGN.md`, `ENVIRONMENTS.md`, `WORKFLOW.md`, `DEPLOYMENT-CDN.md`);
 3. Ler a spec atual em `/specs`;
 4. Implementar somente o escopo solicitado;
 5. Validar completamente todos os critérios de aceite;
@@ -137,9 +125,7 @@ spec(XXX): short description
 ```
 
 Durante a implementação normal de uma spec:
-* nunca fazer merge para `stage`;
 * nunca fazer merge para `main`;
-* nunca fazer push para `stage`;
 * nunca fazer push para `main`.
 
 A conclusão de uma spec significa apenas que ela está validada e publicada em `development`.
@@ -148,43 +134,25 @@ A conclusão de uma spec significa apenas que ela está validada e publicada em 
 
 ### Promoções
 
-Promoções entre ambientes são operações estritamente separadas da implementação.
+Promoções para produção são operações estritamente separadas da implementação.
 
-O agente só pode realizar:
-* `development → stage`
-* `stage → main`
-
-quando receber instrução explícita do usuário para realizar aquela promoção específica.
+O agente só pode realizar promoção de `development → main` quando receber instrução explícita do usuário.
 
 * Nunca promover automaticamente após finalizar uma spec.
-* Nunca interpretar frases genéricas como "terminou", "está funcionando" ou "pode finalizar" como autorização para promover ambiente. A autorização deve mencionar claramente a promoção ou o ambiente de destino.
-
-#### Promoção para Stage
-
-Quando solicitado explicitamente a promover para Stage:
-1. Confirmar que a origem é `development`;
-2. Confirmar que o working tree está limpo;
-3. Confirmar que as alterações relevantes estão commitadas;
-4. Atualizar referências remotas quando necessário;
-5. Promover `development` para `stage`;
-6. Não alterar `main`;
-7. Publicar `stage` no remote (`origin/stage`);
-8. Deixar claro qual commit/revisão foi promovido.
-
-Não adicionar alterações funcionais durante a promoção. Se houver conflito, não resolver de forma especulativa: parar e reportar o conflito.
+* Nunca interpretar frases genéricas como "terminou", "está funcionando" ou "pode finalizar" como autorização para promover ambiente. A autorização deve mencionar claramente a promoção para produção / `main`.
 
 #### Promoção para Production
 
 Quando solicitado explicitamente a promover para Production:
-1. Confirmar que a origem da promoção é `stage`;
+1. Confirmar que a origem da promoção é `development`;
 2. Confirmar que o working tree está limpo;
-3. Confirmar que a revisão foi previamente validada em Stage;
-4. Promover `stage` para `main`;
+3. Confirmar que a revisão foi previamente validada localmente;
+4. Promover `development` para `main`;
 5. Publicar `main` no remote (`origin/main`);
 6. Não introduzir alterações novas durante a promoção;
 7. Deixar claro qual commit/revisão entrou em produção.
 
-Nunca promover `development` diretamente para `main`. Se `main` possuir alterações que não existem em `stage`, parar e informar antes de continuar.
+Se houver conflito ou inconsistências, parar e informar antes de continuar.
 
 ---
 
@@ -194,7 +162,6 @@ O remote oficial é denominado: `origin`.
 
 Tracking esperado:
 * `development` → `origin/development`
-* `stage` → `origin/stage`
 * `main` → `origin/main`
 
 Durante o desenvolvimento normal, o push padrão é exclusivamente: `origin development`.
@@ -241,7 +208,6 @@ Se um secret for encontrado no histórico Git:
 Nenhum ambiente pode utilizar recursos de outro ambiente como fallback.
 
 * **Development:** Neon development + R2 development (`watchmap-videos-development`)
-* **Stage:** Neon stage + R2 stage (`watchmap-videos-stage`)
 * **Production:** Neon production + R2 production (`watchmap-videos-production`)
 
 Se uma variável obrigatória estiver ausente, a aplicação deve falhar claramente. Nunca utilizar silenciosamente credenciais ou recursos de outro ambiente.
@@ -252,7 +218,6 @@ Se uma variável obrigatória estiver ausente, a aplicação deve falhar clarame
 
 O agente não deve:
 * criar branches adicionais sem necessidade explícita;
-* trabalhar diretamente em `stage`;
 * trabalhar diretamente em `main`;
 * promover ambientes automaticamente;
 * alterar configuração Git global;
