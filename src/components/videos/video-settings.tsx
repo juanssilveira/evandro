@@ -452,11 +452,22 @@ export function VideoSettings({
                 >
                   Background Autoplay
                 </Label>
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 tracking-wide uppercase">
+                    Conta View
+                  </span>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-muted text-muted-foreground border border-border/60 tracking-wide uppercase">
+                    Não Conta Play
+                  </span>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-muted/50 text-muted-foreground/80 border border-border/40 tracking-wide uppercase">
+                    Sem Som
+                  </span>
+                </div>
                 <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
                   Exibe uma prévia do vídeo automaticamente, em loop e sem som, até o espectador iniciar a reprodução.
                 </p>
                 <p className="text-[10.5px] text-muted-foreground/75 leading-relaxed">
-                  Conta como visualização, mas não como Play automático.
+                  Ajuda a gerar percepção de movimento sem iniciar o Play principal.
                 </p>
               </div>
             </div>
