@@ -88,11 +88,12 @@ export function CreateFolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogPopup className="max-w-md">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary-soft text-primary border border-primary/20">
+      <DialogPopup className="max-w-[460px] p-6">
+        <DialogClose />
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <DialogHeader className="space-y-1.5 pr-6">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-primary-soft text-primary border border-primary/20 shrink-0">
                 <FolderPlus className="size-4" />
               </div>
               <DialogTitle className="text-base font-semibold text-foreground">
@@ -104,7 +105,7 @@ export function CreateFolderDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-6 space-y-4">
+          <div className="space-y-4">
             {error && (
               <div
                 role="alert"
@@ -116,11 +117,11 @@ export function CreateFolderDialog({
 
             {/* Name Input */}
             <div className="space-y-1.5">
-              <Label htmlFor="folder-name" className="text-xs font-medium text-foreground">
+              <Label htmlFor="create-folder-name" className="text-xs font-medium text-foreground">
                 Nome da pasta <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="folder-name"
+                id="create-folder-name"
                 type="text"
                 placeholder="Ex: VSLs de Teste, Black Friday..."
                 value={name}
@@ -132,7 +133,7 @@ export function CreateFolderDialog({
                 maxLength={80}
                 autoFocus
                 required
-                className="text-xs h-9 bg-white dark:bg-zinc-900"
+                className="text-xs h-9 bg-white dark:bg-zinc-900 border-border"
               />
             </div>
 
@@ -169,20 +170,17 @@ export function CreateFolderDialog({
             </div>
           </div>
 
-          <DialogFooter>
-            <DialogClose
-              render={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isPending}
-                  className="cursor-pointer"
-                >
-                  Cancelar
-                </Button>
-              }
-            />
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isPending}
+              onClick={() => handleOpenChange(false)}
+              className="cursor-pointer"
+            >
+              Cancelar
+            </Button>
             <Button
               type="submit"
               size="sm"

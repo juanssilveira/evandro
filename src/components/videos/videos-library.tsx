@@ -75,7 +75,7 @@ export function VideosLibrary({
   const router = useRouter();
   const { toast } = useToast();
 
-  // Local state for optimistic UI updates (render-time sync with props)
+  // Local state for optimistic UI updates
   const [localVideos, setLocalVideos] = useState<Video[]>(initialVideos);
   const [prevInitialVideos, setPrevInitialVideos] = useState<Video[]>(initialVideos);
   if (initialVideos !== prevInitialVideos) {
@@ -233,22 +233,13 @@ export function VideosLibrary({
       const targetVideo = localVideos.find((v) => v.id === videoId);
       if (!targetVideo) return;
 
-      // Don't move if already in this folder
       if (targetVideo.folderId === targetFolder.id) return;
 
       const previousVideos = [...localVideos];
       const previousFolders = [...localFolders];
 
-      // Optimistic Update:
-      // 1. If on root library, remove video from local list
-      if (!currentFolder) {
-        setLocalVideos((prev) => prev.filter((v) => v.id !== videoId));
-      } else {
-        // If inside another folder, remove video from current folder list
-        setLocalVideos((prev) => prev.filter((v) => v.id !== videoId));
-      }
-
-      // 2. Increment target folder video count
+      // Optimistic Update
+      setLocalVideos((prev) => prev.filter((v) => v.id !== videoId));
       setLocalFolders((prev) =>
         prev.map((f) => {
           if (f.id === targetFolder.id) {
@@ -268,7 +259,6 @@ export function VideosLibrary({
         });
 
         if (res.error) {
-          // Revert optimistic changes
           setLocalVideos(previousVideos);
           setLocalFolders(previousFolders);
           toast(res.error || "Não foi possível mover o vídeo.", "error");
@@ -281,13 +271,12 @@ export function VideosLibrary({
         );
         router.refresh();
       } catch {
-        // Revert on unexpected error
         setLocalVideos(previousVideos);
         setLocalFolders(previousFolders);
         toast("Erro ao mover o vídeo para a pasta.", "error");
       }
     },
-    [localVideos, localFolders, currentFolder, toast, router]
+    [localVideos, localFolders, toast, router]
   );
 
   const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "all";
@@ -298,7 +287,7 @@ export function VideosLibrary({
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7 sm:space-y-8">
       {/* ── Folders Section (Only on root library when folders exist) ── */}
       {!currentFolder && localFolders.length > 0 && (
         <FoldersSection
@@ -311,242 +300,247 @@ export function VideosLibrary({
         />
       )}
 
-      {/* ── Section Title (If on root with folders, label the videos list) ── */}
-      {!currentFolder && localFolders.length > 0 && (
-        <div className="flex items-center gap-2 pt-2 border-t border-border/60">
-          <VideoIcon className="size-4 text-muted-foreground" />
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Vídeos ({localVideos.length})
-          </h2>
-        </div>
-      )}
-
-      {/* ── Toolbar ── */}
-      {(localVideos.length > 0 || hasActiveFilters) && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-1.5 rounded-xl border border-border bg-card/60 shadow-2xs">
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/70 pointer-events-none" />
-            <Input
-              type="text"
-              placeholder="Buscar por título ou arquivo..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9 pl-9 pr-8 text-xs bg-white dark:bg-zinc-900 border-border shadow-none"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                aria-label="Limpar busca"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
+      {/* ── Videos Section ── */}
+      <section aria-label="Lista de vídeos" className="space-y-3.5">
+        {/* Section Header: only on root if folders exist */}
+        {!currentFolder && localFolders.length > 0 && (
+          <div className="flex items-center gap-2">
+            <VideoIcon className="size-4 text-muted-foreground" />
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Vídeos ({localVideos.length})
+            </h2>
           </div>
+        )}
 
-          {/* Filters & Sort Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status Filter */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 gap-1.5 text-xs font-medium text-foreground bg-white dark:bg-zinc-900 border-border shadow-2xs hover:bg-muted/50 cursor-pointer"
-                  >
-                    <Filter className="size-3.5 text-muted-foreground" />
-                    <span>Status: {statusLabels[statusFilter]}</span>
-                    <ChevronDown className="size-3 text-muted-foreground ml-0.5 opacity-70" />
-                  </Button>
-                }
+        {/* ── Toolbar ── */}
+        {(localVideos.length > 0 || hasActiveFilters) && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-1 rounded-xl border border-border bg-card shadow-2xs">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/70 pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Buscar por título ou arquivo..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 pl-9 pr-8 text-xs bg-white dark:bg-zinc-900 border-border shadow-none"
               />
-              <DropdownMenuContent align="start" className="w-36">
-                <DropdownMenuItem onClick={() => setStatusFilter("all")}>
-                  Todos
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter("ready")}>
-                  Prontos
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter("processing")}>
-                  Processando
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter("errored")}>
-                  Com erro
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  aria-label="Limpar busca"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
 
-            {/* Sort Order */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 gap-1.5 text-xs font-medium text-foreground bg-white dark:bg-zinc-900 border-border shadow-2xs hover:bg-muted/50 cursor-pointer"
-                  >
-                    <ArrowUpDown className="size-3.5 text-muted-foreground" />
-                    <span>{sortLabels[sortBy]}</span>
-                    <ChevronDown className="size-3 text-muted-foreground ml-0.5 opacity-70" />
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => setSortBy("newest")}>
-                  Mais recentes
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortBy("oldest")}>
-                  Mais antigos
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortBy("title")}>
-                  Nome (A-Z)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Filters & Sort Controls */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Status Filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 gap-1.5 text-xs font-medium text-foreground bg-white dark:bg-zinc-900 border-border shadow-2xs hover:bg-muted/50 cursor-pointer"
+                    >
+                      <Filter className="size-3.5 text-muted-foreground" />
+                      <span>Status: {statusLabels[statusFilter]}</span>
+                      <ChevronDown className="size-3 text-muted-foreground ml-0.5 opacity-70" />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="start" className="w-36">
+                  <DropdownMenuItem onClick={() => setStatusFilter("all")}>
+                    Todos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter("ready")}>
+                    Prontos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter("processing")}>
+                    Processando
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter("errored")}>
+                    Com erro
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-            {/* Total Indicator */}
-            <div className="hidden md:flex items-center pl-2 pr-4 text-xs font-medium text-muted-foreground">
-              {filteredVideos.length === 1
-                ? "1 vídeo"
-                : `${filteredVideos.length} vídeos`}
+              {/* Sort Order */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 gap-1.5 text-xs font-medium text-foreground bg-white dark:bg-zinc-900 border-border shadow-2xs hover:bg-muted/50 cursor-pointer"
+                    >
+                      <ArrowUpDown className="size-3.5 text-muted-foreground" />
+                      <span>{sortLabels[sortBy]}</span>
+                      <ChevronDown className="size-3 text-muted-foreground ml-0.5 opacity-70" />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={() => setSortBy("newest")}>
+                    Mais recentes
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("oldest")}>
+                    Mais antigos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("title")}>
+                    Nome (A-Z)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Total Indicator */}
+              <div className="hidden md:flex items-center pl-2 pr-3 text-xs font-mono text-muted-foreground">
+                {filteredVideos.length === 1
+                  ? "1 vídeo"
+                  : `${filteredVideos.length} vídeos`}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ── Content View ── */}
-      {localVideos.length === 0 ? (
-        currentFolder ? (
-          /* ── Empty Folder State ── */
-          <div className="rounded-xl border border-border bg-card shadow-2xs">
-            <div className="flex flex-col items-center justify-center gap-4 py-14 px-6 text-center">
-              <div
-                className={cn(
-                  "flex size-12 items-center justify-center rounded-xl border shadow-xs",
-                  folderConfig?.iconClass
-                )}
-              >
-                <FolderIcon className="size-6 fill-current/20" />
+        {/* ── Content View ── */}
+        <div className="pt-0.5">
+          {localVideos.length === 0 ? (
+            currentFolder ? (
+              /* ── Empty Folder State ── */
+              <div className="rounded-xl border border-border bg-card shadow-2xs">
+                <div className="flex flex-col items-center justify-center gap-4 py-14 px-6 text-center">
+                  <div
+                    className={cn(
+                      "flex size-12 items-center justify-center rounded-xl border shadow-xs",
+                      folderConfig?.iconClass
+                    )}
+                  >
+                    <FolderIcon className="size-6 fill-current/20" />
+                  </div>
+                  <div className="space-y-1.5 max-w-xs">
+                    <h3 className="text-sm font-semibold text-foreground">
+                      Esta pasta ainda não possui vídeos.
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Envie vídeos diretamente para esta pasta ou mova vídeos existentes da sua Biblioteca.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <Link
+                      href="/videos"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/50 transition-colors shadow-2xs"
+                    >
+                      <ArrowLeft className="size-3.5" />
+                      <span>Voltar para Biblioteca</span>
+                    </Link>
+                    <UploadButton
+                      size="sm"
+                      className="cursor-pointer shadow-2xs"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1.5 max-w-xs">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Esta pasta ainda não possui vídeos.
-                </h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Envie vídeos diretamente para esta pasta ou mova vídeos existentes da sua Biblioteca.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 pt-2">
-                <Link
-                  href="/videos"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted/50 transition-colors shadow-2xs"
-                >
-                  <ArrowLeft className="size-3.5" />
-                  <span>Voltar para Biblioteca</span>
-                </Link>
+            ) : localFolders.length > 0 ? (
+              /* ── Root has folders but 0 root videos ── */
+              <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
+                <div className="space-y-1 max-w-xs mx-auto">
+                  <p className="text-xs font-semibold text-foreground">
+                    Nenhum vídeo na raiz
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Envie novos vídeos para a raiz ou acesse uma das pastas acima.
+                  </p>
+                </div>
                 <UploadButton
+                  variant="outline"
                   size="sm"
-                  className="cursor-pointer shadow-2xs"
+                  className="cursor-pointer shadow-2xs text-xs"
                 />
               </div>
-            </div>
-          </div>
-        ) : localFolders.length > 0 ? (
-          /* ── Root has folders but 0 root videos ── */
-          <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
-            <div className="space-y-1 max-w-xs mx-auto">
-              <p className="text-xs font-semibold text-foreground">
-                Nenhum vídeo na raiz
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Envie novos vídeos para a raiz ou acesse uma das pastas acima.
-              </p>
-            </div>
-            <UploadButton
-              variant="outline"
-              size="sm"
-              className="cursor-pointer shadow-2xs text-xs"
-            />
-          </div>
-        ) : (
-          /* ── Completely Empty Library State ── */
-          <div className="rounded-xl border border-border bg-card shadow-2xs">
-            <div className="flex flex-col items-center justify-center gap-4 py-14 px-6 text-center">
-              <div className="flex size-12 items-center justify-center rounded-xl bg-primary-soft border border-primary/20 text-primary shadow-xs">
-                <VideoIcon className="size-6" />
+            ) : (
+              /* ── Completely Empty Library State ── */
+              <div className="rounded-xl border border-border bg-card shadow-2xs">
+                <div className="flex flex-col items-center justify-center gap-4 py-14 px-6 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-xl bg-primary-soft border border-primary/20 text-primary shadow-xs">
+                    <VideoIcon className="size-6" />
+                  </div>
+                  <div className="space-y-1.5 max-w-xs">
+                    <h3 className="text-sm font-semibold text-foreground">
+                      Nenhum vídeo ainda
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Envie seu primeiro vídeo para começar a configurar o player e
+                      acompanhar seus dados.
+                    </p>
+                  </div>
+                  <UploadButton
+                    variant="outline"
+                    size="sm"
+                    className="cursor-pointer shadow-2xs"
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5 max-w-xs">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Nenhum vídeo ainda
-                </h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Envie seu primeiro vídeo para começar a configurar o player e
-                  acompanhar seus dados.
-                </p>
+            )
+          ) : filteredVideos.length === 0 ? (
+            /* ── Search / Filter No Results State ── */
+            <div className="rounded-xl border border-border bg-card shadow-2xs">
+              <div className="flex flex-col items-center justify-center gap-3.5 py-12 px-6 text-center">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-muted border border-border text-muted-foreground">
+                  <SearchX className="size-5" />
+                </div>
+                <div className="space-y-1 max-w-sm">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Nenhum vídeo encontrado
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Não encontramos vídeos correspondentes aos termos ou filtros
+                    aplicados.
+                  </p>
+                </div>
+                {hasActiveFilters && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setStatusFilter("all");
+                    }}
+                    className="h-8 px-3 text-xs font-medium cursor-pointer shadow-2xs"
+                  >
+                    Limpar filtros
+                  </Button>
+                )}
               </div>
-              <UploadButton
-                variant="outline"
-                size="sm"
-                className="cursor-pointer shadow-2xs"
-              />
             </div>
-          </div>
-        )
-      ) : filteredVideos.length === 0 ? (
-        /* ── Search / Filter No Results State ── */
-        <div className="rounded-xl border border-border bg-card shadow-2xs">
-          <div className="flex flex-col items-center justify-center gap-3.5 py-12 px-6 text-center">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-muted border border-border text-muted-foreground">
-              <SearchX className="size-5" />
+          ) : (
+            /* ── Videos List ── */
+            <div className="space-y-2.5">
+              {filteredVideos.map((video) => (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  playsCount={videoPlaysMap[video.id] ?? 0}
+                  onContextMenu={handleOpenContextMenu}
+                  onEdit={handleEditVideo}
+                  onDelete={handleDeleteVideo}
+                  onDownload={handleDownloadVideo}
+                  onMove={handleMoveVideo}
+                  isDraggable={true}
+                />
+              ))}
             </div>
-            <div className="space-y-1 max-w-sm">
-              <h3 className="text-sm font-semibold text-foreground">
-                Nenhum vídeo encontrado
-              </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Não encontramos vídeos correspondentes aos termos ou filtros
-                aplicados.
-              </p>
-            </div>
-            {hasActiveFilters && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSearchQuery("");
-                  setStatusFilter("all");
-                }}
-                className="h-8 px-3 text-xs font-medium cursor-pointer shadow-2xs"
-              >
-                Limpar filtros
-              </Button>
-            )}
-          </div>
+          )}
         </div>
-      ) : (
-        /* ── Videos List ── */
-        <div className="space-y-2.5">
-          {filteredVideos.map((video) => (
-            <VideoCard
-              key={video.id}
-              video={video}
-              playsCount={videoPlaysMap[video.id] ?? 0}
-              onContextMenu={handleOpenContextMenu}
-              onEdit={handleEditVideo}
-              onDelete={handleDeleteVideo}
-              onDownload={handleDownloadVideo}
-              onMove={handleMoveVideo}
-              isDraggable={true}
-            />
-          ))}
-        </div>
-      )}
+      </section>
 
       {/* ── Video Context Menu (Right Click on Video Cards) ── */}
       <VideoContextMenu

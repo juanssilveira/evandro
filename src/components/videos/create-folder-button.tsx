@@ -30,7 +30,7 @@ export function CreateFolderButton({
         className={className}
         onClick={() => setOpen(true)}
       >
-        <FolderPlus className="size-4 mr-1.5" />
+        <FolderPlus className="size-4" />
         <span>Nova pasta</span>
       </Button>
 

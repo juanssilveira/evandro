@@ -27,17 +27,15 @@ export function FoldersSection({
   }
 
   return (
-    <section aria-label="Pastas de vídeos" className="space-y-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <FolderIcon className="size-4 text-muted-foreground" />
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Pastas ({folders.length})
-          </h2>
-        </div>
+    <section aria-label="Pastas de vídeos" className="space-y-3">
+      <div className="flex items-center gap-2">
+        <FolderIcon className="size-4 text-muted-foreground" />
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Pastas ({folders.length})
+        </h2>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
         {folders.map((folder) => (
           <FolderCard
             key={folder.id}

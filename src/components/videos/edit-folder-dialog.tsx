@@ -88,10 +88,10 @@ function EditFolderForm({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <DialogHeader className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary-soft text-primary border border-primary/20">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <DialogHeader className="space-y-1.5 pr-6">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary-soft text-primary border border-primary/20 shrink-0">
             <FolderPen className="size-4" />
           </div>
           <DialogTitle className="text-base font-semibold text-foreground">
@@ -103,7 +103,7 @@ function EditFolderForm({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         {error && (
           <div
             role="alert"
@@ -131,7 +131,7 @@ function EditFolderForm({
             maxLength={80}
             autoFocus={initialMode === "rename"}
             required
-            className="text-xs h-9 bg-white dark:bg-zinc-900"
+            className="text-xs h-9 bg-white dark:bg-zinc-900 border-border"
           />
         </div>
 
@@ -168,20 +168,17 @@ function EditFolderForm({
         </div>
       </div>
 
-      <DialogFooter>
-        <DialogClose
-          render={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isPending}
-              className="cursor-pointer"
-            >
-              Cancelar
-            </Button>
-          }
-        />
+      <DialogFooter className="pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isPending}
+          onClick={() => onOpenChange(false)}
+          className="cursor-pointer"
+        >
+          Cancelar
+        </Button>
         <Button
           type="submit"
           size="sm"
@@ -213,7 +210,8 @@ export function EditFolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPopup className="max-w-md">
+      <DialogPopup className="max-w-[460px] p-6">
+        <DialogClose />
         <EditFolderForm
           key={`${folder.id}-${folder.name}-${folder.color}-${initialMode}`}
           folder={folder}

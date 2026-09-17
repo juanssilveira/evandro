@@ -32,8 +32,8 @@ export function UploadButton({
       onClick={() => openNewVideoModal()}
       {...props}
     >
-      {icon && <UploadCloud className="size-4 mr-1.5" />}
-      {label}
+      {icon && <UploadCloud className="size-4" />}
+      <span>{label}</span>
     </Button>
   );
 }
