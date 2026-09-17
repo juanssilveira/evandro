@@ -1,7 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth";
-import { getCurrentAccount } from "@/lib/accounts";
+import { requireActivePlan } from "@/lib/plans/access";
 import {
   createVideoUploadSession,
   syncVideoStatus,
@@ -17,22 +16,20 @@ import {
   updateVideoTitleSchema,
   deleteVideoSchema,
 } from "@/lib/validations/videos";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 export async function createUploadUrlAction(rawInput: unknown) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user?.id) {
+  let planContext;
+  try {
+    planContext = await requireActivePlan();
+  } catch (error) {
+    if (error instanceof Error && error.message === "NO_ACTIVE_PLAN") {
+      return { error: "Você não tem nenhum plano ativo para criar vídeos." };
+    }
     return { error: "Não autorizado." };
   }
 
-  const account = await getCurrentAccount(session.user.id);
-  if (!account) {
-    return { error: "Conta não encontrada para o usuário." };
-  }
+  const { account, plan } = planContext;
 
   const parsed = createUploadSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -40,27 +37,35 @@ export async function createUploadUrlAction(rawInput: unknown) {
   }
 
   try {
-    const data = await createVideoUploadSession(account.id, parsed.data);
+    const data = await createVideoUploadSession(
+      account.id,
+      parsed.data,
+      plan.limits.maxVideos
+    );
     return { data };
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "VIDEO_LIMIT_REACHED") {
+      return {
+        error: `Limite de ${plan.limits.maxVideos} vídeos atingido para o plano ${plan.name}.`,
+      };
+    }
     console.error("Error creating upload URL:", error);
     return { error: "Falha ao gerar URL de upload no Mux." };
   }
 }
 
 export async function syncVideoStatusAction(rawInput: unknown) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user?.id) {
+  let planContext;
+  try {
+    planContext = await requireActivePlan();
+  } catch (error) {
+    if (error instanceof Error && error.message === "NO_ACTIVE_PLAN") {
+      return { error: "Você não tem nenhum plano ativo." };
+    }
     return { error: "Não autorizado." };
   }
 
-  const account = await getCurrentAccount(session.user.id);
-  if (!account) {
-    return { error: "Conta não encontrada para o usuário." };
-  }
+  const { account } = planContext;
 
   const parsed = syncVideoStatusSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -73,7 +78,7 @@ export async function syncVideoStatusAction(rawInput: unknown) {
       return { error: result.error || "Falha ao sincronizar o estado do vídeo." };
     }
 
-    if (result.video?.status === "ready") {
+    if (result.video?.status === "ready" || result.video?.status === "errored") {
       revalidatePath("/videos");
       revalidatePath(`/videos/${parsed.data.videoId}`);
     }
@@ -86,18 +91,17 @@ export async function syncVideoStatusAction(rawInput: unknown) {
 }
 
 export async function updatePlayerConfigAction(rawInput: unknown) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user?.id) {
+  let planContext;
+  try {
+    planContext = await requireActivePlan();
+  } catch (error) {
+    if (error instanceof Error && error.message === "NO_ACTIVE_PLAN") {
+      return { error: "Você não tem nenhum plano ativo." };
+    }
     return { error: "Não autorizado." };
   }
 
-  const account = await getCurrentAccount(session.user.id);
-  if (!account) {
-    return { error: "Conta não encontrada para o usuário." };
-  }
+  const { account } = planContext;
 
   const parsed = updatePlayerConfigActionSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -124,18 +128,17 @@ export async function updatePlayerConfigAction(rawInput: unknown) {
 }
 
 export async function updateVideoDebugAction(rawInput: unknown) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user?.id) {
+  let planContext;
+  try {
+    planContext = await requireActivePlan();
+  } catch (error) {
+    if (error instanceof Error && error.message === "NO_ACTIVE_PLAN") {
+      return { error: "Você não tem nenhum plano ativo." };
+    }
     return { error: "Não autorizado." };
   }
 
-  const account = await getCurrentAccount(session.user.id);
-  if (!account) {
-    return { error: "Conta não encontrada para o usuário." };
-  }
+  const { account } = planContext;
 
   const parsed = updateVideoDebugSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -166,18 +169,17 @@ export async function updateVideoDebugAction(rawInput: unknown) {
 }
 
 export async function updateVideoTitleAction(rawInput: unknown) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user?.id) {
+  let planContext;
+  try {
+    planContext = await requireActivePlan();
+  } catch (error) {
+    if (error instanceof Error && error.message === "NO_ACTIVE_PLAN") {
+      return { error: "Você não tem nenhum plano ativo." };
+    }
     return { error: "Não autorizado." };
   }
 
-  const account = await getCurrentAccount(session.user.id);
-  if (!account) {
-    return { error: "Conta não encontrada para o usuário." };
-  }
+  const { account } = planContext;
 
   const parsed = updateVideoTitleSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -205,18 +207,17 @@ export async function updateVideoTitleAction(rawInput: unknown) {
 }
 
 export async function deleteVideoAction(rawInput: unknown) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user?.id) {
+  let planContext;
+  try {
+    planContext = await requireActivePlan();
+  } catch (error) {
+    if (error instanceof Error && error.message === "NO_ACTIVE_PLAN") {
+      return { error: "Você não tem nenhum plano ativo." };
+    }
     return { error: "Não autorizado." };
   }
 
-  const account = await getCurrentAccount(session.user.id);
-  if (!account) {
-    return { error: "Conta não encontrada para o usuário." };
-  }
+  const { account } = planContext;
 
   const parsed = deleteVideoSchema.safeParse(rawInput);
   if (!parsed.success) {

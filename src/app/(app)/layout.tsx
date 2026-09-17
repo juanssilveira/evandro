@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { getActivePlanForUser } from "@/lib/plans/access";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -11,8 +12,13 @@ export default async function AppLayout({
     headers: await headers(),
   });
 
-  if (!session) {
+  if (!session?.user?.id) {
     redirect("/login");
+  }
+
+  const activePlan = await getActivePlanForUser(session.user.id);
+  if (!activePlan) {
+    redirect("/no-plan");
   }
 
   return (

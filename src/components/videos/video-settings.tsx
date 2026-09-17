@@ -237,7 +237,7 @@ export function VideoSettings({
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-0.5">
               {/* Horizontal 16:9 Option */}
               <button
                 type="button"
@@ -252,7 +252,7 @@ export function VideoSettings({
               >
                 <div
                   className={cn(
-                    "w-11 h-6.5 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    "w-10 h-6 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                     currentAspectRatio === "16:9"
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-zinc-800 text-zinc-400"
@@ -268,7 +268,7 @@ export function VideoSettings({
                         currentAspectRatio === "16:9" ? "text-foreground font-bold" : "text-foreground/90"
                       )}
                     >
-                      Horizontal
+                      16:9
                     </span>
                     {currentAspectRatio === "16:9" && (
                       <span className="flex size-3.5 items-center justify-center rounded-full bg-primary text-white shrink-0">
@@ -277,7 +277,7 @@ export function VideoSettings({
                     )}
                   </div>
                   <p className="text-[10px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
-                    16:9 • ~680px padrão
+                    Horizontal
                   </p>
                 </div>
               </button>
@@ -296,7 +296,7 @@ export function VideoSettings({
               >
                 <div
                   className={cn(
-                    "w-6.5 h-11 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    "w-6 h-10 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                     currentAspectRatio === "9:16"
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-zinc-800 text-zinc-400"
@@ -312,7 +312,7 @@ export function VideoSettings({
                         currentAspectRatio === "9:16" ? "text-foreground font-bold" : "text-foreground/90"
                       )}
                     >
-                      Vertical
+                      9:16
                     </span>
                     {currentAspectRatio === "9:16" && (
                       <span className="flex size-3.5 items-center justify-center rounded-full bg-primary text-white shrink-0">
@@ -321,7 +321,51 @@ export function VideoSettings({
                     )}
                   </div>
                   <p className="text-[10px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
-                    9:16 • ~480px padrão
+                    Vertical
+                  </p>
+                </div>
+              </button>
+
+              {/* Square 1:1 Option */}
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => handleAspectRatioSelect("1:1")}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-lg border transition-all text-left cursor-pointer",
+                  currentAspectRatio === "1:1"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                    : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                )}
+              >
+                <div
+                  className={cn(
+                    "size-8 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    currentAspectRatio === "1:1"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-zinc-800 text-zinc-400"
+                  )}
+                >
+                  <Play className="size-2.5 fill-current ml-0.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span
+                      className={cn(
+                        "text-xs font-semibold",
+                        currentAspectRatio === "1:1" ? "text-foreground font-bold" : "text-foreground/90"
+                      )}
+                    >
+                      1:1
+                    </span>
+                    {currentAspectRatio === "1:1" && (
+                      <span className="flex size-3.5 items-center justify-center rounded-full bg-primary text-white shrink-0">
+                        <Check className="size-2 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">
+                    Quadrado
                   </p>
                 </div>
               </button>

@@ -57,6 +57,13 @@
       "when": 1789613500000,
       "tag": "0007_background_preview_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789616000000,
+      "tag": "0008_plans_and_real_limits",
+      "breakpoints": true
     }
   ]
 }

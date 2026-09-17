@@ -59,8 +59,8 @@ export function VideoPlayerView({
               }}
             />
 
-            {/* Inner Stable Viewport: ensures equal padding on all 4 sides */}
-            <div className="w-full aspect-video flex items-center justify-center">
+            {/* Stable Canvas Stage: fixed aspect-video viewport where the video adapts to fit inside */}
+            <div className="relative w-full aspect-video flex items-center justify-center overflow-hidden">
               <WatchMapPlayer
                 src={playbackUrl}
                 posterUrl={posterUrl}
@@ -69,7 +69,7 @@ export function VideoPlayerView({
                 videoId={videoId}
                 title={title}
                 config={config}
-                className="h-full max-h-full max-w-full w-auto"
+                className="max-h-full max-w-full h-full w-auto"
               />
             </div>
           </div>

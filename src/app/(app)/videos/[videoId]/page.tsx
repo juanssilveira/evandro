@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getVideoForAccount, syncVideoStatus } from "@/lib/videos";
 import { getPlayerConfig } from "@/lib/player-settings";
+import { getActivePlanForUser } from "@/lib/plans/access";
 import { DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
 import { getHlsPlaybackUrl } from "@/lib/mux";
 import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
@@ -30,6 +31,8 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
   if (!account) {
     notFound();
   }
+
+  const activePlan = await getActivePlanForUser(session.user.id);
 
   const video = await getVideoForAccount(videoId, account.id);
   if (!video) {
@@ -73,7 +76,12 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
         user={{
           name: session.user.name,
           email: session.user.email,
+          planName: activePlan?.plan ? `Plano ${activePlan.plan.name}` : "Plano Pro",
         }}
+        breadcrumbs={[
+          { label: "Vídeos", href: "/videos" },
+          { label: currentVideo.title, isCurrent: true },
+        ]}
       />
 
       {/* Main Page Area */}

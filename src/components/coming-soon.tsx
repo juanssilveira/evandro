@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { Logo } from "@/components/brand/logo";
 
 const FEATURES = [
   "Hosting Próprio",
@@ -10,13 +10,8 @@ export function ComingSoon() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-16">
       {/* Logo */}
-      <div className="flex items-center gap-3 mb-10">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-violet-500 to-[#7C3AED] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_1px_2px_rgba(0,0,0,0.08),0_2px_0_#6D28D9] border border-[#6D28D9]">
-          <Play className="size-4 fill-white ml-0.5" />
-        </span>
-        <span className="text-base font-bold tracking-tight text-foreground">
-          WatchMap
-        </span>
+      <div className="mb-10">
+        <Logo size="lg" />
       </div>
 
       {/* Main content */}

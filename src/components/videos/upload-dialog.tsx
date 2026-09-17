@@ -19,8 +19,11 @@ import { Label } from "@/components/ui/label";
 import { createUploadUrlAction, syncVideoStatusAction } from "@/app/actions/videos";
 import { UploadCloud, Film, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
-interface UploadDialogProps {
+export interface UploadDialogProps {
   trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  initialFile?: File | null;
 }
 
 function formatBytes(bytes: number): string {
@@ -31,8 +34,16 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
-export function UploadDialog({ trigger }: UploadDialogProps) {
-  const [open, setOpen] = useState(false);
+export function UploadDialog({
+  trigger,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  initialFile,
+}: UploadDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -60,7 +71,10 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
     if (status === "uploading") {
       return; // prevent closing while sending binary
     }
-    setOpen(nextOpen);
+    if (!isControlled) {
+      setInternalOpen(nextOpen);
+    }
+    controlledOnOpenChange?.(nextOpen);
     if (!nextOpen) {
       resetState();
     }
@@ -79,6 +93,26 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
     const nameWithoutExt = selectedFile.name.replace(/\.mp4$/i, "");
     setTitle(nameWithoutExt);
   };
+
+  const [prevInitialFile, setPrevInitialFile] = useState<File | null>(null);
+
+  // Synchronize initialFile when opened with a dropped file
+  if (open && initialFile && initialFile !== prevInitialFile) {
+    setPrevInitialFile(initialFile);
+    if (
+      initialFile.type !== "video/mp4" &&
+      !initialFile.name.toLowerCase().endsWith(".mp4")
+    ) {
+      setErrorMessage(
+        "Por favor, selecione apenas arquivos de vídeo no formato MP4 (video/mp4)."
+      );
+    } else {
+      setFile(initialFile);
+      setErrorMessage(null);
+      const nameWithoutExt = initialFile.name.replace(/\.mp4$/i, "");
+      setTitle(nameWithoutExt);
+    }
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -159,7 +193,7 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
         router.refresh();
       });
 
-      setOpen(false);
+      handleOpenChange(false);
       resetState();
     } catch (err: unknown) {
       console.error(err);
@@ -174,16 +208,9 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          (trigger as React.ReactElement) || (
-            <Button>
-              <UploadCloud className="size-4 mr-1.5" />
-              Enviar vídeo
-            </Button>
-          )
-        }
-      />
+      {trigger ? (
+        <DialogTrigger render={trigger as React.ReactElement} />
+      ) : null}
 
       <DialogPopup className="sm:max-w-md">
         <form onSubmit={handleUpload}>
@@ -194,9 +221,9 @@ export function UploadDialog({ trigger }: UploadDialogProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <DialogClose disabled={isBusy} />
+          <DialogClose tabIndex={-1} disabled={isBusy} />
 
-          <div className="space-y-4 py-3">
+          <div className="space-y-4 pt-2 pb-1">
             {/* Drag & Drop Area */}
             {!file ? (
               <div

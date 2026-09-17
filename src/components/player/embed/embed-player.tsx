@@ -15,7 +15,7 @@ export interface EmbedPlayerProps {
 interface EmbedVideoData {
   videoId: string;
   title: string;
-  playbackUrl: string;
+  playbackUrl?: string | null;
   posterUrl?: string | null;
   backgroundPreviewUrl?: string | null;
   config: PlayerConfig;
@@ -73,13 +73,6 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
         const json = await response.json();
 
-        const resolvedPlaybackUrl =
-          json.playback?.url || json.playbackUrl;
-
-        if (!resolvedPlaybackUrl) {
-          throw new Error("Invalid embed payload: missing playback url");
-        }
-
         const parsedConfig = json.config
           ? parsePlayerConfig(json.config)
           : DEFAULT_PLAYER_CONFIG;
@@ -90,7 +83,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
             data: {
               videoId: json.videoId || videoId,
               title: json.title || "",
-              playbackUrl: resolvedPlaybackUrl,
+              playbackUrl: json.playback?.url || json.playbackUrl || null,
               posterUrl: json.posterUrl || null,
               backgroundPreviewUrl: json.backgroundPreviewUrl || null,
               config: parsedConfig,
@@ -128,14 +121,20 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
   const { status, data, errorMessage } = state;
 
-  const isVertical = data?.config.appearance?.aspectRatio === "9:16";
+  const aspectRatio = data?.config.appearance?.aspectRatio ?? "16:9";
+  const aspectClass =
+    aspectRatio === "9:16"
+      ? "aspect-[9/16]"
+      : aspectRatio === "1:1"
+      ? "aspect-square"
+      : "aspect-video";
 
   if (status === "loading") {
     return (
       <div
         className={cn(
           "relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center border border-white/10 shadow-2xl mx-auto",
-          isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]"
+          aspectClass
         )}
       >
         <div className="flex size-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md shadow-lg border border-white/10">
@@ -150,7 +149,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
       <div
         className={cn(
           "relative w-full rounded-xl overflow-hidden bg-zinc-950 flex flex-col items-center justify-center text-center p-6 border border-white/10 shadow-2xl space-y-3 font-sans mx-auto",
-          isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]"
+          aspectClass
         )}
       >
         <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive border border-destructive/20">
@@ -173,7 +172,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
       <div
         className={cn(
           "relative w-full rounded-xl overflow-hidden bg-zinc-950 flex flex-col items-center justify-center text-center p-6 border border-white/10 shadow-2xl space-y-3 font-sans mx-auto",
-          isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]"
+          aspectClass
         )}
       >
         <div className="flex size-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
@@ -201,7 +200,8 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
   return (
     <WatchMapPlayer
-      src={data.playbackUrl}
+      src={data.playbackUrl || undefined}
+      apiBase={apiBase}
       posterUrl={data.posterUrl}
       backgroundPreviewUrl={data.backgroundPreviewUrl}
       videoId={data.videoId}

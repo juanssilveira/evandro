@@ -10,6 +10,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:fake-progress": "node scripts/test-fake-progress.mjs",
+    "plan:grant-pro": "node scripts/grant-pro.mjs",
+    "plan:revoke": "node scripts/revoke-pro.mjs",
+    "plan:revoke-pro": "node scripts/revoke-pro.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

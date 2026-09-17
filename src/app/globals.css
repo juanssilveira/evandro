@@ -145,10 +145,31 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    @apply font-sans;
+    scrollbar-color: rgba(161, 161, 170, 0.25) transparent;
+    scrollbar-width: thin;
+  }
   body {
     @apply bg-background text-foreground antialiased;
   }
-  html {
-    @apply font-sans;
-  }
+}
+
+/* Discreet webkit scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.45);
 }

@@ -36,6 +36,7 @@ function DialogBackdrop({
 function DialogPopup({
   className,
   children,
+  initialFocus = false,
   ...props
 }: DialogPrimitive.Popup.Props) {
   return (
@@ -43,8 +44,9 @@ function DialogPopup({
       <DialogBackdrop />
       <DialogPrimitive.Popup
         data-slot="dialog-popup"
+        initialFocus={initialFocus}
         className={cn(
-          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-border bg-card p-6 shadow-2xl duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
+          "fixed left-[50%] top-[50%] z-50 flex flex-col w-full max-w-lg translate-x-[-50%] translate-y-[-50%] rounded-xl border border-border bg-card p-6 shadow-2xl duration-200 overflow-hidden outline-none data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
           className
         )}
         {...props}
@@ -108,12 +110,17 @@ function DialogDescription({
   );
 }
 
-function DialogClose({ className, ...props }: DialogPrimitive.Close.Props) {
+function DialogClose({
+  className,
+  tabIndex = -1,
+  ...props
+}: DialogPrimitive.Close.Props) {
   return (
     <DialogPrimitive.Close
       data-slot="dialog-close"
+      tabIndex={tabIndex}
       className={cn(
-        "absolute right-4 top-4 rounded-md p-1 opacity-70 transition-opacity hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none text-muted-foreground hover:text-foreground",
+        "absolute right-4 top-4 rounded-md p-1 opacity-70 transition-opacity hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:outline-none focus:ring-0 disabled:pointer-events-none text-muted-foreground hover:text-foreground",
         className
       )}
       {...props}

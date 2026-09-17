@@ -1,89 +1,116 @@
 import * as React from "react";
 import Link from "next/link";
-import { Play } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { UserMenu } from "@/components/auth/user-menu";
+import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 
-interface NavItem {
+export interface BreadcrumbItem {
   label: string;
-  href: string;
-  /** Regex or prefix to match for active state */
-  activePattern?: RegExp;
+  href?: string;
+  isCurrent?: boolean;
 }
 
-interface AppHeaderProps {
-  /** Server-side current pathname for active link detection */
-  currentPath: string;
+export interface AppHeaderProps {
+  currentPath?: string;
   user: {
     name?: string | null;
     email?: string | null;
+    planName?: string | null;
   };
+  breadcrumbs?: BreadcrumbItem[];
   className?: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  {
-    label: "Vídeos",
-    href: "/videos",
-    activePattern: /^\/videos/,
-  },
-];
+export function AppHeader({
+  user,
+  breadcrumbs = [],
+  className,
+}: AppHeaderProps) {
+  // Only display breadcrumb trail and divider when inside a subpage (2 or more hierarchy levels)
+  const hasSubpageBreadcrumbs = Boolean(breadcrumbs && breadcrumbs.length > 1);
 
-export function AppHeader({ currentPath, user, className }: AppHeaderProps) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-20 w-full border-b border-border bg-card",
+        "sticky top-0 z-20 w-full border-b border-border bg-card/95 backdrop-blur-xs",
         className
       )}
     >
       {/* Inner wrapper aligned to the same max-width as the main container */}
       <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between px-4 sm:px-6">
-        {/* Left: Logo + nav */}
-        <div className="flex items-center gap-6">
-          {/* Wordmark */}
-          <Link
-            href="/videos"
-            className="flex items-center gap-2.5 font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-md"
-            aria-label="WatchMap — ir para biblioteca"
-          >
-            <span
-              className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-b from-violet-500 to-[#7C3AED] text-white text-xs font-bold shadow-[0_1px_2px_rgba(0,0,0,0.1),0_1px_0_#6D28D9] border border-[#6D28D9]"
-              aria-hidden="true"
-            >
-              <Play className="size-3.5 fill-white ml-0.5" />
-            </span>
-            <span className="text-sm font-bold tracking-tight">WatchMap</span>
-          </Link>
+        {/* Left: Logo + Discreet Breadcrumb Navigation */}
+        <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-4">
+          {/* Brand Wordmark */}
+          <Logo href="/videos" size="md" />
 
-          {/* Primary navigation */}
-          <nav className="flex items-center gap-1" aria-label="Navegação principal">
-            {NAV_ITEMS.map((item) => {
-              const isActive = item.activePattern
-                ? item.activePattern.test(currentPath)
-                : currentPath === item.href;
+          {/* Subpage Breadcrumbs: Only rendered when inside subpages */}
+          {hasSubpageBreadcrumbs && (
+            <>
+              {/* Subtle Vertical Divider */}
+              <div
+                className="h-3.5 w-px bg-border/60 shrink-0"
+                aria-hidden="true"
+              />
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "inline-flex h-8 items-center rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-                    isActive
-                      ? "bg-primary/8 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-zinc-100"
-                  )}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+              {/* Breadcrumb Path */}
+              <nav
+                aria-label="Navegação estrutural"
+                className="flex items-center min-w-0 text-xs font-normal"
+              >
+                <ol className="flex items-center gap-1.5 min-w-0">
+                  {breadcrumbs.map((item, index) => {
+                    const isLast = index === breadcrumbs.length - 1;
+                    const isCurrent = item.isCurrent ?? isLast;
+
+                    return (
+                      <li
+                        key={`${item.label}-${index}`}
+                        className="flex items-center gap-1.5 min-w-0"
+                      >
+                        {index > 0 && (
+                          <ChevronRight
+                            className="size-3 text-muted-foreground/40 shrink-0 select-none"
+                            aria-hidden="true"
+                          />
+                        )}
+
+                        {item.href && !isCurrent ? (
+                          <Link
+                            href={item.href}
+                            className="text-muted-foreground hover:text-foreground transition-colors hover:underline underline-offset-4 decoration-border/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 rounded-sm whitespace-nowrap shrink-0"
+                          >
+                            {item.label}
+                          </Link>
+                        ) : (
+                          <span
+                            className={cn(
+                              "font-medium text-foreground/85 truncate max-w-[140px] xs:max-w-[200px] sm:max-w-[300px] md:max-w-[440px] lg:max-w-[560px]",
+                              !isLast && "text-muted-foreground"
+                            )}
+                            aria-current={isCurrent ? "page" : undefined}
+                            title={item.label}
+                          >
+                            {item.label}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </nav>
+            </>
+          )}
         </div>
 
         {/* Right: User menu */}
-        <UserMenu name={user.name} email={user.email} />
+        <div className="shrink-0">
+          <UserMenu
+            name={user.name}
+            email={user.email}
+            planName={user.planName}
+          />
+        </div>
       </div>
     </header>
   );

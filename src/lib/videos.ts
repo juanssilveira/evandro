@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { videos, type Video } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import {
   createMuxDirectUpload,
   getMuxDirectUpload,
@@ -10,6 +10,7 @@ import {
 import { generateAndStoreBackgroundPreview } from "@/lib/background-preview";
 import { deleteAssetObject } from "@/lib/asset-storage/r2";
 import type { CreateUploadInput } from "@/lib/validations/videos";
+import { PRO_PLAN } from "@/lib/plans/catalog";
 
 export async function getVideosForAccount(accountId: string): Promise<Video[]> {
   return await db
@@ -46,29 +47,70 @@ export async function getVideoByPublicId(
 
 export async function createVideoUploadSession(
   accountId: string,
-  input: CreateUploadInput
+  input: CreateUploadInput,
+  maxAllowedVideos: number = PRO_PLAN.limits.maxVideos
 ): Promise<{ videoId: string; uploadUrl: string; muxUploadId: string }> {
   const videoId = crypto.randomUUID();
+  const publicId = crypto.randomUUID();
 
-  // 1. Create Direct Upload session in Mux
-  const { uploadId, uploadUrl } = await createMuxDirectUpload({
-    videoId,
+  // 1. Concurrency-safe atomic slot reservation inside PostgreSQL transaction
+  await db.transaction(async (tx) => {
+    // Acquire row-level lock on the account to serialize concurrent video creation requests
+    await tx.execute(sql`
+      SELECT id FROM accounts WHERE id = ${accountId} FOR UPDATE
+    `);
+
+    // Count currently occupied video slots
+    const [countRes] = (await tx.execute(sql`
+      SELECT count(*)::int AS count
+      FROM videos
+      WHERE account_id = ${accountId}
+        AND status IN ('waiting_upload', 'uploading', 'processing', 'ready')
+    `)).rows as Array<{ count: number }>;
+
+    const currentCount = Number(countRes?.count ?? 0);
+
+    if (currentCount >= maxAllowedVideos) {
+      throw new Error("VIDEO_LIMIT_REACHED");
+    }
+
+    // Insert reserved video record
+    await tx.insert(videos).values({
+      id: videoId,
+      publicId,
+      accountId,
+      title: input.title,
+      muxUploadId: null,
+      status: "waiting_upload",
+      originalFilename: input.filename,
+      mimeType: input.mimeType,
+      sizeBytes: input.sizeBytes,
+    });
   });
 
-  // 2. Persist initial video record in database
-  await db.insert(videos).values({
-    id: videoId,
-    publicId: crypto.randomUUID(),
-    accountId,
-    title: input.title,
-    muxUploadId: uploadId,
-    status: "waiting_upload",
-    originalFilename: input.filename,
-    mimeType: input.mimeType,
-    sizeBytes: input.sizeBytes,
-  });
+  // 2. AFTER transaction commits, create Direct Upload session in Mux
+  try {
+    const { uploadId, uploadUrl } = await createMuxDirectUpload({
+      videoId,
+    });
 
-  return { videoId, uploadUrl, muxUploadId: uploadId };
+    // Update video with muxUploadId
+    await db
+      .update(videos)
+      .set({ muxUploadId: uploadId })
+      .where(eq(videos.id, videoId));
+
+    return { videoId, uploadUrl, muxUploadId: uploadId };
+  } catch (error) {
+    // If Mux creation fails, remove reserved video to release slot
+    console.error(`[Mux Upload Creation Error] Cleaning up reserved slot ${videoId}:`, error);
+    try {
+      await db.delete(videos).where(eq(videos.id, videoId));
+    } catch (cleanupErr) {
+      console.error("[Slot Cleanup Error]", cleanupErr);
+    }
+    throw error;
+  }
 }
 
 export async function syncVideoStatus(
@@ -155,15 +197,44 @@ export async function syncVideoStatus(
     try {
       const asset = await getMuxAsset(currentMuxAssetId);
 
+      // Duration validation: Pro allows up to 1200 seconds (20 minutes)
+      const duration =
+        typeof asset.duration === "number" && Number.isFinite(asset.duration)
+          ? asset.duration
+          : null;
+
+      if (duration !== null && duration > PRO_PLAN.limits.maxVideoDurationSeconds) {
+        // Exceeds 20 minutes: clean up Mux Asset and release slot
+        try {
+          await deleteMuxAsset(currentMuxAssetId);
+        } catch (cleanupErr) {
+          console.error(`[Mux Cleanup] Error deleting oversized asset ${currentMuxAssetId}:`, cleanupErr);
+        }
+
+        const [erroredVideo] = await db
+          .update(videos)
+          .set({
+            status: "errored",
+            duration,
+            muxAssetId: null,
+            muxPlaybackId: null,
+            errorMessage: "Este vídeo ultrapassa o limite de 20 minutos do seu plano.",
+          })
+          .where(eq(videos.id, videoId))
+          .returning();
+
+        return {
+          success: true,
+          video: erroredVideo,
+          error: "Este vídeo ultrapassa o limite de 20 minutos do seu plano.",
+        };
+      }
+
       if (asset.status === "ready") {
         const publicPlayback =
           asset.playback_ids?.find((p) => p.policy === "public") ||
           asset.playback_ids?.[0];
         const playbackId = publicPlayback?.id || null;
-        const duration =
-          typeof asset.duration === "number" && Number.isFinite(asset.duration)
-            ? asset.duration
-            : null;
 
         const [readyVideo] = await db
           .update(videos)
@@ -222,6 +293,7 @@ export async function syncVideoStatus(
           .set({
             status: "processing",
             muxAssetId: currentMuxAssetId,
+            duration,
           })
           .where(eq(videos.id, videoId))
           .returning();
@@ -291,7 +363,7 @@ export async function deleteVideo(
     }
   }
 
-  // 4. Delete database record (cascades to videoPlayerSettings)
+  // 4. Delete database record (cascades to videoPlayerSettings and playSessions)
   await db
     .delete(videos)
     .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)));

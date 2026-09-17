@@ -27,7 +27,7 @@ export const updatePlayerConfigActionSchema = z.object({
     appearance: z
       .object({
         accentColor: z.enum(["purple", "blue", "emerald", "orange", "rose"]).optional(),
-        aspectRatio: z.enum(["16:9", "9:16"]).optional(),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).optional(),
         showTitle: z.boolean().optional(),
       })
       .optional(),

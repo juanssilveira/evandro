@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getVideoByPublicId, syncVideoStatus } from "@/lib/videos";
 import { getPlayerConfigByVideoId } from "@/lib/player-settings";
-import { getHlsPlaybackUrl } from "@/lib/mux";
 import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
 import { getMuxPosterUrl } from "@/lib/background-preview";
 
@@ -55,7 +54,6 @@ export async function GET(
       );
     }
 
-    const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
     const posterUrl = getMuxPosterUrl(video.muxPlaybackId);
     const backgroundPreviewUrl =
       video.backgroundPreviewStatus === "ready" && video.backgroundPreviewKey
@@ -63,17 +61,17 @@ export async function GET(
         : null;
 
     const config = await getPlayerConfigByVideoId(video.id);
+    const playbackUrl = `https://stream.mux.com/${video.muxPlaybackId}.m3u8`;
 
-    // Return public data for embed and preview players
     return NextResponse.json(
       {
         videoId: video.publicId,
         title: video.title,
-        playback: {
-          type: "hls",
-          url: playbackUrl,
-        },
         playbackUrl,
+        playback: {
+          url: playbackUrl,
+          type: "hls",
+        },
         posterUrl,
         backgroundPreviewUrl,
         config,
@@ -89,7 +87,7 @@ export async function GET(
   } catch (error) {
     console.error("[Embed API Error]", error);
     return NextResponse.json(
-      { error: "Falha ao carregar reprodução do vídeo." },
+      { error: "Falha ao carregar informações do vídeo." },
       { status: 500, headers: CORS_HEADERS }
     );
   }

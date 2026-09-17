@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2, Play } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -72,17 +72,12 @@ export default function LoginPage() {
 
   return (
     <Card className="border-border bg-card shadow-sm rounded-xl">
-      <CardHeader className="space-y-2 text-center pb-6">
-        <div className="flex justify-center mb-1">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-b from-violet-500 to-[#7C3AED] text-white font-bold shadow-[0_1px_2px_rgba(0,0,0,0.1),0_2px_0_#6D28D9] border border-[#6D28D9]">
-            <Play className="size-5 fill-white ml-0.5" />
-          </div>
-        </div>
+      <CardHeader className="space-y-1.5 text-center pb-6">
         <CardTitle className="text-xl font-bold tracking-tight text-foreground">
-          Entrar no WatchMap
+          Entrar na sua conta
         </CardTitle>
         <CardDescription className="text-muted-foreground text-xs max-w-xs mx-auto">
-          Informe suas credenciais para acessar sua conta e gerenciar seus vídeos
+          Informe suas credenciais para gerenciar e configurar seus vídeos
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>

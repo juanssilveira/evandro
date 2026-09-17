@@ -76,7 +76,7 @@ export const PLAYER_ACCENT_PRESETS: Record<PlayerAccentColor, PlayerAccentPreset
   },
 };
 
-export const playerAspectRatios = ["16:9", "9:16"] as const;
+export const playerAspectRatios = ["16:9", "9:16", "1:1"] as const;
 export type PlayerAspectRatio = (typeof playerAspectRatios)[number];
 
 export const playerPlaybackRates = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
