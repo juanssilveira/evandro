@@ -5,7 +5,7 @@
 Repositório oficial:
 
 ```text
-juanssilveira/watchmap
+juanssilveira/evandro
 ```
 
 Branches permanentes:
