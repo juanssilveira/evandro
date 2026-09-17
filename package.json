@@ -15,8 +15,9 @@
     "plan:revoke-pro": "node scripts/revoke-pro.mjs",
     "redeem:generate": "node scripts/generate-redeem-code.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/migrate.mjs",
     "db:studio": "drizzle-kit studio"
+
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1133.0",
