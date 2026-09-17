@@ -35,6 +35,7 @@ import {
   Folder as FolderIcon,
   SearchX,
   ArrowLeft,
+  Check,
 } from "lucide-react";
 import type { Video } from "@/db/schema";
 import type { Folder, FolderColor } from "@/db/schema/folders";
@@ -310,7 +311,8 @@ export function VideosLibrary({
     [localVideos, localFolders, videoPlaysMap, currentFolder, toast, router]
   );
 
-  const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "all";
+  const hasActiveFilters =
+    searchQuery.trim() !== "" || statusFilter !== "all" || sortBy !== "newest";
 
   const folderConfig = currentFolder
     ? FOLDER_COLOR_CONFIGS[(currentFolder.color as FolderColor) || "gray"] ||
@@ -385,27 +387,42 @@ export function VideosLibrary({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-9 gap-1.5 text-xs font-medium text-foreground bg-white dark:bg-zinc-900 border-border shadow-2xs hover:bg-muted/50 cursor-pointer"
+                      className={cn(
+                        "h-9 gap-1.5 text-xs font-medium text-foreground bg-white dark:bg-zinc-900 border-border shadow-2xs hover:bg-muted/50 cursor-pointer transition-colors",
+                        statusFilter !== "all" &&
+                          "border-primary/40 bg-primary/5 text-primary dark:bg-primary/10 font-semibold"
+                      )}
                     >
-                      <Filter className="size-3.5 text-muted-foreground" />
+                      <Filter
+                        className={cn(
+                          "size-3.5",
+                          statusFilter !== "all"
+                            ? "text-primary"
+                            : "text-muted-foreground"
+                        )}
+                      />
                       <span>Status: {statusLabels[statusFilter]}</span>
                       <ChevronDown className="size-3 text-muted-foreground ml-0.5 opacity-70" />
                     </Button>
                   }
                 />
-                <DropdownMenuContent align="start" className="w-36">
-                  <DropdownMenuItem onClick={() => setStatusFilter("all")}>
-                    Todos
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter("ready")}>
-                    Prontos
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter("processing")}>
-                    Processando
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter("errored")}>
-                    Com erro
-                  </DropdownMenuItem>
+                <DropdownMenuContent align="start" className="w-40">
+                  {(["all", "ready", "processing", "errored"] as StatusFilter[]).map((key) => {
+                    const isSelected = statusFilter === key;
+                    return (
+                      <DropdownMenuItem
+                        key={key}
+                        onClick={() => setStatusFilter(key)}
+                        className={cn(
+                          "flex items-center justify-between gap-2 text-xs cursor-pointer",
+                          isSelected && "font-semibold text-primary"
+                        )}
+                      >
+                        <span>{statusLabels[key]}</span>
+                        {isSelected && <Check className="size-3.5 text-primary stroke-[2.5]" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -417,26 +434,63 @@ export function VideosLibrary({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-9 gap-1.5 text-xs font-medium text-foreground bg-white dark:bg-zinc-900 border-border shadow-2xs hover:bg-muted/50 cursor-pointer"
+                      className={cn(
+                        "h-9 gap-1.5 text-xs font-medium text-foreground bg-white dark:bg-zinc-900 border-border shadow-2xs hover:bg-muted/50 cursor-pointer transition-colors",
+                        sortBy !== "newest" &&
+                          "border-primary/40 bg-primary/5 text-primary dark:bg-primary/10 font-semibold"
+                      )}
                     >
-                      <ArrowUpDown className="size-3.5 text-muted-foreground" />
+                      <ArrowUpDown
+                        className={cn(
+                          "size-3.5",
+                          sortBy !== "newest"
+                            ? "text-primary"
+                            : "text-muted-foreground"
+                        )}
+                      />
                       <span>{sortLabels[sortBy]}</span>
                       <ChevronDown className="size-3 text-muted-foreground ml-0.5 opacity-70" />
                     </Button>
                   }
                 />
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem onClick={() => setSortBy("newest")}>
-                    Mais recentes
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("oldest")}>
-                    Mais antigos
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("title")}>
-                    Nome (A-Z)
-                  </DropdownMenuItem>
+                <DropdownMenuContent align="end" className="w-44">
+                  {(["newest", "oldest", "title"] as SortOption[]).map((key) => {
+                    const isSelected = sortBy === key;
+                    return (
+                      <DropdownMenuItem
+                        key={key}
+                        onClick={() => setSortBy(key)}
+                        className={cn(
+                          "flex items-center justify-between gap-2 text-xs cursor-pointer",
+                          isSelected && "font-semibold text-primary"
+                        )}
+                      >
+                        <span>{sortLabels[key]}</span>
+                        {isSelected && <Check className="size-3.5 text-primary stroke-[2.5]" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Limpar Filtros Button */}
+              {hasActiveFilters && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setStatusFilter("all");
+                    setSortBy("newest");
+                  }}
+                  className="h-9 gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/80 cursor-pointer transition-colors"
+                  title="Limpar todos os filtros e busca"
+                >
+                  <X className="size-3.5" />
+                  <span>Limpar filtros</span>
+                </Button>
+              )}
 
               {/* Total Indicator */}
               <div className="hidden md:flex items-center pl-2 pr-3 text-xs font-mono text-muted-foreground">
@@ -534,6 +588,7 @@ export function VideosLibrary({
                     onClick={() => {
                       setSearchQuery("");
                       setStatusFilter("all");
+                      setSortBy("newest");
                     }}
                     className="h-8 px-3 text-xs font-medium cursor-pointer shadow-2xs"
                   >

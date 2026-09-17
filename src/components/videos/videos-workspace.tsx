@@ -2,11 +2,16 @@
 
 import * as React from "react";
 import { useState, useRef, useCallback, createContext, useContext } from "react";
+import { useRouter } from "next/navigation";
 import { UploadDialog } from "@/components/videos/upload-dialog";
+import { CreateFolderDialog } from "@/components/videos/create-folder-dialog";
+import { LibraryContextMenu } from "@/components/videos/library-context-menu";
+import type { ContextMenuPosition } from "@/components/videos/video-context-menu";
 import { UploadCloud } from "lucide-react";
 
 interface VideosWorkspaceContextType {
   openNewVideoModal: (file?: File | null, folderId?: string | null) => void;
+  openNewFolderModal: () => void;
 }
 
 const VideosWorkspaceContext = createContext<VideosWorkspaceContextType | null>(null);
@@ -38,18 +43,26 @@ function isValidVideoFile(file: File): boolean {
 }
 
 export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const router = useRouter();
+
+  // Upload modal state
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [modalFile, setModalFile] = useState<File | null>(null);
   const [overrideFolderId, setOverrideFolderId] = useState<string | null | undefined>(undefined);
 
   const activeFolderId = overrideFolderId !== undefined ? overrideFolderId : (folderId ?? null);
 
+  // Create folder modal state
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+
+  // Library background context menu state
+  const [libraryContextMenuPosition, setLibraryContextMenuPosition] = useState<ContextMenuPosition | null>(null);
+
   // Drag & drop state
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragCounterRef = useRef(0);
 
-  // Open modal handler (unified for Header, Empty State, and Drop)
+  // Open upload modal handler (unified for Header, Empty State, and Drop)
   const openNewVideoModal = useCallback((file?: File | null, targetFolderId?: string | null) => {
     setModalFile(file || null);
     if (targetFolderId !== undefined) {
@@ -57,16 +70,51 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
     } else {
       setOverrideFolderId(folderId ?? null);
     }
-    setIsModalOpen(true);
+    setIsUploadModalOpen(true);
   }, [folderId]);
 
-  const handleModalOpenChange = useCallback((open: boolean) => {
-    setIsModalOpen(open);
+  const openNewFolderModal = useCallback(() => {
+    setIsCreateFolderOpen(true);
+  }, []);
+
+  const handleUploadModalOpenChange = useCallback((open: boolean) => {
+    setIsUploadModalOpen(open);
     if (!open) {
       setModalFile(null);
       setOverrideFolderId(undefined);
     }
   }, []);
+
+  // Library background context menu handlers
+  const handleLibraryContextMenu = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    // Do not intercept right clicks on interactive elements, controls, inputs, buttons, dialogs, dropdowns
+    const isInteractive = target.closest(
+      'button, a, input, select, textarea, [role="button"], [role="menuitem"], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]'
+    );
+    if (isInteractive) {
+      return;
+    }
+
+    e.preventDefault();
+    setLibraryContextMenuPosition({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleCloseLibraryContextMenu = useCallback(() => {
+    setLibraryContextMenuPosition(null);
+  }, []);
+
+  const handleNewFolderFromContext = useCallback(() => {
+    setLibraryContextMenuPosition(null);
+    setIsCreateFolderOpen(true);
+  }, []);
+
+  const handleUploadVideoFromContext = useCallback(() => {
+    setLibraryContextMenuPosition(null);
+    openNewVideoModal(null, folderId ?? null);
+  }, [openNewVideoModal, folderId]);
 
   // Helper to distinguish external file drop from internal video card drag
   const isExternalFileDrag = (e: React.DragEvent) => {
@@ -127,13 +175,14 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
   };
 
   return (
-    <VideosWorkspaceContext.Provider value={{ openNewVideoModal }}>
+    <VideosWorkspaceContext.Provider value={{ openNewVideoModal, openNewFolderModal }}>
       <div
+        onContextMenu={handleLibraryContextMenu}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        className="relative flex-1 flex flex-col"
+        className="relative flex-1 flex flex-col min-h-screen"
       >
         {children}
 
@@ -159,10 +208,27 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
           </div>
         )}
 
+        {/* ── Library Background Context Menu (Global for whole library workspace) ── */}
+        <LibraryContextMenu
+          position={libraryContextMenuPosition}
+          onClose={handleCloseLibraryContextMenu}
+          onNewFolder={handleNewFolderFromContext}
+          onUploadVideo={handleUploadVideoFromContext}
+        />
+
+        {/* ── Unified Create Folder Dialog ── */}
+        <CreateFolderDialog
+          open={isCreateFolderOpen}
+          onOpenChange={setIsCreateFolderOpen}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+
         {/* ── Unified Single Modal ── */}
         <UploadDialog
-          open={isModalOpen}
-          onOpenChange={handleModalOpenChange}
+          open={isUploadModalOpen}
+          onOpenChange={handleUploadModalOpenChange}
           initialFile={modalFile}
           folderId={activeFolderId}
         />

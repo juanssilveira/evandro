@@ -28,11 +28,12 @@ interface CreateFolderDialogProps {
   onSuccess?: () => void;
 }
 
-export function CreateFolderDialog({
-  open,
-  onOpenChange,
-  onSuccess,
-}: CreateFolderDialogProps) {
+interface CreateFolderFormProps {
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+function CreateFolderForm({ onClose, onSuccess }: CreateFolderFormProps) {
   const [name, setName] = useState("");
   const [color, setColor] = useState<FolderColor>("gray");
   const [isPending, setIsPending] = useState(false);
@@ -40,16 +41,6 @@ export function CreateFolderDialog({
 
   const router = useRouter();
   const { toast } = useToast();
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (isPending) return;
-    onOpenChange(nextOpen);
-    if (!nextOpen) {
-      setName("");
-      setColor("gray");
-      setError(null);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +68,8 @@ export function CreateFolderDialog({
       }
 
       toast(`Pasta "${res.folder.name}" criada com sucesso.`, "success");
-      handleOpenChange(false);
+      setIsPending(false);
+      onClose();
       router.refresh();
       onSuccess?.();
     } catch {
@@ -87,117 +79,132 @@ export function CreateFolderDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <DialogHeader className="space-y-1.5 pr-6">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary-soft text-primary border border-primary/20 shrink-0">
+            <FolderPlus className="size-4" />
+          </div>
+          <DialogTitle className="text-base font-semibold text-foreground">
+            Nova pasta
+          </DialogTitle>
+        </div>
+        <DialogDescription className="text-xs text-muted-foreground">
+          Crie uma pasta para organizar e agrupar seus vídeos na Biblioteca.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-4">
+        {error && (
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium"
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Name Input */}
+        <div className="space-y-1.5">
+          <Label htmlFor="create-folder-name" className="text-xs font-medium text-foreground">
+            Nome da pasta <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="create-folder-name"
+            type="text"
+            placeholder="Ex: VSLs de Teste, Black Friday..."
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (error) setError(null);
+            }}
+            disabled={isPending}
+            maxLength={80}
+            autoFocus
+            required
+            className="text-xs h-9 bg-white dark:bg-zinc-900 border-border"
+          />
+        </div>
+
+        {/* Color Picker Swatches */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-foreground">
+            Cor de identificação
+          </Label>
+          <div className="flex items-center gap-3 pt-0.5">
+            {folderColors.map((c) => {
+              const cfg = FOLDER_COLOR_CONFIGS[c];
+              const isSelected = color === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  disabled={isPending}
+                  title={cfg.label}
+                  aria-label={`Cor ${cfg.label}`}
+                  className={cn(
+                    "relative flex size-7 items-center justify-center rounded-full transition-all cursor-pointer",
+                    cfg.swatchBg,
+                    isSelected
+                      ? "ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-950 scale-110 shadow-xs"
+                      : "hover:scale-105 opacity-85 hover:opacity-100 ring-1 ring-black/10 dark:ring-white/10"
+                  )}
+                >
+                  {isSelected && <Check className="size-3.5 text-white stroke-[3]" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter className="pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isPending}
+          onClick={onClose}
+          className="cursor-pointer"
+        >
+          Cancelar
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={isPending || !name.trim()}
+          className="cursor-pointer font-medium"
+        >
+          {isPending ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin mr-1.5" />
+              Criando...
+            </>
+          ) : (
+            "Criar pasta"
+          )}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+export function CreateFolderDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: CreateFolderDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup className="max-w-[460px] p-6">
         <DialogClose />
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <DialogHeader className="space-y-1.5 pr-6">
-            <div className="flex items-center gap-2.5">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary-soft text-primary border border-primary/20 shrink-0">
-                <FolderPlus className="size-4" />
-              </div>
-              <DialogTitle className="text-base font-semibold text-foreground">
-                Nova pasta
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Crie uma pasta para organizar e agrupar seus vídeos na Biblioteca.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {error && (
-              <div
-                role="alert"
-                className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium"
-              >
-                {error}
-              </div>
-            )}
-
-            {/* Name Input */}
-            <div className="space-y-1.5">
-              <Label htmlFor="create-folder-name" className="text-xs font-medium text-foreground">
-                Nome da pasta <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="create-folder-name"
-                type="text"
-                placeholder="Ex: VSLs de Teste, Black Friday..."
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (error) setError(null);
-                }}
-                disabled={isPending}
-                maxLength={80}
-                autoFocus
-                required
-                className="text-xs h-9 bg-white dark:bg-zinc-900 border-border"
-              />
-            </div>
-
-            {/* Color Picker Swatches */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium text-foreground">
-                Cor de identificação
-              </Label>
-              <div className="flex items-center gap-3 pt-0.5">
-                {folderColors.map((c) => {
-                  const cfg = FOLDER_COLOR_CONFIGS[c];
-                  const isSelected = color === c;
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setColor(c)}
-                      disabled={isPending}
-                      title={cfg.label}
-                      aria-label={`Cor ${cfg.label}`}
-                      className={cn(
-                        "relative flex size-7 items-center justify-center rounded-full transition-all cursor-pointer",
-                        cfg.swatchBg,
-                        isSelected
-                          ? "ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-950 scale-110 shadow-xs"
-                          : "hover:scale-105 opacity-85 hover:opacity-100 ring-1 ring-black/10 dark:ring-white/10"
-                      )}
-                    >
-                      {isSelected && <Check className="size-3.5 text-white stroke-[3]" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isPending}
-              onClick={() => handleOpenChange(false)}
-              className="cursor-pointer"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isPending || !name.trim()}
-              className="cursor-pointer font-medium"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin mr-1.5" />
-                  Criando...
-                </>
-              ) : (
-                "Criar pasta"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+        {open && (
+          <CreateFolderForm
+            onClose={() => onOpenChange(false)}
+            onSuccess={onSuccess}
+          />
+        )}
       </DialogPopup>
     </Dialog>
   );

@@ -65,7 +65,8 @@ export function DeleteFolderDialog({
       }
 
       toast(`Pasta "${folder.name}" excluída.`, "success");
-      handleOpenChange(false);
+      setIsPending(false);
+      onOpenChange(false);
 
       if (redirectToLibrary) {
         router.push("/videos");
