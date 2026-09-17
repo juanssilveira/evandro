@@ -6,7 +6,7 @@ import {
   videos,
   type Subscription,
 } from "@/db/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or, isNull, gt } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getPlanByCode, PRO_PLAN, type PlanDefinition } from "./catalog";
@@ -42,13 +42,18 @@ export function getCurrentPeriodKey(date = new Date()): string {
 export async function getActiveSubscription(
   userId: string
 ): Promise<Subscription | null> {
+  const now = new Date();
   const [sub] = await db
     .select()
     .from(subscriptions)
     .where(
       and(
         eq(subscriptions.userId, userId),
-        eq(subscriptions.status, "active")
+        eq(subscriptions.status, "active"),
+        or(
+          isNull(subscriptions.expiresAt),
+          gt(subscriptions.expiresAt, now)
+        )
       )
     )
     .orderBy(desc(subscriptions.createdAt))

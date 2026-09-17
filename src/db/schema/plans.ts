@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, bigint, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, bigint, integer, index, unique } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { videos } from "./videos";
 
@@ -15,6 +15,7 @@ export const subscriptions = pgTable(
     planCode: text("plan_code").notNull().default("pro"),
     status: text("status").notNull().default("active"),
     startedAt: timestamp("started_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at"),
     endedAt: timestamp("ended_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
@@ -25,6 +26,23 @@ export const subscriptions = pgTable(
   (t) => [
     index("subscriptions_user_id_idx").on(t.userId),
     index("subscriptions_user_id_status_idx").on(t.userId, t.status),
+  ]
+);
+
+export const redeemCodes = pgTable(
+  "redeem_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    codeHash: text("code_hash").notNull().unique(),
+    planCode: text("plan_code").notNull().default("pro"),
+    durationDays: integer("duration_days").notNull(),
+    usedAt: timestamp("used_at"),
+    usedByUserId: text("used_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("redeem_codes_code_hash_idx").on(t.codeHash),
+    index("redeem_codes_used_by_user_id_idx").on(t.usedByUserId),
   ]
 );
 
@@ -75,7 +93,10 @@ export const playSessions = pgTable(
 
 export type Subscription = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
+export type RedeemCode = typeof redeemCodes.$inferSelect;
+export type NewRedeemCode = typeof redeemCodes.$inferInsert;
 export type MonthlyUsage = typeof monthlyUsage.$inferSelect;
 export type NewMonthlyUsage = typeof monthlyUsage.$inferInsert;
 export type PlaySession = typeof playSessions.$inferSelect;
 export type NewPlaySession = typeof playSessions.$inferInsert;
+

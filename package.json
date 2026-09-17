@@ -13,6 +13,7 @@
     "plan:grant-pro": "node scripts/grant-pro.mjs",
     "plan:revoke": "node scripts/revoke-pro.mjs",
     "plan:revoke-pro": "node scripts/revoke-pro.mjs",
+    "redeem:generate": "node scripts/generate-redeem-code.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

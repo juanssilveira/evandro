@@ -63,6 +63,9 @@ export default async function SettingsPage() {
             maxPlays: usageStats.maxPlays,
             maxVideoDurationSeconds: planLimits.maxVideoDurationSeconds,
             maxPlaybackResolution: planLimits.maxPlaybackResolution,
+            expiresAt: usageStats.subscription?.expiresAt
+              ? usageStats.subscription.expiresAt.toISOString()
+              : null,
           }}
         />
       </main>

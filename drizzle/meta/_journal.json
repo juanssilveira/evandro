@@ -64,6 +64,13 @@
       "when": 1789616000000,
       "tag": "0008_plans_and_real_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789620000000,
+      "tag": "0009_redeem_codes_and_expiration",
+      "breakpoints": true
     }
   ]
 }

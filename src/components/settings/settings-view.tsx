@@ -23,6 +23,7 @@ interface SettingsViewProps {
     maxPlays: number;
     maxVideoDurationSeconds: number;
     maxPlaybackResolution: number;
+    expiresAt?: string | null;
   };
   defaultTab?: SettingsTab;
 }
@@ -134,6 +135,7 @@ export function SettingsView({
               maxPlays={plan.maxPlays}
               maxVideoDurationSeconds={plan.maxVideoDurationSeconds}
               maxPlaybackResolution={plan.maxPlaybackResolution}
+              expiresAt={plan.expiresAt}
             />
           </section>
         )}

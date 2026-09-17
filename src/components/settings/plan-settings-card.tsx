@@ -11,6 +11,17 @@ interface PlanSettingsCardProps {
   maxPlays: number;
   maxVideoDurationSeconds: number;
   maxPlaybackResolution: number;
+  expiresAt?: string | Date | null;
+}
+
+function formatExpirationDate(dateInput: string | Date): string {
+  const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(d);
 }
 
 export function PlanSettingsCard({
@@ -22,6 +33,7 @@ export function PlanSettingsCard({
   maxPlays,
   maxVideoDurationSeconds,
   maxPlaybackResolution,
+  expiresAt,
 }: PlanSettingsCardProps) {
   const videoPercentage = Math.min(
     100,
@@ -70,13 +82,25 @@ export function PlanSettingsCard({
               </span>
             </div>
           </div>
-          <div className="text-left sm:text-right space-y-0.5">
-            <span className="text-xs text-muted-foreground font-medium">
-              Ciclo atual
-            </span>
-            <p className="text-xs font-mono font-medium text-foreground">
-              {periodKey}
-            </p>
+          <div className="flex items-center gap-6 text-left sm:text-right">
+            {expiresAt && (
+              <div className="space-y-0.5">
+                <span className="text-xs text-muted-foreground font-medium">
+                  Válido até
+                </span>
+                <p className="text-xs font-mono font-medium text-foreground">
+                  {formatExpirationDate(expiresAt)}
+                </p>
+              </div>
+            )}
+            <div className="space-y-0.5">
+              <span className="text-xs text-muted-foreground font-medium">
+                Ciclo atual
+              </span>
+              <p className="text-xs font-mono font-medium text-foreground">
+                {periodKey}
+              </p>
+            </div>
           </div>
         </div>
 
