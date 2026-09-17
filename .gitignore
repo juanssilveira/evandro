@@ -45,3 +45,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local maintenance scripts
+scripts/grant-pro.*
+scripts/revoke-pro.*
+scripts/reset-password.*
