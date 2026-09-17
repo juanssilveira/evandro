@@ -34,7 +34,7 @@ import { calculateFakeProgress } from "@/lib/player/fake-progress-engine";
 import Hls from "hls.js";
 
 interface WatchMapPlayerProps {
-  src: string;
+  src?: string;
   videoId?: string;
   title?: string;
   className?: string;
@@ -42,6 +42,7 @@ interface WatchMapPlayerProps {
   posterUrl?: string | null;
   backgroundPreviewUrl?: string | null;
   isEditor?: boolean;
+  apiBase?: string;
   config?: PlayerConfig;
   debugEnabled?: boolean;
   onEvent?: PlayerEventListener;
@@ -69,6 +70,8 @@ export function WatchMapPlayer({
   className,
   posterUrl,
   backgroundPreviewUrl,
+  isEditor = false,
+  apiBase,
   config = DEFAULT_PLAYER_CONFIG,
   debugEnabled,
   onEvent,
@@ -82,6 +85,22 @@ export function WatchMapPlayer({
   const playbackControllerRef = useRef<PlaybackController | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const hasResolvedInitialPlaybackRef = useRef(false);
+
+  const [activatedSrc, setActivatedSrc] = useState<string | null>(null);
+  const resolvedSrc = activatedSrc || src || "";
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Play session ID for server-side activation and quota tracking (idempotent per instance)
+  const playSessionIdRef = useRef<string | null>(null);
+  const getPlaySessionId = useCallback(() => {
+    if (!playSessionIdRef.current) {
+      playSessionIdRef.current =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    }
+    return playSessionIdRef.current;
+  }, []);
 
   // Effective configuration
   const effectiveConfig = React.useMemo<PlayerConfig>(
@@ -139,12 +158,13 @@ export function WatchMapPlayer({
   const isControlsHidden = effectiveConfig.controls.hidden;
   const fullscreenConfig = effectiveConfig.controls.fullscreen;
 
-  // Extract Mux Playback ID from src if present
+  // Extract Mux Playback ID from resolvedSrc if present
   const muxPlaybackId = React.useMemo(() => {
-    if (!src) return null;
-    const match = src.match(/stream\.mux\.com\/([a-zA-Z0-9_-]+)\.m3u8/);
+    const media = resolvedSrc || src;
+    if (!media) return null;
+    const match = media.match(/stream\.mux\.com\/([a-zA-Z0-9_-]+)\.m3u8/);
     return match ? match[1] : null;
-  }, [src]);
+  }, [resolvedSrc, src]);
 
   // Derive highest-quality available preview (R2 WebP > Mux Animated WebP > R2/Custom Poster > Mux Thumbnail)
   const displayPreviewSrc =
@@ -181,10 +201,8 @@ export function WatchMapPlayer({
 
   const playbackMode: PlaybackMode = isBackgroundAutoplay ? "background_autoplay" : "foreground";
 
-  // Lazy media attachment: HLS is deferred when in background autoplay until user interaction
-  const isMediaAttached = Boolean(
-    userActivatedForeground || !effectiveConfig.playback?.backgroundAutoplay
-  );
+  // Immediate media attachment: Video is ALWAYS attached and buffered immediately upon access
+  const isMediaAttached = Boolean(resolvedSrc);
 
   // Derived Lightweight Background Preview ONLY renders when Background Autoplay is active for this video
   const isPreviewVisible = Boolean(
@@ -210,6 +228,8 @@ export function WatchMapPlayer({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isDraggingSeek, setIsDraggingSeek] = useState(false);
+  const [isVolumeHovered, setIsVolumeHovered] = useState(false);
+  const [isDraggingVolume, setIsDraggingVolume] = useState(false);
   const lastVolumeRef = useRef(initialVolume);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -325,8 +345,8 @@ export function WatchMapPlayer({
 
   // Attach media source conditionally (Only if foreground is active or autoplay requested)
   useEffect(() => {
-    if (isMediaAttached) {
-      attachMediaSource(src);
+    if (isMediaAttached && resolvedSrc) {
+      attachMediaSource(resolvedSrc);
     }
 
     return () => {
@@ -335,7 +355,7 @@ export function WatchMapPlayer({
         hlsRef.current = null;
       }
     };
-  }, [src, isMediaAttached, attachMediaSource]);
+  }, [resolvedSrc, isMediaAttached, attachMediaSource]);
 
   // Initialize PlayerRuntime and PlaybackController lifecycle
   useEffect(() => {
@@ -416,12 +436,12 @@ export function WatchMapPlayer({
     if (hideTimeoutRef.current) {
       clearTimeout(hideTimeoutRef.current);
     }
-    if (isPlaying && !showSettings && !isDraggingSeek) {
+    if (isPlaying && !showSettings && !isDraggingSeek && !isDraggingVolume) {
       hideTimeoutRef.current = setTimeout(() => {
         setControlsVisible(false);
       }, 2500);
     }
-  }, [isPlaying, showSettings, isDraggingSeek]);
+  }, [isPlaying, showSettings, isDraggingSeek, isDraggingVolume]);
 
   const handleMouseMove = () => {
     if (playbackMode === "background_autoplay") return;
@@ -429,21 +449,45 @@ export function WatchMapPlayer({
   };
 
   const handleMouseLeave = () => {
-    if (isPlaying && !showSettings && !isDraggingSeek) {
+    if (isPlaying && !showSettings && !isDraggingSeek && !isDraggingVolume) {
       setControlsVisible(false);
     }
   };
 
-  // Main foreground playback activation (seamless preview -> HLS transition)
-  const activateForegroundPlayback = useCallback(() => {
+  const hasRecordedPlayRef = useRef(false);
+
+  const recordPlayActivation = useCallback(async () => {
+    if (hasRecordedPlayRef.current) return;
+    hasRecordedPlayRef.current = true;
+
+    try {
+      const base = (apiBase || "").replace(/\/$/, "");
+      const activateEndpoint = `${base}/api/embed/videos/${encodeURIComponent(videoId)}/activate`;
+      await fetch(activateEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          playSessionId: getPlaySessionId(),
+          isEditor: Boolean(isEditor),
+        }),
+      });
+    } catch (err) {
+      console.warn("[WatchMap Player] Play activation report error:", err);
+    }
+  }, [apiBase, videoId, getPlaySessionId, isEditor]);
+
+  // Main foreground playback activation (seamless preview -> HLS transition with server authorization)
+  const activateForegroundPlayback = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
 
-    // 1. Transition mode
     setUserActivatedForeground(true);
+    recordPlayActivation();
 
-    // 2. Resolve volume and rate according to config / user choice
-    const targetVol = lastVolumeRef.current;
+    const targetVol = lastVolumeRef.current > 0 ? lastVolumeRef.current : defaultVolume;
     const targetRate = defaultPlaybackRate;
 
     video.volume = targetVol;
@@ -453,27 +497,84 @@ export function WatchMapPlayer({
     setIsMuted(targetVol === 0);
     setPlaybackRate(targetRate);
 
-    // 3. Attach HLS media source if not yet attached
+    let activeMediaUrl = resolvedSrc;
+
+    // If no HLS url resolved yet, request server activation with playSessionId
+    if (!activeMediaUrl) {
+      setIsLoading(true);
+      setHasError(false);
+      setErrorMessage(null);
+
+      try {
+        const base = (apiBase || "").replace(/\/$/, "");
+        const activateEndpoint = `${base}/api/embed/videos/${encodeURIComponent(videoId)}/activate`;
+        const response = await fetch(activateEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            playSessionId: getPlaySessionId(),
+            isEditor: Boolean(isEditor),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorJson = await response.json().catch(() => ({}));
+          throw new Error(errorJson.error || "Este vídeo está temporariamente indisponível.");
+        }
+
+        const resData = await response.json();
+        const playbackUrl = resData.playback?.url || resData.playbackUrl;
+        if (!playbackUrl) {
+          throw new Error("Este vídeo está temporariamente indisponível.");
+        }
+
+        activeMediaUrl = playbackUrl;
+        setActivatedSrc(playbackUrl);
+      } catch (err: unknown) {
+        console.error("[WatchMap Player] Playback activation failed:", err);
+        setIsLoading(false);
+        setHasError(true);
+        const msg =
+          err instanceof Error ? err.message : "Este vídeo está temporariamente indisponível.";
+        setErrorMessage(msg);
+        return;
+      }
+    }
+
+    // Attach HLS media source if not yet attached
     if (!hlsRef.current && (!video.src || video.src === "")) {
       pendingForegroundActivationRef.current = true;
-      attachMediaSource(src);
+      attachMediaSource(activeMediaUrl);
     } else {
       pendingForegroundActivationRef.current = false;
-      // 4. Delegate immediately to playback controller
       if (playbackControllerRef.current) {
         playbackControllerRef.current.startForegroundPlayback(targetVol);
       } else {
+        video.loop = false;
         if (video.currentTime !== 0) {
           video.currentTime = 0;
         }
         video.play().catch(() => {});
       }
     }
-  }, [attachMediaSource, defaultPlaybackRate, src]);
+  }, [
+    attachMediaSource,
+    defaultPlaybackRate,
+    defaultVolume,
+    resolvedSrc,
+    apiBase,
+    videoId,
+    isEditor,
+    getPlaySessionId,
+    recordPlayActivation,
+  ]);
 
   // Play / Pause toggle
   const togglePlay = useCallback(() => {
-    if (playbackMode === "background_autoplay") {
+    if (playbackMode === "background_autoplay" || !userActivatedForeground) {
       activateForegroundPlayback();
       return;
     }
@@ -481,9 +582,11 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video) return;
 
+    recordPlayActivation();
+
     // If currently playing muted due to browser autoplay fallback, clicking anywhere on the player immediately unmutes with audio
     if (isPlaying && (video.muted || isMuted)) {
-      const restored = lastVolumeRef.current > 0 ? lastVolumeRef.current : 1;
+      const restored = lastVolumeRef.current > 0 ? lastVolumeRef.current : defaultVolume;
       video.muted = false;
       video.volume = restored;
       setVolume(restored);
@@ -506,7 +609,16 @@ export function WatchMapPlayer({
     } else {
       video.pause();
     }
-  }, [playbackMode, isMediaAttached, isPlaying, isMuted, activateForegroundPlayback]);
+  }, [
+    playbackMode,
+    userActivatedForeground,
+    isMediaAttached,
+    isPlaying,
+    isMuted,
+    defaultVolume,
+    activateForegroundPlayback,
+    recordPlayActivation,
+  ]);
 
   // Mute toggle
   const toggleMute = useCallback(() => {
@@ -532,12 +644,13 @@ export function WatchMapPlayer({
   }, [isMuted, playbackMode, activateForegroundPlayback]);
 
   // Volume drag/click
-  const updateVolumeFromPosition = (clientX: number) => {
+  const updateVolumeFromPosition = useCallback((clientX: number) => {
     const track = volumeTrackRef.current;
     const video = videoRef.current;
     if (!track || !video) return;
 
     const rect = track.getBoundingClientRect();
+    if (rect.width === 0) return;
     const rawVol = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const newVol = Math.round(rawVol * 100) / 100;
 
@@ -548,9 +661,12 @@ export function WatchMapPlayer({
     if (newVol > 0) {
       lastVolumeRef.current = newVol;
     }
-  };
+  }, []);
 
   const handleVolumeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingVolume(true);
     updateVolumeFromPosition(e.clientX);
 
     const onMouseMove = (moveEvent: MouseEvent) => {
@@ -558,8 +674,10 @@ export function WatchMapPlayer({
     };
 
     const onMouseUp = () => {
+      setIsDraggingVolume(false);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      showControlsTemporarily();
     };
 
     window.addEventListener("mousemove", onMouseMove);
@@ -824,6 +942,7 @@ export function WatchMapPlayer({
   const realProgressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedPercent = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
   const effectiveVolume = isMuted ? 0 : volume;
+  const isVolumeOpen = isVolumeHovered || isDraggingVolume;
 
   // Fake Progress Bar (isolated layer, 0% during background autoplay)
   const isFakeProgressEnabled = Boolean(effectiveConfig.progress?.fake?.enabled);
@@ -834,7 +953,13 @@ export function WatchMapPlayer({
   const fakeProgressPercent = fakeProgress * 100;
   const fakeBarHeight = Math.max(2, Math.min(10, effectiveConfig.progress?.fake?.height ?? 4));
 
-  const isVertical = effectiveConfig.appearance?.aspectRatio === "9:16";
+  const aspectRatio = effectiveConfig.appearance?.aspectRatio ?? "16:9";
+  const aspectClass =
+    aspectRatio === "9:16"
+      ? "aspect-[9/16]"
+      : aspectRatio === "1:1"
+      ? "aspect-square"
+      : "aspect-video";
 
   return (
     <div
@@ -848,8 +973,8 @@ export function WatchMapPlayer({
       onDoubleClick={handleContainerDoubleClick}
       className={cn(
         "@container relative w-full rounded-xl overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl mx-auto",
-        isVertical ? "aspect-[9/16] max-w-[480px]" : "aspect-[16/9] max-w-[680px]",
-        isFullscreen && "rounded-none border-none max-h-screen max-w-none aspect-auto",
+        aspectClass,
+        isFullscreen && "rounded-none border-none max-h-screen max-w-none aspect-auto h-full",
         className
       )}
     >
@@ -874,7 +999,7 @@ export function WatchMapPlayer({
       <video
         ref={videoRef}
         playsInline
-        preload="metadata"
+        preload="auto"
         autoPlay={isBackgroundAutoplay}
         muted={isBackgroundAutoplay}
         controls={false}
@@ -913,14 +1038,13 @@ export function WatchMapPlayer({
               Não foi possível reproduzir o vídeo
             </h3>
             <p className="text-xs text-zinc-400 max-w-sm">
-              Ocorreu uma falha ao carregar a mídia. Verifique sua conexão e tente novamente.
+              {errorMessage || "Este vídeo está temporariamente indisponível."}
             </p>
           </div>
           <button
             type="button"
             onClick={() => {
-              setUserActivatedForeground(true);
-              attachMediaSource(src);
+              activateForegroundPlayback();
             }}
             className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors cursor-pointer"
           >
@@ -1065,7 +1189,7 @@ export function WatchMapPlayer({
             background: "linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0) 100%)",
           }}
           className={cn(
-            "absolute bottom-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 z-20 transition-opacity duration-300 flex flex-col gap-1.5 @min-[380px]:gap-2.5",
+            "absolute bottom-0 inset-x-0 p-2 @min-[380px]:p-3 @min-[520px]:p-4 z-20 transition-opacity duration-300 flex flex-col gap-1.5 @min-[380px]:gap-2.5",
             controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
           )}
         >
@@ -1104,53 +1228,83 @@ export function WatchMapPlayer({
           </div>
 
           {/* Control Buttons & Indicators Row (Responsive Flex Nowrap) */}
-          <div className="flex items-center justify-between gap-1.5 @min-[380px]:gap-2 text-white flex-nowrap">
+          <div className="flex items-center justify-between gap-1 @min-[340px]:gap-1.5 @min-[400px]:gap-2 text-white flex-nowrap min-w-0">
             {/* Left: Play/Pause, Volume, Time */}
-            <div className="flex items-center gap-1.5 @min-[380px]:gap-2 @min-[520px]:gap-3 min-w-0">
+            <div className="flex items-center gap-1 @min-[340px]:gap-1.5 @min-[440px]:gap-2.5 min-w-0 shrink">
               {/* Play/Pause Button */}
               <button
                 type="button"
                 onClick={togglePlay}
-                className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
+                className="p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
                 title={isPlaying ? "Pausar (Space)" : "Reproduzir (Space)"}
                 aria-label={isPlaying ? "Pausar" : "Reproduzir"}
               >
                 {isPlaying ? (
-                  <Pause className="size-4.5 @min-[380px]:size-5 fill-white/90" />
+                  <Pause className="size-4 @min-[380px]:size-5 fill-white/90" />
                 ) : (
-                  <Play className="size-4.5 @min-[380px]:size-5 fill-white/90" />
+                  <Play className="size-4 @min-[380px]:size-5 fill-white/90" />
                 )}
               </button>
 
-              {/* Volume & Custom Slider */}
-              <div className="flex items-center gap-1.5 @min-[380px]:gap-2 group/volume shrink-0">
+              {/* Volume & YouTube-style Expandable Slider */}
+              <div
+                className="flex items-center group/volume shrink-0 relative"
+                onMouseEnter={() => setIsVolumeHovered(true)}
+                onMouseLeave={() => setIsVolumeHovered(false)}
+              >
                 <button
                   type="button"
                   onClick={toggleMute}
-                  className="p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer"
+                  className="p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
                   title={isMuted || effectiveVolume === 0 ? "Ativar som (M)" : "Silenciar (M)"}
                   aria-label={isMuted || effectiveVolume === 0 ? "Ativar som" : "Silenciar"}
                 >
                   {isMuted || effectiveVolume === 0 ? (
-                    <VolumeX className="size-4.5 @min-[380px]:size-5 text-white/80" />
+                    <VolumeX className="size-4 @min-[380px]:size-5 text-white/80" />
                   ) : effectiveVolume < 0.5 ? (
-                    <Volume1 className="size-4.5 @min-[380px]:size-5 text-white/90" />
+                    <Volume1 className="size-4 @min-[380px]:size-5 text-white/90" />
                   ) : (
-                    <Volume2 className="size-4.5 @min-[380px]:size-5 text-white/90" />
+                    <Volume2 className="size-4 @min-[380px]:size-5 text-white/90" />
                   )}
                 </button>
 
                 <div
-                  ref={volumeTrackRef}
-                  onMouseDown={handleVolumeMouseDown}
-                  className="w-12 @min-[440px]:w-16 h-4 flex items-center cursor-pointer select-none"
+                  className={cn(
+                    "h-6 flex items-center transition-[width,opacity,margin] duration-200 ease-out overflow-hidden",
+                    isVolumeOpen
+                      ? "w-11 @min-[380px]:w-14 @min-[480px]:w-16 opacity-100 ml-1 mr-1 pointer-events-auto"
+                      : "w-0 opacity-0 m-0 pointer-events-none"
+                  )}
                 >
-                  <div className="relative w-full h-1 bg-white/25 rounded-full overflow-hidden">
+                  <div
+                    ref={volumeTrackRef}
+                    onMouseDown={handleVolumeMouseDown}
+                    className="relative w-full h-3 flex items-center cursor-pointer select-none group/voltrack"
+                    role="slider"
+                    aria-label="Volume"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(effectiveVolume * 100)}
+                  >
+                    {/* Background Track */}
+                    <div className="relative w-full h-1 bg-white/25 rounded-full overflow-hidden">
+                      {/* Filled Track */}
+                      <div
+                        className="absolute left-0 top-0 bottom-0 rounded-full"
+                        style={{
+                          width: `${effectiveVolume * 100}%`,
+                          backgroundColor: "var(--player-accent, #7C3AED)",
+                        }}
+                      />
+                    </div>
+
+                    {/* Volume Thumb */}
                     <div
-                      className="absolute left-0 top-0 bottom-0 rounded-full"
+                      className="absolute size-2.5 @min-[380px]:size-3 rounded-full bg-white shadow-sm pointer-events-none border transition-transform"
                       style={{
-                        width: `${effectiveVolume * 100}%`,
-                        backgroundColor: "var(--player-accent, #7C3AED)",
+                        left: `${effectiveVolume * 100}%`,
+                        transform: "translateX(-50%)",
+                        borderColor: "var(--player-accent, #7C3AED)",
                       }}
                     />
                   </div>
@@ -1158,28 +1312,28 @@ export function WatchMapPlayer({
               </div>
 
               {/* Time Display */}
-              <div className="text-[11px] @min-[400px]:text-xs font-mono text-zinc-300 tabular-nums whitespace-nowrap shrink-0">
+              <div className="text-[10px] @min-[340px]:text-[11px] @min-[440px]:text-xs font-mono text-zinc-300 tabular-nums whitespace-nowrap shrink-0">
                 <span>{formatTime(currentTime)}</span>
-                <span className="text-zinc-500 mx-1">/</span>
-                <span>{formatTime(duration)}</span>
+                <span className="text-zinc-500 mx-0.5 @min-[340px]:mx-1">/</span>
+                <span className="hidden @min-[290px]:inline">{formatTime(duration)}</span>
               </div>
             </div>
 
             {/* Right: Playback Speed & Fullscreen */}
-            <div className="flex items-center gap-1 @min-[380px]:gap-1.5 shrink-0">
+            <div className="flex items-center gap-0.5 @min-[340px]:gap-1 @min-[380px]:gap-1.5 shrink-0">
               {/* Settings / Speed Popup */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowSettings(!showSettings)}
                   className={cn(
-                    "p-1.5 rounded-md hover:bg-white/15 transition-colors focus:outline-none cursor-pointer",
+                    "p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 transition-colors focus:outline-none cursor-pointer",
                     showSettings ? "bg-white/20 text-white" : "text-white/80 hover:text-white"
                   )}
                   title="Velocidade de reprodução"
                   aria-label="Velocidade de reprodução"
                 >
-                  <Gauge className="size-4.5 @min-[380px]:size-5" />
+                  <Gauge className="size-4 @min-[380px]:size-5" />
                 </button>
 
                 {showSettings && (
@@ -1212,14 +1366,14 @@ export function WatchMapPlayer({
                 <button
                   type="button"
                   onClick={() => toggleFullscreen("button")}
-                  className="p-1.5 rounded-md hover:bg-white/15 text-white/80 hover:text-white transition-colors focus:outline-none cursor-pointer"
+                  className="p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 text-white/80 hover:text-white transition-colors focus:outline-none cursor-pointer"
                   title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
                   aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
                 >
                   {isFullscreen ? (
-                    <Minimize className="size-4.5 @min-[380px]:size-5" />
+                    <Minimize className="size-4 @min-[380px]:size-5" />
                   ) : (
-                    <Maximize className="size-4.5 @min-[380px]:size-5" />
+                    <Maximize className="size-4 @min-[380px]:size-5" />
                   )}
                 </button>
               )}
