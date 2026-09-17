@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useTransition, useState } from "react";
 import { updatePlayerConfigAction } from "@/app/actions/videos";
+import { useToast } from "@/components/ui/toast";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -44,6 +45,7 @@ export function VideoSettings({
   config,
   onConfigChange,
 }: VideoSettingsProps) {
+  const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [pendingField, setPendingField] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,8 +99,10 @@ export function VideoSettings({
       if (result.error) {
         onConfigChange(previousConfig);
         setError(result.error);
+        toast(result.error, "error");
       } else if (result.config) {
         onConfigChange(result.config as PlayerConfig);
+        toast("Alterações salvas", "success");
       }
     });
   };
@@ -171,6 +175,32 @@ export function VideoSettings({
   const isFullscreenEnabled = config.controls?.fullscreen?.enabled ?? true;
   const currentFakeHeight = config.progress?.fake?.height ?? 4;
   const isFakeProgressEnabled = config.progress?.fake?.enabled ?? false;
+
+  const [prevConfigVolume, setPrevConfigVolume] = useState(currentVolume);
+  const [localVolume, setLocalVolume] = useState(currentVolume);
+
+  if (currentVolume !== prevConfigVolume) {
+    setPrevConfigVolume(currentVolume);
+    setLocalVolume(currentVolume);
+  }
+
+  const [prevConfigRate, setPrevConfigRate] = useState(currentPlaybackRate);
+  const [customRateInput, setCustomRateInput] = useState<string>(String(currentPlaybackRate));
+
+  if (currentPlaybackRate !== prevConfigRate) {
+    setPrevConfigRate(currentPlaybackRate);
+    setCustomRateInput(String(currentPlaybackRate));
+  }
+
+  const handleCustomRateBlurOrSubmit = () => {
+    const parsed = parseFloat(customRateInput);
+    if (!isNaN(parsed) && parsed >= 0.25 && parsed <= 4) {
+      const rounded = Math.round(parsed * 100) / 100;
+      handlePlaybackRateSelect(rounded);
+    } else {
+      setCustomRateInput(String(currentPlaybackRate));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -482,6 +512,7 @@ export function VideoSettings({
               )}
             </div>
 
+            {/* Presets Grid */}
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-0.5">
               {playerPlaybackRates.map((rate) => {
                 const isSelected = currentPlaybackRate === rate;
@@ -491,7 +522,10 @@ export function VideoSettings({
                     key={rate}
                     type="button"
                     disabled={isPending}
-                    onClick={() => handlePlaybackRateSelect(rate)}
+                    onClick={() => {
+                      setCustomRateInput(String(rate));
+                      handlePlaybackRateSelect(rate);
+                    }}
                     className={cn(
                       "flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border transition-all text-center cursor-pointer",
                       isSelected
@@ -510,6 +544,36 @@ export function VideoSettings({
                   </button>
                 );
               })}
+            </div>
+
+            {/* Custom Speed Input */}
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/40">
+              <span className="text-[11px] text-muted-foreground font-medium">
+                Velocidade customizada
+              </span>
+              <div className="flex items-center gap-1.5 max-w-[120px]">
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    min={0.25}
+                    max={4}
+                    step={0.05}
+                    value={customRateInput}
+                    disabled={isPending}
+                    onChange={(e) => setCustomRateInput(e.target.value)}
+                    onBlur={handleCustomRateBlurOrSubmit}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    className="w-full px-2.5 py-1 text-xs font-mono font-semibold bg-background border border-border/80 rounded-md text-foreground text-right pr-6 focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground pointer-events-none">
+                    x
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -532,7 +596,7 @@ export function VideoSettings({
                   <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
                 )}
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-muted text-foreground border border-border/70">
-                  {currentVolume === 0 ? "0% (Mudo)" : `${Math.round(currentVolume * 100)}%`}
+                  {localVolume === 0 ? "0% (Mudo)" : `${Math.round(localVolume * 100)}%`}
                 </span>
               </div>
             </div>
@@ -545,13 +609,33 @@ export function VideoSettings({
                   type="range"
                   min={0}
                   max={1}
-                  step={0.05}
-                  value={currentVolume}
+                  step={0.01}
+                  value={localVolume}
                   disabled={isPending}
                   onChange={(e) => {
                     const val = Number(e.target.value);
                     if (!isNaN(val) && val >= 0 && val <= 1) {
-                      handleVolumeChange(Math.round(val * 100) / 100);
+                      const rounded = Math.round(val * 100) / 100;
+                      setLocalVolume(rounded);
+                      onConfigChange({
+                        ...config,
+                        playback: {
+                          ...config.playback,
+                          defaultVolume: rounded,
+                        },
+                      });
+                    }
+                  }}
+                  onPointerUp={(e) => {
+                    const val = Number((e.target as HTMLInputElement).value);
+                    const rounded = Math.round(val * 100) / 100;
+                    handleVolumeChange(rounded);
+                  }}
+                  onKeyUp={(e) => {
+                    if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") {
+                      const val = Number((e.target as HTMLInputElement).value);
+                      const rounded = Math.round(val * 100) / 100;
+                      handleVolumeChange(rounded);
                     }
                   }}
                   className="flex-1 accent-primary h-1.5 bg-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50"
