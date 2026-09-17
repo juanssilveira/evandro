@@ -6,6 +6,7 @@ import {
   getMuxDirectUpload,
   getMuxAsset,
   deleteMuxAsset,
+  getMuxClient,
 } from "@/lib/mux";
 import { generateAndStoreBackgroundPreview } from "@/lib/background-preview";
 import { deleteAssetObject } from "@/lib/asset-storage/r2";
@@ -262,10 +263,23 @@ export async function syncVideoStatus(
       }
 
       if (asset.status === "ready") {
-        const publicPlayback =
-          asset.playback_ids?.find((p) => p.policy === "public") ||
-          asset.playback_ids?.[0];
-        const playbackId = publicPlayback?.id || null;
+        const signedPlayback = asset.playback_ids?.find((p) => p.policy === "signed");
+        let playbackId = signedPlayback?.id || null;
+
+        if (!playbackId && currentMuxAssetId) {
+          try {
+            const mux = getMuxClient();
+            const newPlayback = await mux.video.assets.createPlaybackId(currentMuxAssetId, {
+              policy: "signed",
+            });
+            playbackId = newPlayback.id;
+          } catch (createErr) {
+            console.error(
+              `[Mux Sync] Failed to create signed playback ID for asset ${currentMuxAssetId}:`,
+              createErr
+            );
+          }
+        }
 
         const [readyVideo] = await db
           .update(videos)

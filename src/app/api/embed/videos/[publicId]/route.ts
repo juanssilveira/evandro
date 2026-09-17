@@ -3,6 +3,7 @@ import { getVideoByPublicId, syncVideoStatus } from "@/lib/videos";
 import { getPlayerConfigByVideoId } from "@/lib/player-settings";
 import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
 import { getMuxPosterUrl } from "@/lib/background-preview";
+import { resolvePlaybackEntitlement } from "@/lib/plans/playback";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +32,26 @@ export async function GET(
       );
     }
 
+    // -------------------------------------------------------------
+    // FASE 1 — ENTITLEMENT (Validate plan before inspecting media)
+    // -------------------------------------------------------------
+    const entitlement = await resolvePlaybackEntitlement(publicId);
+    if (!entitlement.authorized) {
+      return NextResponse.json(
+        { error: entitlement.error || "Este vídeo está temporariamente indisponível." },
+        {
+          status: entitlement.statusCode || 403,
+          headers: {
+            ...CORS_HEADERS,
+            "Cache-Control": "private, no-cache, no-store, must-revalidate",
+          },
+        }
+      );
+    }
+
+    // -------------------------------------------------------------
+    // FASE 2 — VISUAL CONFIG & DETAILS (No HLS or direct playback URLs)
+    // -------------------------------------------------------------
     let video = await getVideoByPublicId(publicId);
     if (!video) {
       return NextResponse.json(
@@ -54,24 +75,19 @@ export async function GET(
       );
     }
 
-    const posterUrl = getMuxPosterUrl(video.muxPlaybackId);
+    const posterUrl = await getMuxPosterUrl(video.muxPlaybackId);
     const backgroundPreviewUrl =
       video.backgroundPreviewStatus === "ready" && video.backgroundPreviewKey
         ? getAssetPublicUrl(video.backgroundPreviewKey)
         : null;
 
     const config = await getPlayerConfigByVideoId(video.id);
-    const playbackUrl = `https://stream.mux.com/${video.muxPlaybackId}.m3u8`;
 
     return NextResponse.json(
       {
         videoId: video.publicId,
         title: video.title,
-        playbackUrl,
-        playback: {
-          url: playbackUrl,
-          type: "hls",
-        },
+        duration: video.duration,
         posterUrl,
         backgroundPreviewUrl,
         config,

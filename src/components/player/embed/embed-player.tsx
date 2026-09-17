@@ -15,7 +15,6 @@ export interface EmbedPlayerProps {
 interface EmbedVideoData {
   videoId: string;
   title: string;
-  playbackUrl?: string | null;
   posterUrl?: string | null;
   backgroundPreviewUrl?: string | null;
   config: PlayerConfig;
@@ -56,6 +55,17 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
           },
         });
 
+        if (response.status === 403) {
+          if (!controller.signal.aborted) {
+            setState({
+              status: "error",
+              data: null,
+              errorMessage: "Este vídeo está temporariamente indisponível.",
+            });
+          }
+          return;
+        }
+
         if (response.status === 404) {
           if (!controller.signal.aborted) {
             setState({
@@ -83,7 +93,6 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
             data: {
               videoId: json.videoId || videoId,
               title: json.title || "",
-              playbackUrl: json.playback?.url || json.playbackUrl || null,
               posterUrl: json.posterUrl || null,
               backgroundPreviewUrl: json.backgroundPreviewUrl || null,
               config: parsedConfig,
@@ -200,7 +209,6 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
   return (
     <WatchMapPlayer
-      src={data.playbackUrl || undefined}
       apiBase={apiBase}
       posterUrl={data.posterUrl}
       backgroundPreviewUrl={data.backgroundPreviewUrl}

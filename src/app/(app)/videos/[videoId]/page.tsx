@@ -10,7 +10,6 @@ import {
 import { getPlayerConfig } from "@/lib/player-settings";
 import { getActivePlanForUser } from "@/lib/plans/access";
 import { DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
-import { getHlsPlaybackUrl } from "@/lib/mux";
 import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
 import { getMuxPosterUrl } from "@/lib/background-preview";
 import { headers } from "next/headers";
@@ -89,12 +88,9 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
   }
 
   const playerConfig = (await getPlayerConfig(currentVideo.id, account.id)) ?? DEFAULT_PLAYER_CONFIG;
-  const playbackUrl = currentVideo.muxPlaybackId
-    ? getHlsPlaybackUrl(currentVideo.muxPlaybackId)
-    : "";
 
   const posterUrl = currentVideo.muxPlaybackId
-    ? getMuxPosterUrl(currentVideo.muxPlaybackId)
+    ? await getMuxPosterUrl(currentVideo.muxPlaybackId)
     : null;
 
   const backgroundPreviewUrl =
@@ -121,7 +117,6 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
           video={currentVideo}
           folder={folder}
           accountName={account.name}
-          playbackUrl={playbackUrl}
           posterUrl={posterUrl}
           backgroundPreviewUrl={backgroundPreviewUrl}
           initialConfig={playerConfig}

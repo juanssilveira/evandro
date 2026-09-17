@@ -158,20 +158,8 @@ export function WatchMapPlayer({
   const isControlsHidden = effectiveConfig.controls.hidden;
   const fullscreenConfig = effectiveConfig.controls.fullscreen;
 
-  // Extract Mux Playback ID from resolvedSrc if present
-  const muxPlaybackId = React.useMemo(() => {
-    const media = resolvedSrc || src;
-    if (!media) return null;
-    const match = media.match(/stream\.mux\.com\/([a-zA-Z0-9_-]+)\.m3u8/);
-    return match ? match[1] : null;
-  }, [resolvedSrc, src]);
-
-  // Derive highest-quality available preview (R2 WebP > Mux Animated WebP > R2/Custom Poster > Mux Thumbnail)
-  const displayPreviewSrc =
-    backgroundPreviewUrl ||
-    (muxPlaybackId ? `https://image.mux.com/${muxPlaybackId}/animated.webp?start=0&end=10&width=640&fps=12` : null) ||
-    posterUrl ||
-    (muxPlaybackId ? `https://image.mux.com/${muxPlaybackId}/thumbnail.webp?width=640` : null);
+  // Derive highest-quality available preview (R2 WebP > R2/Custom/Signed Poster)
+  const displayPreviewSrc = backgroundPreviewUrl || posterUrl || null;
 
   // User explicit foreground activation state
   const [prevSrc, setPrevSrc] = useState(src);
@@ -474,57 +462,23 @@ export function WatchMapPlayer({
     }
   };
 
-  const hasRecordedPlayRef = useRef(false);
+  // Deduplicated single-flight playback authorization
+  const pendingAuthPromiseRef = useRef<Promise<string> | null>(null);
 
-  const recordPlayActivation = useCallback(async () => {
-    if (hasRecordedPlayRef.current) return;
-    hasRecordedPlayRef.current = true;
-
-    try {
-      const base = (apiBase || "").replace(/\/$/, "");
-      const activateEndpoint = `${base}/api/embed/videos/${encodeURIComponent(videoId)}/activate`;
-      await fetch(activateEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          playSessionId: getPlaySessionId(),
-          isEditor: Boolean(isEditor),
-        }),
-      });
-    } catch (err) {
-      console.warn("[WatchMap Player] Play activation report error:", err);
+  const authorizePlaybackOnce = useCallback(async (): Promise<string> => {
+    if (activatedSrc) {
+      return activatedSrc;
     }
-  }, [apiBase, videoId, getPlaySessionId, isEditor]);
 
-  // Main foreground playback activation (seamless preview -> HLS transition with server authorization)
-  const activateForegroundPlayback = useCallback(async () => {
-    const video = videoRef.current;
-    if (!video) return;
+    if (pendingAuthPromiseRef.current) {
+      return pendingAuthPromiseRef.current;
+    }
 
-    setUserActivatedForeground(true);
-    recordPlayActivation();
+    setIsLoading(true);
+    setHasError(false);
+    setErrorMessage(null);
 
-    const targetVol = lastVolumeRef.current > 0 ? lastVolumeRef.current : defaultVolume;
-    const targetRate = defaultPlaybackRate;
-
-    video.volume = targetVol;
-    video.muted = targetVol === 0;
-    video.playbackRate = targetRate;
-    setVolume(targetVol);
-    setIsMuted(targetVol === 0);
-    setPlaybackRate(targetRate);
-
-    let activeMediaUrl = resolvedSrc;
-
-    // If no HLS url resolved yet, request server activation with playSessionId
-    if (!activeMediaUrl) {
-      setIsLoading(true);
-      setHasError(false);
-      setErrorMessage(null);
-
+    const promise = (async () => {
       try {
         const base = (apiBase || "").replace(/\/$/, "");
         const activateEndpoint = `${base}/api/embed/videos/${encodeURIComponent(videoId)}/activate`;
@@ -551,56 +505,79 @@ export function WatchMapPlayer({
           throw new Error("Este vídeo está temporariamente indisponível.");
         }
 
-        activeMediaUrl = playbackUrl;
         setActivatedSrc(playbackUrl);
+        return playbackUrl;
       } catch (err: unknown) {
-        console.error("[WatchMap Player] Playback activation failed:", err);
+        console.error("[WatchMap Player] Playback authorization failed:", err);
         setIsLoading(false);
         setHasError(true);
         const msg =
           err instanceof Error ? err.message : "Este vídeo está temporariamente indisponível.";
         setErrorMessage(msg);
-        return;
+        pendingAuthPromiseRef.current = null;
+        throw err;
       }
-    }
+    })();
 
-    // Attach HLS media source if not yet attached
-    if (!hlsRef.current && (!video.src || video.src === "")) {
-      pendingForegroundActivationRef.current = true;
-      attachMediaSource(activeMediaUrl);
-    } else {
-      pendingForegroundActivationRef.current = false;
-      if (playbackControllerRef.current) {
-        await playbackControllerRef.current.startForegroundPlayback(targetVol);
+    pendingAuthPromiseRef.current = promise;
+    return promise;
+  }, [activatedSrc, apiBase, videoId, getPlaySessionId, isEditor]);
+
+  // Main foreground playback activation (seamless preview -> HLS transition with server authorization)
+  const activateForegroundPlayback = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setUserActivatedForeground(true);
+
+    const targetVol = lastVolumeRef.current > 0 ? lastVolumeRef.current : defaultVolume;
+    const targetRate = defaultPlaybackRate;
+
+    video.volume = targetVol;
+    video.muted = targetVol === 0;
+    video.playbackRate = targetRate;
+    setVolume(targetVol);
+    setIsMuted(targetVol === 0);
+    setPlaybackRate(targetRate);
+
+    try {
+      const activeMediaUrl = await authorizePlaybackOnce();
+
+      // Attach HLS media source if not yet attached
+      if (!hlsRef.current && (!video.src || video.src === "")) {
+        pendingForegroundActivationRef.current = true;
+        attachMediaSource(activeMediaUrl);
       } else {
-        video.loop = false;
-        if (video.currentTime !== 0) {
-          try {
-            video.currentTime = 0;
-          } catch {
-            // ignore
+        pendingForegroundActivationRef.current = false;
+        if (playbackControllerRef.current) {
+          await playbackControllerRef.current.startForegroundPlayback(targetVol);
+        } else {
+          video.loop = false;
+          if (video.currentTime !== 0) {
+            try {
+              video.currentTime = 0;
+            } catch {
+              // ignore
+            }
           }
+          const onSeeked = () => {
+            video.removeEventListener("seeked", onSeeked);
+            if (video.paused) {
+              video.play().catch(() => {});
+            }
+          };
+          video.addEventListener("seeked", onSeeked, { once: true });
+          video.play().catch(() => {});
         }
-        const onSeeked = () => {
-          video.removeEventListener("seeked", onSeeked);
-          if (video.paused) {
-            video.play().catch(() => {});
-          }
-        };
-        video.addEventListener("seeked", onSeeked, { once: true });
-        video.play().catch(() => {});
       }
+    } catch {
+      // Handled inside authorizePlaybackOnce
     }
   }, [
     attachMediaSource,
     defaultPlaybackRate,
     defaultVolume,
-    resolvedSrc,
-    apiBase,
-    videoId,
-    isEditor,
-    getPlaySessionId,
-    recordPlayActivation,
+    authorizePlaybackOnce,
   ]);
 
   // Play / Pause toggle
@@ -612,8 +589,6 @@ export function WatchMapPlayer({
 
     const video = videoRef.current;
     if (!video) return;
-
-    recordPlayActivation();
 
     // If currently playing muted due to browser autoplay fallback, clicking anywhere on the player immediately unmutes with audio
     if (isPlaying && (video.muted || isMuted)) {
@@ -648,7 +623,6 @@ export function WatchMapPlayer({
     isMuted,
     defaultVolume,
     activateForegroundPlayback,
-    recordPlayActivation,
   ]);
 
   // Mute toggle

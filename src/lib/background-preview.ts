@@ -3,6 +3,11 @@ import { db } from "@/db";
 import { videos } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+import {
+  getMuxSignedThumbnailUrl,
+  getMuxSignedAnimatedUrl,
+} from "./mux";
+
 export interface GenerateBackgroundPreviewParams {
   videoId: string;
   publicId: string;
@@ -11,13 +16,13 @@ export interface GenerateBackgroundPreviewParams {
   duration?: number | null;
 }
 
-export function getMuxPosterUrl(playbackId: string): string {
-  return `https://image.mux.com/${playbackId}/thumbnail.webp?width=640`;
+export async function getMuxPosterUrl(playbackId: string): Promise<string> {
+  return await getMuxSignedThumbnailUrl(playbackId, { width: 640 });
 }
 
 /**
  * Generates and stores a lightweight animated background preview in R2.
- * Server-side generation using Mux Animated Image API.
+ * Server-side generation using Mux Animated Image API with signed JWT.
  * Idempotent and fails gracefully without blocking video readiness.
  */
 export async function generateAndStoreBackgroundPreview(
@@ -40,7 +45,12 @@ export async function generateAndStoreBackgroundPreview(
     // 1. Try Animated WebP first (preferred for bandwidth & performance)
     let format = "webp";
     let contentType = "image/webp";
-    let apiUrl = `https://image.mux.com/${muxPlaybackId}/animated.webp?start=0&end=${previewEnd}&width=640&fps=12`;
+    let apiUrl = await getMuxSignedAnimatedUrl(muxPlaybackId, "webp", {
+      start: 0,
+      end: previewEnd,
+      width: 640,
+      fps: 12,
+    });
 
     let response = await fetch(apiUrl, {
       headers: {
@@ -56,7 +66,12 @@ export async function generateAndStoreBackgroundPreview(
       );
       format = "gif";
       contentType = "image/gif";
-      apiUrl = `https://image.mux.com/${muxPlaybackId}/animated.gif?start=0&end=${previewEnd}&width=640&fps=12`;
+      apiUrl = await getMuxSignedAnimatedUrl(muxPlaybackId, "gif", {
+        start: 0,
+        end: previewEnd,
+        width: 640,
+        fps: 12,
+      });
       response = await fetch(apiUrl);
     }
 

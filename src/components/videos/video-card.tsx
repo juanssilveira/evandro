@@ -14,6 +14,7 @@ import type { Video } from "@/db/schema";
 interface VideoCardProps {
   video: Video;
   playsCount: number;
+  posterUrl?: string | null;
   folder?: FolderWithCount | Folder | null;
   onContextMenu: (e: React.MouseEvent, video: Video) => void;
   onEdit: (video: Video) => void;
@@ -56,6 +57,7 @@ function formatDate(date: Date | string): string {
 export function VideoCard({
   video,
   playsCount,
+  posterUrl: customPosterUrl,
   folder,
   onContextMenu,
   onEdit,
@@ -84,10 +86,7 @@ export function VideoCard({
       ? "1 Play"
       : `${playsCount.toLocaleString("pt-BR")} Plays`;
 
-  const posterUrl =
-    isReady && video.muxPlaybackId
-      ? `https://image.mux.com/${video.muxPlaybackId}/thumbnail.webp?width=480&height=270&fit_mode=smartcrop`
-      : null;
+  const posterUrl = customPosterUrl || null;
 
   const canDrag = isDraggable && isReady;
 

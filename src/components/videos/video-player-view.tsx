@@ -8,7 +8,6 @@ import type { PlayerConfig } from "@/types/player-config";
 
 interface VideoPlayerViewProps {
   videoId: string;
-  playbackUrl: string;
   posterUrl?: string | null;
   backgroundPreviewUrl?: string | null;
   title: string;
@@ -19,7 +18,6 @@ interface VideoPlayerViewProps {
 
 export function VideoPlayerView({
   videoId,
-  playbackUrl,
   posterUrl,
   backgroundPreviewUrl,
   title,
@@ -62,11 +60,10 @@ export function VideoPlayerView({
             {/* Stable Canvas Stage: fixed aspect-video viewport where the video adapts to fit inside */}
             <div className="relative w-full aspect-video flex items-center justify-center overflow-hidden">
               <WatchMapPlayer
-                src={playbackUrl}
                 posterUrl={posterUrl}
                 backgroundPreviewUrl={backgroundPreviewUrl}
                 isEditor={true}
-                videoId={videoId}
+                videoId={publicId}
                 title={title}
                 config={config}
                 className="max-h-full max-w-full h-full w-auto"

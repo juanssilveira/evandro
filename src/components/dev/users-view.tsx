@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { UserPlus, Sparkles, Calendar, ShieldCheck, Loader2 } from "lucide-react";
 import { type DevUserRow } from "@/lib/dev/service";
 import { formatDate } from "@/lib/dev/formatters";
@@ -23,8 +24,8 @@ interface UsersViewProps {
 }
 
 export function UsersView({ users }: UsersViewProps) {
+  const router = useRouter();
   const { toast } = useToast();
-
 
   // Create User Modal State
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
@@ -35,13 +36,20 @@ export function UsersView({ users }: UsersViewProps) {
 
   // Manage Plan Modal State
   const [selectedUser, setSelectedUser] = React.useState<DevUserRow | null>(null);
-  const [planMode, setPlanMode] = React.useState<"none" | "pro_permanent" | "pro_temporary">("pro_permanent");
+  const [planMode, setPlanMode] = React.useState<"none" | "pro_permanent" | "pro_temporary">("none");
   const [temporaryType, setTemporaryType] = React.useState<"days" | "date">("days");
   const [durationDays, setDurationDays] = React.useState("30");
   const [expirationDate, setExpirationDate] = React.useState("");
   const [planPending, setPlanPending] = React.useState(false);
 
   const handleOpenPlanModal = (u: DevUserRow) => {
+    // 1. Reset all fields to clean defaults
+    setPlanMode("none");
+    setTemporaryType("days");
+    setDurationDays("30");
+    setExpirationDate("");
+
+    // 2. Set user and populate actual persisted state
     setSelectedUser(u);
     if (u.planCode === "pro" && u.subscriptionStatus === "active") {
       if (u.expiresAt) {
@@ -52,7 +60,7 @@ export function UsersView({ users }: UsersViewProps) {
         setPlanMode("pro_permanent");
       }
     } else {
-      setPlanMode("pro_permanent");
+      setPlanMode("none");
     }
   };
 
@@ -105,6 +113,7 @@ export function UsersView({ users }: UsersViewProps) {
       if (res.success) {
         toast(`Plano de ${selectedUser.email} configurado com sucesso.`, "success");
         setSelectedUser(null);
+        router.refresh();
       } else {
         toast(res.error, "error");
       }
