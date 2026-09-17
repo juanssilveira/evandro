@@ -236,7 +236,7 @@ export function VideosLibrary({ videos, videoPlaysMap }: VideosLibraryProps) {
             </DropdownMenu>
 
             {/* Total Indicator */}
-            <div className="hidden md:flex items-center pl-2 text-xs font-medium text-muted-foreground">
+            <div className="hidden md:flex items-center pl-2 pr-4 text-xs font-medium text-muted-foreground">
               {filteredVideos.length === 1
                 ? "1 vídeo"
                 : `${filteredVideos.length} vídeos`}

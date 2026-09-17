@@ -103,9 +103,6 @@ export class PlaybackController {
 
     this.setContext("foreground", "user");
     this.video.loop = false;
-    if (this.video.currentTime !== 0) {
-      this.video.currentTime = 0;
-    }
 
     const resolvedVolume =
       preferredVolume !== undefined
@@ -117,6 +114,22 @@ export class PlaybackController {
     this.video.volume = resolvedVolume;
     this.video.muted = resolvedVolume === 0;
     this.video.playbackRate = resolvedRate;
+
+    if (this.video.currentTime !== 0) {
+      try {
+        this.video.currentTime = 0;
+      } catch {
+        // ignore
+      }
+    }
+
+    const onSeeked = () => {
+      this.video.removeEventListener("seeked", onSeeked);
+      if (this.video.paused && !this.isDisposed) {
+        this.video.play().catch(() => {});
+      }
+    };
+    this.video.addEventListener("seeked", onSeeked, { once: true });
 
     try {
       await this.video.play();

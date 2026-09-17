@@ -551,12 +551,23 @@ export function WatchMapPlayer({
     } else {
       pendingForegroundActivationRef.current = false;
       if (playbackControllerRef.current) {
-        playbackControllerRef.current.startForegroundPlayback(targetVol);
+        await playbackControllerRef.current.startForegroundPlayback(targetVol);
       } else {
         video.loop = false;
         if (video.currentTime !== 0) {
-          video.currentTime = 0;
+          try {
+            video.currentTime = 0;
+          } catch {
+            // ignore
+          }
         }
+        const onSeeked = () => {
+          video.removeEventListener("seeked", onSeeked);
+          if (video.paused) {
+            video.play().catch(() => {});
+          }
+        };
+        video.addEventListener("seeked", onSeeked, { once: true });
         video.play().catch(() => {});
       }
     }
