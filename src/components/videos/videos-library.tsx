@@ -227,6 +227,14 @@ export function VideosLibrary({
     setDeletingFolder(folder);
   }, []);
 
+  const folderMap = useMemo(() => {
+    const map = new Map<string, FolderWithCount>();
+    for (const f of localFolders) {
+      map.set(f.id, f);
+    }
+    return map;
+  }, [localFolders]);
+
   // ── Drag & Drop Move Video to Folder Handler ──
   const handleDropVideoToFolder = useCallback(
     async (videoId: string, targetFolder: FolderWithCount) => {
@@ -237,16 +245,39 @@ export function VideosLibrary({
 
       const previousVideos = [...localVideos];
       const previousFolders = [...localFolders];
+      const videoSizeBytes = Number(targetVideo.sizeBytes) || 0;
+      const videoPlays = videoPlaysMap[videoId] || 0;
 
-      // Optimistic Update
-      setLocalVideos((prev) => prev.filter((v) => v.id !== videoId));
+      // Optimistic Update:
+      // If inside a specific folder view, remove the video.
+      // If in root library (all videos view), update the video's folderId.
+      if (currentFolder) {
+        setLocalVideos((prev) => prev.filter((v) => v.id !== videoId));
+      } else {
+        setLocalVideos((prev) =>
+          prev.map((v) =>
+            v.id === videoId ? { ...v, folderId: targetFolder.id } : v
+          )
+        );
+      }
+
       setLocalFolders((prev) =>
         prev.map((f) => {
           if (f.id === targetFolder.id) {
-            return { ...f, videoCount: f.videoCount + 1 };
+            return {
+              ...f,
+              videoCount: f.videoCount + 1,
+              totalSizeBytes: (f.totalSizeBytes || 0) + videoSizeBytes,
+              totalPlays: (f.totalPlays || 0) + videoPlays,
+            };
           }
           if (targetVideo.folderId && f.id === targetVideo.folderId) {
-            return { ...f, videoCount: Math.max(0, f.videoCount - 1) };
+            return {
+              ...f,
+              videoCount: Math.max(0, f.videoCount - 1),
+              totalSizeBytes: Math.max(0, (f.totalSizeBytes || 0) - videoSizeBytes),
+              totalPlays: Math.max(0, (f.totalPlays || 0) - videoPlays),
+            };
           }
           return f;
         })
@@ -276,7 +307,7 @@ export function VideosLibrary({
         toast("Erro ao mover o vídeo para a pasta.", "error");
       }
     },
-    [localVideos, localFolders, toast, router]
+    [localVideos, localFolders, videoPlaysMap, currentFolder, toast, router]
   );
 
   const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "all";
@@ -304,11 +335,18 @@ export function VideosLibrary({
       <section aria-label="Lista de vídeos" className="space-y-3.5">
         {/* Section Header: only on root if folders exist */}
         {!currentFolder && localFolders.length > 0 && (
-          <div className="flex items-center gap-2">
-            <VideoIcon className="size-4 text-muted-foreground" />
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Vídeos ({localVideos.length})
-            </h2>
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-muted border border-border text-foreground/80 shrink-0">
+              <VideoIcon className="size-3.5" />
+            </div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-foreground tracking-tight">
+                Vídeos
+              </h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-muted text-muted-foreground border border-border/60">
+                {localVideos.length}
+              </span>
+            </div>
           </div>
         )}
 
@@ -448,23 +486,6 @@ export function VideosLibrary({
                   </div>
                 </div>
               </div>
-            ) : localFolders.length > 0 ? (
-              /* ── Root has folders but 0 root videos ── */
-              <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
-                <div className="space-y-1 max-w-xs mx-auto">
-                  <p className="text-xs font-semibold text-foreground">
-                    Nenhum vídeo na raiz
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Envie novos vídeos para a raiz ou acesse uma das pastas acima.
-                  </p>
-                </div>
-                <UploadButton
-                  variant="outline"
-                  size="sm"
-                  className="cursor-pointer shadow-2xs text-xs"
-                />
-              </div>
             ) : (
               /* ── Completely Empty Library State ── */
               <div className="rounded-xl border border-border bg-card shadow-2xs">
@@ -528,6 +549,7 @@ export function VideosLibrary({
                 <VideoCard
                   key={video.id}
                   video={video}
+                  folder={!currentFolder && video.folderId ? folderMap.get(video.folderId) : undefined}
                   playsCount={videoPlaysMap[video.id] ?? 0}
                   onContextMenu={handleOpenContextMenu}
                   onEdit={handleEditVideo}

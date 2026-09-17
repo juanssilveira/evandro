@@ -4,6 +4,8 @@ import { eq, and, sql, asc } from "drizzle-orm";
 
 export interface FolderWithCount extends Folder {
   videoCount: number;
+  totalSizeBytes?: number;
+  totalPlays?: number;
 }
 
 export async function getFoldersForAccount(
@@ -18,6 +20,7 @@ export async function getFoldersForAccount(
       createdAt: folders.createdAt,
       updatedAt: folders.updatedAt,
       videoCount: sql<number>`count(${videos.id})::int`,
+      totalSizeBytes: sql<number>`coalesce(sum(${videos.sizeBytes}), 0)::bigint`,
     })
     .from(folders)
     .leftJoin(
@@ -28,7 +31,12 @@ export async function getFoldersForAccount(
     .groupBy(folders.id)
     .orderBy(asc(folders.createdAt));
 
-  return rows as FolderWithCount[];
+  return rows.map((r) => ({
+    ...r,
+    videoCount: Number(r.videoCount || 0),
+    totalSizeBytes: Number(r.totalSizeBytes || 0),
+    totalPlays: 0,
+  }));
 }
 
 export async function getFolderForAccount(

@@ -5,12 +5,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { Video as VideoIcon, Loader2, AlertCircle, PlayCircle, Calendar, HardDrive } from "lucide-react";
 import { VideoCardMenu } from "./video-card-menu";
+import { FOLDER_COLOR_CONFIGS } from "@/lib/folder-colors";
+import type { FolderColor, Folder } from "@/db/schema/folders";
+import type { FolderWithCount } from "@/lib/folders";
 import { cn } from "@/lib/utils";
 import type { Video } from "@/db/schema";
 
 interface VideoCardProps {
   video: Video;
   playsCount: number;
+  folder?: FolderWithCount | Folder | null;
   onContextMenu: (e: React.MouseEvent, video: Video) => void;
   onEdit: (video: Video) => void;
   onDelete: (video: Video) => void;
@@ -52,6 +56,7 @@ function formatDate(date: Date | string): string {
 export function VideoCard({
   video,
   playsCount,
+  folder,
   onContextMenu,
   onEdit,
   onDelete,
@@ -67,6 +72,11 @@ export function VideoCard({
     video.status === "waiting_upload" ||
     video.status === "uploading";
   const isErrored = video.status === "errored";
+
+  const folderCfg = folder
+    ? FOLDER_COLOR_CONFIGS[(folder.color as FolderColor) || "gray"] ||
+      FOLDER_COLOR_CONFIGS.gray
+    : null;
 
   const durationStr = formatDuration(video.duration);
   const playsLabel =
@@ -193,6 +203,23 @@ export function VideoCard({
           >
             {video.title}
           </p>
+
+          {/* Folder Badge (when video belongs to a folder) */}
+          {folder && folderCfg && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border shrink-0 max-w-[160px] truncate transition-colors",
+                folderCfg.badgeClass,
+                "border-current/15"
+              )}
+              title={`Pasta: ${folder.name}`}
+            >
+              <span
+                className={cn("size-1.5 rounded-full shrink-0", folderCfg.dotClass)}
+              />
+              <span className="truncate">{folder.name}</span>
+            </span>
+          )}
 
           {/* Status Badges */}
           {isProcessing && (

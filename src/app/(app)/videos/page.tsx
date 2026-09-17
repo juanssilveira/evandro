@@ -26,10 +26,10 @@ export default async function VideosPage() {
     ? await getCurrentAccount(session.user.id)
     : null;
 
-  // Fetch folders and root videos (videos with folderId = null)
+  // Fetch folders and all videos for account
   const [foldersList, rawVideoList] = await Promise.all([
     account ? getFoldersForAccount(account.id) : [],
-    account ? getVideosForAccount(account.id, null) : [],
+    account ? getVideosForAccount(account.id) : [],
   ]);
 
   // Fetch active plan for header
@@ -56,6 +56,25 @@ export default async function VideosPage() {
   // Fetch real monthly Plays per video server-side
   const videoIds = videoList.map((v) => v.id);
   const videoPlaysMap = await getVideoPlaysMapThisMonth(videoIds);
+
+  // Calculate folder metrics (videoCount, totalSizeBytes, totalPlays) from videos list and plays map
+  const enrichedFoldersList = foldersList.map((folder) => {
+    const folderVideos = videoList.filter((v) => v.folderId === folder.id);
+    const totalSizeBytes = folderVideos.reduce(
+      (acc, v) => acc + (Number(v.sizeBytes) || 0),
+      0
+    );
+    const totalPlays = folderVideos.reduce(
+      (acc, v) => acc + (videoPlaysMap[v.id] || 0),
+      0
+    );
+    return {
+      ...folder,
+      videoCount: folderVideos.length,
+      totalSizeBytes,
+      totalPlays,
+    };
+  });
 
   const hasPendingVideos = videoList.some(
     (v) =>
@@ -100,7 +119,7 @@ export default async function VideosPage() {
           {/* Videos Library Section */}
           <section aria-label="Biblioteca de vídeos">
             <VideosLibrary
-              folders={foldersList}
+              folders={enrichedFoldersList}
               videos={videoList}
               videoPlaysMap={videoPlaysMap}
             />
