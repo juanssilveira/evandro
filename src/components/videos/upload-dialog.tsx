@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createUploadUrlAction, syncVideoStatusAction } from "@/app/actions/videos";
 import { UploadCloud, Film, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import * as tus from "tus-js-client";
 
 export interface UploadDialogProps {
   trigger?: React.ReactNode;
@@ -146,7 +147,7 @@ export function UploadDialog({
     setErrorMessage(null);
 
     try {
-      // 1. Get Direct Upload URL from server
+      // 1. Get Direct Upload Session from server
       const uploadRes = await createUploadUrlAction({
         title: title.trim(),
         filename: file.name,
@@ -159,36 +160,83 @@ export function UploadDialog({
         throw new Error(uploadRes.error || "Não foi possível obter a URL de upload.");
       }
 
+      const { videoId, uploadSession, uploadUrl } = uploadRes.data;
 
-      const { videoId, uploadUrl } = uploadRes.data;
+      // 2. Upload file directly to provider based on transport
+      if (uploadSession && uploadSession.transport === "tus") {
+        // TUS Resumable Upload (Bunny Stream)
+        await new Promise<void>((resolve, reject) => {
+          const upload = new tus.Upload(file, {
+            endpoint: uploadSession.endpoint,
+            retryDelays: [0, 3000, 5000, 10000, 20000],
+            headers: uploadSession.headers,
+            chunkSize: 5 * 1024 * 1024,
+            metadata: {
+              filename: file.name,
+              filetype: file.type || "video/mp4",
+              videoId: uploadSession.videoId,
+            },
+            onError: (error) => {
+              console.error("[TUS Upload Error]", error);
+              reject(new Error("Erro durante o envio do vídeo via TUS."));
+            },
+            onProgress: (bytesUploaded, bytesTotal) => {
+              const percentComplete = Math.round((bytesUploaded / bytesTotal) * 100);
+              setProgress(percentComplete);
+            },
+            onSuccess: () => {
+              resolve();
+            },
+          });
 
-      // 2. Direct upload to Mux via XMLHttpRequest with progress tracking
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", uploadUrl, true);
-        xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+          upload
+            .findPreviousUploads()
+            .then((previousUploads) => {
+              if (previousUploads.length > 0) {
+                upload.resumeFromPreviousUpload(previousUploads[0]);
+              }
+              upload.start();
+            })
+            .catch(() => {
+              upload.start();
+            });
+        });
+      } else {
+        // Direct PUT Upload (Mux)
+        const targetPutUrl =
+          uploadUrl || (uploadSession && "uploadUrl" in uploadSession ? uploadSession.uploadUrl : "");
 
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = Math.round((event.loaded / event.total) * 100);
-            setProgress(percentComplete);
-          }
-        };
+        if (!targetPutUrl) {
+          throw new Error("URL de upload inválida.");
+        }
 
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`Falha no envio do vídeo (HTTP ${xhr.status}).`));
-          }
-        };
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", targetPutUrl, true);
+          xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
 
-        xhr.onerror = () => {
-          reject(new Error("Erro de conexão durante o upload do vídeo."));
-        };
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = Math.round((event.loaded / event.total) * 100);
+              setProgress(percentComplete);
+            }
+          };
 
-        xhr.send(file);
-      });
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Falha no envio do vídeo (HTTP ${xhr.status}).`));
+            }
+          };
+
+          xhr.onerror = () => {
+            reject(new Error("Erro de conexão durante o upload do vídeo."));
+          };
+
+          xhr.send(file);
+        });
+      }
 
       // 3. Immediately trigger initial status sync & close modal without trapping user
       syncVideoStatusAction({ videoId }).catch(() => {});

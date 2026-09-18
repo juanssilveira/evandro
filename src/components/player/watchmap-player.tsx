@@ -301,7 +301,7 @@ export function WatchMapPlayer({
       hlsRef.current = null;
     }
 
-    const isHls = mediaSrc.includes(".m3u8") || mediaSrc.includes("stream.mux.com");
+    const isHls = mediaSrc.includes(".m3u8") || mediaSrc.includes("m3u8");
 
     if (isHls && Hls.isSupported()) {
       // 1. MSE-capable browsers (Chrome, Edge, Firefox, etc.)

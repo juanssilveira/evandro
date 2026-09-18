@@ -1,14 +1,16 @@
 import { putAssetObject, getAssetPublicUrl } from "./asset-storage/r2";
 import { db } from "@/db";
-import { videos } from "@/db/schema";
+import { videos, type Video } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getVideoBackgroundPreviewUrl } from "./video-providers";
 
 export interface GenerateBackgroundPreviewParams {
   videoId: string;
-  publicId: string;
-  muxAssetId: string;
-  muxPlaybackId: string;
+  publicId?: string;
+  muxAssetId?: string | null;
+  muxPlaybackId?: string | null;
   duration?: number | null;
+  video?: Video;
 }
 
 export function getMuxPosterUrl(playbackId: string): string {
@@ -29,55 +31,93 @@ export function getMuxFallbackAnimatedPreviewUrl(
 
 /**
  * Generates and stores a lightweight animated background preview in R2.
- * Server-side generation using Mux public Animated Image API.
+ * Server-side generation using provider animated image / preview API.
  * Idempotent and fails gracefully without blocking video readiness.
  */
 export async function generateAndStoreBackgroundPreview(
   params: GenerateBackgroundPreviewParams
 ): Promise<{ success: boolean; key?: string; url?: string; error?: string }> {
-  const { videoId, publicId, muxAssetId, muxPlaybackId, duration } = params;
+  const videoId = params.videoId;
 
-  if (!muxPlaybackId || !muxAssetId) {
+  // Retrieve current video if not passed directly
+  let targetVideo: Video | null = params.video || null;
+  if (!targetVideo) {
+    const [row] = await db
+      .select()
+      .from(videos)
+      .where(eq(videos.id, videoId))
+      .limit(1);
+    targetVideo = row || null;
+  }
+
+  if (!targetVideo) {
     return {
       success: false,
-      error: "Mux Playback ID or Asset ID missing.",
+      error: "Vídeo não encontrado.",
     };
   }
 
-  // Calculate preview end time: Mux maximum duration is 10s, clamped to video duration
-  const rawDuration =
-    typeof duration === "number" && Number.isFinite(duration) && duration > 0
-      ? duration
-      : 10;
-  const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
+  const providerName = targetVideo.provider || "mux";
+  const publicId = targetVideo.publicId;
+  const providerVideoId =
+    targetVideo.providerVideoId ||
+    targetVideo.muxAssetId ||
+    targetVideo.providerPlaybackId ||
+    targetVideo.id;
 
   try {
-    // 1. Try Animated WebP first (preferred for bandwidth & performance)
+    let previewSourceUrl = getVideoBackgroundPreviewUrl(targetVideo);
+
+    if (!previewSourceUrl) {
+      // Legacy fallback for Mux
+      const playbackId = targetVideo.providerPlaybackId || targetVideo.muxPlaybackId;
+      if (playbackId) {
+        previewSourceUrl = getMuxFallbackAnimatedPreviewUrl(
+          playbackId,
+          targetVideo.duration
+        );
+      }
+    }
+
+    if (!previewSourceUrl) {
+      return {
+        success: false,
+        error: "Fonte de background preview indisponível.",
+      };
+    }
+
     let format = "webp";
     let contentType = "image/webp";
-    let apiUrl = `https://image.mux.com/${muxPlaybackId}/animated.webp?start=0&end=${previewEnd}&width=640&fps=12`;
 
-    let response = await fetch(apiUrl, {
+    let response = await fetch(previewSourceUrl, {
       headers: {
         Accept: "image/webp,image/*,*/*",
       },
     });
 
-    // 2. Fallback to Animated GIF if WebP fails or is unavailable
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.warn(
-        `[Background Preview] WebP endpoint returned ${response.status} (${errText}) for playbackId=${muxPlaybackId}. Trying GIF fallback...`
-      );
-      format = "gif";
-      contentType = "image/gif";
-      apiUrl = `https://image.mux.com/${muxPlaybackId}/animated.gif?start=0&end=${previewEnd}&width=640&fps=12`;
-      response = await fetch(apiUrl);
+    // Fallback to GIF for Mux if WebP fails
+    if (!response.ok && providerName === "mux") {
+      const playbackId = targetVideo.providerPlaybackId || targetVideo.muxPlaybackId;
+      if (playbackId) {
+        const rawDuration =
+          typeof targetVideo.duration === "number" &&
+          Number.isFinite(targetVideo.duration) &&
+          targetVideo.duration > 0
+            ? targetVideo.duration
+            : 10;
+        const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
+        const gifUrl = `https://image.mux.com/${playbackId}/animated.gif?start=0&end=${previewEnd}&width=640&fps=12`;
+        response = await fetch(gifUrl);
+        if (response.ok) {
+          format = "gif";
+          contentType = "image/gif";
+        }
+      }
     }
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      const errorMsg = `Mux animated image API returned status ${response.status}: ${errText}`;
+      const errorMsg = `Provider animated image API returned status ${response.status}: ${errText}`;
       console.error(`[Background Preview] Failed: ${errorMsg}`);
 
       await db
@@ -92,13 +132,12 @@ export async function generateAndStoreBackgroundPreview(
     const buffer = Buffer.from(arrayBuffer);
 
     if (buffer.length === 0) {
-      throw new Error("Received empty buffer from Mux animated image API.");
+      throw new Error("Received empty buffer from provider preview API.");
     }
 
-    // 3. Immutable versioned key tied to publicId and muxAssetId
-    const key = `background-previews/${publicId}/${muxAssetId}.${format}`;
+    // Provider-neutral versioned key in R2
+    const key = `background-previews/${publicId}/${providerName}-${providerVideoId}.${format}`;
 
-    // 4. Store in R2 with immutable caching
     const uploaded = await putAssetObject({
       key,
       body: buffer,
@@ -123,7 +162,6 @@ export async function generateAndStoreBackgroundPreview(
       };
     }
 
-    // 5. Update database record with ready status and key
     await db
       .update(videos)
       .set({

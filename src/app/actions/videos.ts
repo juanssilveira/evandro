@@ -50,7 +50,7 @@ export async function createUploadUrlAction(rawInput: unknown) {
       };
     }
     console.error("Error creating upload URL:", error);
-    return { error: "Falha ao gerar URL de upload no Mux." };
+    return { error: "Falha ao preparar o upload do vídeo." };
   }
 }
 
@@ -86,7 +86,7 @@ export async function syncVideoStatusAction(rawInput: unknown) {
     return { success: true, video: result.video };
   } catch (error) {
     console.error("Error syncing video status:", error);
-    return { error: "Erro ao sincronizar status do vídeo com o Mux." };
+    return { error: "Erro ao sincronizar status do vídeo." };
   }
 }
 

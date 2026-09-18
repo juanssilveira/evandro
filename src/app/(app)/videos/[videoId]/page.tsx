@@ -6,13 +6,16 @@ import {
   getVideoWithFolderForAccount,
   syncVideoStatus,
 } from "@/lib/videos";
+import {
+  getVideoPlaybackUrl,
+  getVideoPosterUrl,
+  getVideoBackgroundPreviewUrl,
+} from "@/lib/video-providers";
 
 import { getPlayerConfig } from "@/lib/player-settings";
 import { getActivePlanForUser } from "@/lib/plans/access";
 import { DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
 import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
-import { getMuxPosterUrl } from "@/lib/background-preview";
-import { getHlsPlaybackUrl } from "@/lib/mux";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { VideoDetailsView } from "@/components/videos/video-details-view";
@@ -76,7 +79,10 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
 
   // If video is still processing or waiting for upload, attempt to sync status
   let currentVideo = video;
-  if (video.status !== "ready" && (video.muxAssetId || video.muxUploadId)) {
+  if (
+    video.status !== "ready" &&
+    (video.providerVideoId || video.providerUploadId || video.muxAssetId || video.muxUploadId)
+  ) {
     const syncRes = await syncVideoStatus(video.id, account.id);
     if (syncRes.video) {
       currentVideo = syncRes.video;
@@ -90,29 +96,16 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
 
   const playerConfig = (await getPlayerConfig(currentVideo.id, account.id)) ?? DEFAULT_PLAYER_CONFIG;
 
-  const playbackUrl = currentVideo.muxPlaybackId
-    ? getHlsPlaybackUrl(currentVideo.muxPlaybackId)
-    : "";
-
-  const posterUrl = currentVideo.muxPlaybackId
-    ? getMuxPosterUrl(currentVideo.muxPlaybackId)
-    : null;
+  const playbackUrl = getVideoPlaybackUrl(currentVideo) || "";
+  const posterUrl = getVideoPosterUrl(currentVideo);
 
   let backgroundPreviewUrl =
     currentVideo.backgroundPreviewStatus === "ready" && currentVideo.backgroundPreviewKey
       ? getAssetPublicUrl(currentVideo.backgroundPreviewKey)
       : null;
 
-  if (!backgroundPreviewUrl && currentVideo.muxPlaybackId) {
-    try {
-      const { getMuxFallbackAnimatedPreviewUrl } = await import("@/lib/background-preview");
-      backgroundPreviewUrl = getMuxFallbackAnimatedPreviewUrl(
-        currentVideo.muxPlaybackId,
-        currentVideo.duration
-      );
-    } catch {
-      // ignore
-    }
+  if (!backgroundPreviewUrl) {
+    backgroundPreviewUrl = getVideoBackgroundPreviewUrl(currentVideo);
   }
 
   const cdnUrl = process.env.CDN_URL || process.env.BASE_URL || "http://localhost:3000";

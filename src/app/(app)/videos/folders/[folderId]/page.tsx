@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
 import { getVideosForAccount, syncVideoStatus } from "@/lib/videos";
+import { getVideoPosterUrl } from "@/lib/video-providers";
 import { getFolderForAccount } from "@/lib/folders";
 import { getActivePlanForUser, getVideoPlaysMapThisMonth } from "@/lib/plans/access";
 import { headers } from "next/headers";
@@ -74,13 +75,13 @@ export default async function FolderPage({ params }: FolderPageProps) {
 
   const rawVideoList = await getVideosForAccount(account.id, folder.id);
 
-  // Sync any non-terminal video with Mux on page load
+  // Sync any non-terminal video with provider on page load
   const videoList = await Promise.all(
     rawVideoList.map(async (video) => {
       if (
         video.status !== "ready" &&
         video.status !== "errored" &&
-        (video.muxAssetId || video.muxUploadId)
+        (video.providerVideoId || video.providerUploadId || video.muxAssetId || video.muxUploadId)
       ) {
         const syncRes = await syncVideoStatus(video.id, account.id);
         return syncRes.video || video;
@@ -92,6 +93,12 @@ export default async function FolderPage({ params }: FolderPageProps) {
   // Fetch real monthly Plays per video server-side
   const videoIds = videoList.map((v) => v.id);
   const videoPlaysMap = await getVideoPlaysMapThisMonth(videoIds);
+
+  // Resolve poster URLs provider-neutrally server-side
+  const videoPosterUrls: Record<string, string | null> = {};
+  for (const video of videoList) {
+    videoPosterUrls[video.id] = getVideoPosterUrl(video);
+  }
 
   const hasPendingVideos = videoList.some(
     (v) =>
@@ -163,6 +170,7 @@ export default async function FolderPage({ params }: FolderPageProps) {
             <VideosLibrary
               videos={videoList}
               videoPlaysMap={videoPlaysMap}
+              videoPosterUrls={videoPosterUrls}
               currentFolder={folder}
             />
           </section>

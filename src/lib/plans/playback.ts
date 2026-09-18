@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { videos, accountMembers, monthlyUsage } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { getHlsPlaybackUrl } from "@/lib/mux";
+import { getVideoPlaybackUrl } from "@/lib/video-providers";
 import {
   getActivePlanForUser,
   getCurrentPeriodKey,
@@ -296,12 +296,14 @@ export async function validateAndActivatePlayback(
   }
 
   const [video] = await db
-    .select({ muxPlaybackId: videos.muxPlaybackId })
+    .select()
     .from(videos)
     .where(eq(videos.publicId, input.publicId.trim()))
     .limit(1);
 
-  if (!video?.muxPlaybackId) {
+  const playbackUrl = video ? getVideoPlaybackUrl(video) : null;
+
+  if (!video || !playbackUrl) {
     return {
       authorized: false,
       error: "Vídeo não encontrado ou indisponível.",
@@ -311,7 +313,7 @@ export async function validateAndActivatePlayback(
 
   return {
     authorized: true,
-    playbackUrl: getHlsPlaybackUrl(video.muxPlaybackId),
+    playbackUrl,
     statusCode: 200,
   };
 }

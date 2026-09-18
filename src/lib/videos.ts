@@ -1,17 +1,15 @@
 import { db } from "@/db";
 import { videos, folders, type Video, type Folder } from "@/db/schema";
 import { eq, desc, and, sql, isNull } from "drizzle-orm";
-import {
-  createMuxDirectUpload,
-  getMuxDirectUpload,
-  getMuxAsset,
-  deleteMuxAsset,
-  getMuxClient,
-} from "@/lib/mux";
 import { generateAndStoreBackgroundPreview } from "@/lib/background-preview";
 import { deleteAssetObject } from "@/lib/asset-storage/r2";
 import type { CreateUploadInput } from "@/lib/validations/videos";
 import { PRO_PLAN } from "@/lib/plans/catalog";
+import {
+  getDefaultVideoProviderName,
+  getVideoProvider,
+  type ProviderUploadSession,
+} from "@/lib/video-providers";
 
 export async function getVideosForAccount(
   accountId: string,
@@ -79,9 +77,15 @@ export async function createVideoUploadSession(
   accountId: string,
   input: CreateUploadInput,
   maxAllowedVideos: number = PRO_PLAN.limits.maxVideos
-): Promise<{ videoId: string; uploadUrl: string; muxUploadId: string }> {
+): Promise<{
+  videoId: string;
+  uploadSession: ProviderUploadSession;
+  uploadUrl: string;
+  muxUploadId: string;
+}> {
   const videoId = crypto.randomUUID();
   const publicId = crypto.randomUUID();
+  const providerName = getDefaultVideoProviderName();
 
   // 1. Concurrency-safe atomic slot reservation inside PostgreSQL transaction
   await db.transaction(async (tx) => {
@@ -104,14 +108,21 @@ export async function createVideoUploadSession(
       throw new Error("VIDEO_LIMIT_REACHED");
     }
 
-    // Insert reserved video record
+    // Insert reserved video record with chosen provider permanently attached
     await tx.insert(videos).values({
       id: videoId,
       publicId,
       accountId,
       folderId: input.folderId || null,
       title: input.title,
+      provider: providerName,
+      providerUploadId: null,
+      providerVideoId: null,
+      providerPlaybackId: null,
+      providerThumbnailFileName: null,
       muxUploadId: null,
+      muxAssetId: null,
+      muxPlaybackId: null,
       status: "waiting_upload",
       originalFilename: input.filename,
       mimeType: input.mimeType,
@@ -119,23 +130,51 @@ export async function createVideoUploadSession(
     });
   });
 
-  // 2. AFTER transaction commits, create Direct Upload session in Mux
+  // 2. AFTER transaction commits, create upload session with the provider adapter
   try {
-    const { uploadId, uploadUrl } = await createMuxDirectUpload({
+    const provider = getVideoProvider(providerName);
+    const uploadSession = await provider.createUploadSession({
       videoId,
+      title: input.title,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      sizeBytes: input.sizeBytes,
     });
 
+    if (uploadSession.provider === "mux") {
+      await db
+        .update(videos)
+        .set({
+          providerUploadId: uploadSession.uploadId,
+          muxUploadId: uploadSession.uploadId,
+        })
+        .where(eq(videos.id, videoId));
 
-    // Update video with muxUploadId
-    await db
-      .update(videos)
-      .set({ muxUploadId: uploadId })
-      .where(eq(videos.id, videoId));
+      return {
+        videoId,
+        uploadSession,
+        uploadUrl: uploadSession.uploadUrl,
+        muxUploadId: uploadSession.uploadId,
+      };
+    } else {
+      await db
+        .update(videos)
+        .set({
+          providerVideoId: uploadSession.videoId,
+          providerPlaybackId: uploadSession.videoId,
+        })
+        .where(eq(videos.id, videoId));
 
-    return { videoId, uploadUrl, muxUploadId: uploadId };
+      return {
+        videoId,
+        uploadSession,
+        uploadUrl: "",
+        muxUploadId: "",
+      };
+    }
   } catch (error) {
-    // If Mux creation fails, remove reserved video to release slot
-    console.error(`[Mux Upload Creation Error] Cleaning up reserved slot ${videoId}:`, error);
+    // If provider creation fails, clean up reserved slot
+    console.error(`[Upload Creation Error] Cleaning up reserved slot ${videoId}:`, error);
     try {
       await db.delete(videos).where(eq(videos.id, videoId));
     } catch (cleanupErr) {
@@ -165,18 +204,18 @@ export async function syncVideoStatus(
   }
 
   // If already ready, check if background preview needs generation
-  if (video.status === "ready" && video.muxPlaybackId) {
+  if (video.status === "ready") {
     if (
       video.backgroundPreviewStatus !== "ready" &&
-      video.muxAssetId &&
       video.backgroundPreviewStatus !== "errored"
     ) {
       await generateAndStoreBackgroundPreview({
         videoId: video.id,
         publicId: video.publicId,
-        muxAssetId: video.muxAssetId,
-        muxPlaybackId: video.muxPlaybackId,
+        muxAssetId: video.providerVideoId || video.muxAssetId,
+        muxPlaybackId: video.providerPlaybackId || video.muxPlaybackId,
         duration: video.duration,
+        video,
       });
 
       const [refreshedVideo] = await db
@@ -191,171 +230,65 @@ export async function syncVideoStatus(
     return { success: true, video };
   }
 
-  let currentMuxAssetId = video.muxAssetId;
+  // Sync through provider adapter
+  const provider = getVideoProvider(video.provider || "mux");
+  const state = await provider.syncVideo(video);
 
-  // Step A: If assetId is not known yet, check Direct Upload status in Mux
-  if (!currentMuxAssetId && video.muxUploadId) {
-    try {
-      const upload = await getMuxDirectUpload(video.muxUploadId);
+  const updatePayload: Partial<typeof videos.$inferInsert> = {
+    status: state.status,
+  };
 
-      if (upload.status === "asset_created" && upload.asset_id) {
-        currentMuxAssetId = upload.asset_id;
-        await db
-          .update(videos)
-          .set({
-            muxAssetId: upload.asset_id,
-            status: "processing",
-          })
-          .where(eq(videos.id, videoId));
-      } else if (upload.status === "errored") {
-        const [erroredVideo] = await db
-          .update(videos)
-          .set({
-            status: "errored",
-            errorMessage: upload.error?.message || "Erro no upload do vídeo.",
-          })
-          .where(eq(videos.id, videoId))
-          .returning();
+  if (state.duration !== undefined) {
+    updatePayload.duration = state.duration;
+  }
+  if (state.providerVideoId !== undefined) {
+    updatePayload.providerVideoId = state.providerVideoId;
+  }
+  if (state.providerPlaybackId !== undefined) {
+    updatePayload.providerPlaybackId = state.providerPlaybackId;
+  }
+  if (state.providerThumbnailFileName !== undefined) {
+    updatePayload.providerThumbnailFileName = state.providerThumbnailFileName;
+  }
+  if (state.errorMessage !== undefined) {
+    updatePayload.errorMessage = state.errorMessage;
+  }
 
-        return { success: true, video: erroredVideo };
-      }
-    } catch (error) {
-      console.error(`[Mux Sync] Failed to retrieve direct upload ${video.muxUploadId}:`, error);
+  // Maintain legacy Mux fields in sync for Mux provider
+  if (video.provider === "mux") {
+    if (state.providerVideoId !== undefined) {
+      updatePayload.muxAssetId = state.providerVideoId;
+    }
+    if (state.providerPlaybackId !== undefined) {
+      updatePayload.muxPlaybackId = state.providerPlaybackId;
     }
   }
 
-  // Step B: If assetId is known, check Asset status in Mux
-  if (currentMuxAssetId) {
-    try {
-      const asset = await getMuxAsset(currentMuxAssetId);
-
-      // Duration validation: Pro allows up to 1200 seconds (20 minutes)
-      const duration =
-        typeof asset.duration === "number" && Number.isFinite(asset.duration)
-          ? asset.duration
-          : null;
-
-      if (duration !== null && duration > PRO_PLAN.limits.maxVideoDurationSeconds) {
-        // Exceeds 20 minutes: clean up Mux Asset and release slot
-        try {
-          await deleteMuxAsset(currentMuxAssetId);
-        } catch (cleanupErr) {
-          console.error(`[Mux Cleanup] Error deleting oversized asset ${currentMuxAssetId}:`, cleanupErr);
-        }
-
-        const [erroredVideo] = await db
-          .update(videos)
-          .set({
-            status: "errored",
-            duration,
-            muxAssetId: null,
-            muxPlaybackId: null,
-            errorMessage: "Este vídeo ultrapassa o limite de 20 minutos do seu plano.",
-          })
-          .where(eq(videos.id, videoId))
-          .returning();
-
-        return {
-          success: true,
-          video: erroredVideo,
-          error: "Este vídeo ultrapassa o limite de 20 minutos do seu plano.",
-        };
-      }
-
-      if (asset.status === "ready") {
-        const publicPlayback = asset.playback_ids?.find((p) => p.policy === "public");
-        let playbackId = publicPlayback?.id || null;
-
-        if (!playbackId && currentMuxAssetId) {
-          try {
-            const mux = getMuxClient();
-            const newPlayback = await mux.video.assets.createPlaybackId(currentMuxAssetId, {
-              policy: "public",
-            });
-            playbackId = newPlayback.id;
-          } catch (createErr) {
-            console.error(
-              `[Mux Sync] Failed to create public playback ID for asset ${currentMuxAssetId}:`,
-              createErr
-            );
-          }
-        }
-
-        const [readyVideo] = await db
-          .update(videos)
-          .set({
-            status: "ready",
-            muxAssetId: currentMuxAssetId,
-            muxPlaybackId: playbackId,
-            duration,
-            errorMessage: null,
-          })
-          .where(eq(videos.id, videoId))
-          .returning();
-
-        // Trigger background preview generation if playbackId exists
-        if (playbackId) {
-          await generateAndStoreBackgroundPreview({
-            videoId: readyVideo.id,
-            publicId: readyVideo.publicId,
-            muxAssetId: currentMuxAssetId,
-            muxPlaybackId: playbackId,
-            duration,
-          });
-
-          const [refreshed] = await db
-            .select()
-            .from(videos)
-            .where(eq(videos.id, videoId))
-            .limit(1);
-
-          return { success: true, video: refreshed || readyVideo };
-        }
-
-        return { success: true, video: readyVideo };
-      }
-
-      if (asset.status === "errored") {
-        const errorMsg =
-          asset.errors?.messages?.[0] || "Erro no processamento do vídeo no Mux.";
-
-        const [erroredVideo] = await db
-          .update(videos)
-          .set({
-            status: "errored",
-            muxAssetId: currentMuxAssetId,
-            errorMessage: errorMsg,
-          })
-          .where(eq(videos.id, videoId))
-          .returning();
-
-        return { success: true, video: erroredVideo };
-      }
-
-      if (asset.status === "preparing") {
-        const [processingVideo] = await db
-          .update(videos)
-          .set({
-            status: "processing",
-            muxAssetId: currentMuxAssetId,
-            duration,
-          })
-          .where(eq(videos.id, videoId))
-          .returning();
-
-        return { success: true, video: processingVideo };
-      }
-    } catch (error) {
-      console.error(`[Mux Sync] Failed to retrieve asset ${currentMuxAssetId}:`, error);
-    }
-  }
-
-  // Return current state from DB
   const [updatedVideo] = await db
-    .select()
-    .from(videos)
+    .update(videos)
+    .set(updatePayload)
     .where(eq(videos.id, videoId))
-    .limit(1);
+    .returning();
+
+  // If video transitioned to ready, trigger background preview generation
+  if (updatedVideo?.status === "ready") {
+    await generateAndStoreBackgroundPreview({
+      videoId: updatedVideo.id,
+      publicId: updatedVideo.publicId,
+      muxAssetId: updatedVideo.providerVideoId || updatedVideo.muxAssetId,
+      muxPlaybackId: updatedVideo.providerPlaybackId || updatedVideo.muxPlaybackId,
+      duration: updatedVideo.duration,
+      video: updatedVideo,
+    });
+
+    const [refreshed] = await db
+      .select()
+      .from(videos)
+      .where(eq(videos.id, videoId))
+      .limit(1);
+
+    return { success: true, video: refreshed || updatedVideo };
+  }
 
   return { success: true, video: updatedVideo || video };
 }
@@ -387,13 +320,12 @@ export async function deleteVideo(
     };
   }
 
-  // 2. If Mux asset exists, delete from Mux (idempotent)
-  if (video.muxAssetId) {
-    try {
-      await deleteMuxAsset(video.muxAssetId);
-    } catch (error) {
-      console.error(`[Mux Cleanup] Error deleting asset ${video.muxAssetId}:`, error);
-    }
+  // 2. Delegate provider asset cleanup to provider adapter (idempotent)
+  try {
+    const provider = getVideoProvider(video.provider || "mux");
+    await provider.deleteVideo(video);
+  } catch (error) {
+    console.error(`[Video Provider Cleanup] Error deleting provider asset for ${video.id}:`, error);
   }
 
   // 3. If derived background preview asset exists in R2, delete it (idempotent)

@@ -78,6 +78,13 @@
       "when": 1789630000000,
       "tag": "0010_video_folders",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789640000000,
+      "tag": "0011_multi_provider_video_infrastructure",
+      "breakpoints": true
     }
   ]
 }

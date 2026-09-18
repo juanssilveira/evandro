@@ -86,11 +86,7 @@ export function VideoCard({
       ? "1 Play"
       : `${playsCount.toLocaleString("pt-BR")} Plays`;
 
-  const posterUrl =
-    customPosterUrl ||
-    (isReady && video.muxPlaybackId
-      ? `https://image.mux.com/${video.muxPlaybackId}/thumbnail.webp?width=480&height=270&fit_mode=smartcrop`
-      : null);
+  const posterUrl = customPosterUrl || null;
 
   const canDrag = isDraggable && isReady;
 
@@ -127,7 +123,7 @@ export function VideoCard({
       )}
       title={
         isProcessing
-          ? "Vídeo em processamento no Mux. A página será liberada assim que concluir."
+          ? "Vídeo em processamento. A página será liberada assim que concluir."
           : isErrored && video.errorMessage
           ? video.errorMessage
           : undefined

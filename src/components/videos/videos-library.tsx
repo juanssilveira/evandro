@@ -63,6 +63,7 @@ const DEFAULT_FOLDERS: FolderWithCount[] = [];
 interface VideosLibraryProps {
   videos: Video[];
   videoPlaysMap: Record<string, number>;
+  videoPosterUrls?: Record<string, string | null>;
   folders?: FolderWithCount[];
   currentFolder?: Folder | null;
 }
@@ -70,6 +71,7 @@ interface VideosLibraryProps {
 export function VideosLibrary({
   videos: initialVideos,
   videoPlaysMap,
+  videoPosterUrls = {},
   folders: initialFolders = DEFAULT_FOLDERS,
   currentFolder = null,
 }: VideosLibraryProps) {
@@ -606,6 +608,7 @@ export function VideosLibrary({
                   video={video}
                   folder={!currentFolder && video.folderId ? folderMap.get(video.folderId) : undefined}
                   playsCount={videoPlaysMap[video.id] ?? 0}
+                  posterUrl={videoPosterUrls[video.id]}
                   onContextMenu={handleOpenContextMenu}
                   onEdit={handleEditVideo}
                   onDelete={handleDeleteVideo}

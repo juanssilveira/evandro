@@ -5,6 +5,9 @@ import { folders } from "./folders";
 export const videoStatusEnum = ["waiting_upload", "uploading", "processing", "ready", "errored"] as const;
 export type VideoStatus = (typeof videoStatusEnum)[number];
 
+export const videoProviderEnum = ["mux", "bunny"] as const;
+export type VideoProviderName = (typeof videoProviderEnum)[number];
+
 export const videos = pgTable(
   "videos",
   {
@@ -18,6 +21,11 @@ export const videos = pgTable(
       .references(() => accounts.id, { onDelete: "cascade" }),
     folderId: uuid("folder_id").references(() => folders.id, { onDelete: "set null" }),
     title: text("title").notNull(),
+    provider: text("provider").notNull().default("mux"),
+    providerUploadId: text("provider_upload_id"),
+    providerVideoId: text("provider_video_id"),
+    providerPlaybackId: text("provider_playback_id"),
+    providerThumbnailFileName: text("provider_thumbnail_file_name"),
     muxUploadId: text("mux_upload_id"),
     muxAssetId: text("mux_asset_id"),
     muxPlaybackId: text("mux_playback_id"),
@@ -39,6 +47,9 @@ export const videos = pgTable(
     index("videos_account_id_created_at_idx").on(t.accountId, t.createdAt),
     index("videos_account_id_folder_id_idx").on(t.accountId, t.folderId),
     index("videos_public_id_idx").on(t.publicId),
+    index("videos_provider_idx").on(t.provider),
+    index("videos_provider_video_id_idx").on(t.providerVideoId),
+    index("videos_provider_upload_id_idx").on(t.providerUploadId),
     index("videos_mux_upload_id_idx").on(t.muxUploadId),
     index("videos_mux_asset_id_idx").on(t.muxAssetId),
   ]

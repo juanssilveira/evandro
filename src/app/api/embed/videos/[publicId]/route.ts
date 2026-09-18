@@ -3,10 +3,10 @@ import { getVideoByPublicId, syncVideoStatus } from "@/lib/videos";
 import { getPlayerConfigByVideoId } from "@/lib/player-settings";
 import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
 import {
-  getMuxPosterUrl,
-  getMuxFallbackAnimatedPreviewUrl,
-} from "@/lib/background-preview";
-import { getHlsPlaybackUrl } from "@/lib/mux";
+  getVideoPlaybackUrl,
+  getVideoPosterUrl,
+  getVideoBackgroundPreviewUrl,
+} from "@/lib/video-providers";
 import { resolvePlaybackEntitlement } from "@/lib/plans/playback";
 
 const CORS_HEADERS = {
@@ -64,38 +64,34 @@ export async function GET(
       );
     }
 
-    // If video is not marked as ready yet, attempt to sync with Mux
-    if (video.status !== "ready" && (video.muxAssetId || video.muxUploadId)) {
+    // If video is not marked as ready yet, attempt to sync with provider
+    if (
+      video.status !== "ready" &&
+      (video.providerVideoId || video.providerUploadId || video.muxAssetId || video.muxUploadId)
+    ) {
       const syncRes = await syncVideoStatus(video.id);
       if (syncRes.video) {
         video = syncRes.video;
       }
     }
 
-    if (video.status !== "ready" || !video.muxPlaybackId) {
+    const playbackUrl = getVideoPlaybackUrl(video);
+    if (video.status !== "ready" || !playbackUrl) {
       return NextResponse.json(
         { error: "Vídeo em processamento ou indisponível para reprodução." },
         { status: 404, headers: CORS_HEADERS }
       );
     }
 
-    const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
-    const posterUrl = getMuxPosterUrl(video.muxPlaybackId);
+    const posterUrl = getVideoPosterUrl(video);
 
     let backgroundPreviewUrl =
       video.backgroundPreviewStatus === "ready" && video.backgroundPreviewKey
         ? getAssetPublicUrl(video.backgroundPreviewKey)
         : null;
 
-    if (!backgroundPreviewUrl && video.muxPlaybackId) {
-      try {
-        backgroundPreviewUrl = getMuxFallbackAnimatedPreviewUrl(
-          video.muxPlaybackId,
-          video.duration
-        );
-      } catch (err) {
-        console.warn("[Embed API] Fallback animated preview generation failed:", err);
-      }
+    if (!backgroundPreviewUrl) {
+      backgroundPreviewUrl = getVideoBackgroundPreviewUrl(video);
     }
 
     const config = await getPlayerConfigByVideoId(video.id);
