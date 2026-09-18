@@ -183,7 +183,7 @@ export function VideoEmbedCard({
         <div className="flex items-start gap-2.5 rounded-lg bg-zinc-100/60 dark:bg-zinc-900/40 border border-dashed border-border/70 p-3 sm:p-3.5 text-[11px] text-muted-foreground">
           <Info className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
           <p className="leading-normal">
-            Cole a tag <code className="text-foreground font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;script&gt;</code> no cabeçalho e <code className="text-foreground font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;watchmap-player&gt;</code> onde deseja exibir o vídeo.
+            Cole a tag <code className="text-red-500 dark:text-red-400 font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;script&gt;</code> no cabeçalho e <code className="text-red-500 dark:text-red-400 font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;watchmap-player&gt;</code> onde deseja exibir o vídeo.
           </p>
         </div>
 
