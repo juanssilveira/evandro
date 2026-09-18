@@ -1,5 +1,5 @@
 /**
- * WatchMap HLS Capability Detection
+ * Evandro Player HLS Capability Detection
  * Ultra-lightweight, zero-dependency helper to detect whether the current environment
  * should prefer native HLS (Safari / iOS WebKit) over downloading HLS.js.
  *

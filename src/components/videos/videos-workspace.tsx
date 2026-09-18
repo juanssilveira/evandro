@@ -120,7 +120,7 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
   const isExternalFileDrag = (e: React.DragEvent) => {
     if (!e.dataTransfer) return false;
     const types = Array.from(e.dataTransfer.types || []);
-    const isInternal = types.includes("application/x-watchmap-video");
+    const isInternal = types.includes("application/x-evandro-watch-video");
     const hasFiles = types.includes("Files");
     return hasFiles && !isInternal;
   };
@@ -154,7 +154,7 @@ export function VideosWorkspace({ children, folderId }: VideosWorkspaceProps) {
 
   const handleDrop = (e: React.DragEvent) => {
     // If it's an internal video drag, do not handle here
-    if (e.dataTransfer && e.dataTransfer.types.includes("application/x-watchmap-video")) {
+    if (e.dataTransfer && e.dataTransfer.types.includes("application/x-evandro-watch-video")) {
       return;
     }
 

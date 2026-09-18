@@ -47,7 +47,7 @@ import {
   logPerformanceDebugReport,
 } from "./embed/performance-timing";
 
-interface WatchMapPlayerProps {
+export interface EvandroPlayerProps {
   src?: string;
   videoId?: string;
   title?: string;
@@ -77,7 +77,7 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-export function WatchMapPlayer({
+export function EvandroPlayer({
   src,
   videoId = "default-video",
   title,
@@ -90,7 +90,7 @@ export function WatchMapPlayer({
   debugEnabled,
   onEvent,
   onRuntimeReady,
-}: WatchMapPlayerProps) {
+}: EvandroPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressTrackRef = useRef<HTMLDivElement>(null);
@@ -346,7 +346,7 @@ export function WatchMapPlayer({
     if (!video) return;
 
     const cleanup = onFirstVideoFrame(video, (frameTime) => {
-      markPerformance("wm:first-frame", videoId);
+      markPerformance("ep:first-frame", videoId);
       mediaStateManager.onFirstFrame();
 
       // Real first frame boundary reached: smoothly fade out poster preview
@@ -362,21 +362,21 @@ export function WatchMapPlayer({
 
       let clickToFrame: number | undefined;
       if (userPlayClickTimestampRef.current != null) {
-        markPerformance("wm:user-play-first-frame", videoId);
+        markPerformance("ep:user-play-first-frame", videoId);
         clickToFrame = Math.round(frameTime - userPlayClickTimestampRef.current);
         userPlayClickTimestampRef.current = null;
       }
 
       if (effectiveDebug) {
-        const bootstrapDur = measurePerformance("wm:bootstrap", "wm:bootstrap:start", "wm:bootstrap:end", videoId);
-        const coreReadyDur = measurePerformance("wm:core:ready", "wm:core:start", "wm:core:ready", videoId);
-        const hlsReadyDur = measurePerformance("wm:hls-engine", "wm:hls-engine:start", "wm:hls-engine:ready");
-        const manifestDur = measurePerformance("wm:manifest", "wm:manifest:start", "wm:manifest:parsed", videoId);
+        const bootstrapDur = measurePerformance("ep:bootstrap", "ep:bootstrap:start", "ep:bootstrap:end", videoId);
+        const coreReadyDur = measurePerformance("ep:core:ready", "ep:core:start", "ep:core:ready", videoId);
+        const hlsReadyDur = measurePerformance("ep:hls-engine", "ep:hls-engine:start", "ep:hls-engine:ready");
+        const manifestDur = measurePerformance("ep:manifest", "ep:manifest:start", "ep:manifest:parsed", videoId);
         const firstFragDur =
-          measurePerformance("wm:first-frag", "wm:first-frag:start", "wm:first-frag:buffered", videoId) ??
-          measurePerformance("wm:first-frag", "wm:first-frag:start", "wm:first-frag:loaded", videoId);
-        const canPlayDur = measurePerformance("wm:canplay", "wm:media:attach", "wm:canplay", videoId);
-        const firstFrameDur = measurePerformance("wm:first-frame", "wm:media:attach", "wm:first-frame", videoId);
+          measurePerformance("ep:first-frag", "ep:first-frag:start", "ep:first-frag:buffered", videoId) ??
+          measurePerformance("ep:first-frag", "ep:first-frag:start", "ep:first-frag:loaded", videoId);
+        const canPlayDur = measurePerformance("ep:canplay", "ep:media:attach", "ep:canplay", videoId);
+        const firstFrameDur = measurePerformance("ep:first-frame", "ep:media:attach", "ep:first-frame", videoId);
 
         const bwEstimate = hlsRef.current?.bandwidthEstimate
           ? `${(hlsRef.current.bandwidthEstimate / 1_000_000).toFixed(2)} Mbps`
@@ -421,7 +421,7 @@ export function WatchMapPlayer({
     attachedSrcRef.current = mediaSrc;
     setHasError(false);
     mediaStateManager.onMediaAttach();
-    markPerformance("wm:media:attach", videoId);
+    markPerformance("ep:media:attach", videoId);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -432,7 +432,7 @@ export function WatchMapPlayer({
 
     // 1. Native HLS for Safari macOS / iOS WebKit (0 bytes HLS.js transferred)
     if (isHls && shouldUseNativeHls(video)) {
-      markPerformance("wm:manifest:start", videoId);
+      markPerformance("ep:manifest:start", videoId);
       video.src = mediaSrc;
       return;
     }
@@ -444,7 +444,7 @@ export function WatchMapPlayer({
         if (HlsClass && HlsClass.isSupported()) {
           if (attachedSrcRef.current !== mediaSrc) return;
 
-          markPerformance("wm:manifest:start", videoId);
+          markPerformance("ep:manifest:start", videoId);
 
           const hlsOptions = createStartupHlsConfig(mediaSrc);
           const hls = new HlsClass(hlsOptions);
@@ -453,7 +453,7 @@ export function WatchMapPlayer({
           hls.attachMedia(video);
 
           hls.on(HlsClass.Events.MANIFEST_PARSED, (_event, data) => {
-            markPerformance("wm:manifest:parsed", videoId);
+            markPerformance("ep:manifest:parsed", videoId);
             mediaStateManager.onManifestParsed();
             setHasError(false);
             applyInitialMediaSettings();
@@ -463,23 +463,23 @@ export function WatchMapPlayer({
               const firstLevel = data.levels?.[data.firstLevel ?? 0];
               const startupLevel = firstLevel?.height ? `${firstLevel.height}p` : "auto";
               const seedKbps = Math.round(getInitialBandwidthEstimate(mediaSrc) / 1000);
-              console.log(`[WatchMap HLS] Manifest Parsed | Startup: ${startupLevel} | Seed: ${seedKbps} kbps`);
+              console.log(`[Evandro Player HLS] Manifest Parsed | Startup: ${startupLevel} | Seed: ${seedKbps} kbps`);
             }
           });
 
           hls.on(HlsClass.Events.FRAG_LOADING, () => {
-            markPerformanceOnce("wm:first-frag:start", videoId);
+            markPerformanceOnce("ep:first-frag:start", videoId);
           });
 
           hls.on(HlsClass.Events.FRAG_LOADED, () => {
-            markPerformanceOnce("wm:first-frag:loaded", videoId);
+            markPerformanceOnce("ep:first-frag:loaded", videoId);
             if (hls.bandwidthEstimate && hls.bandwidthEstimate > 0) {
               saveBandwidthEstimate(mediaSrc, hls.bandwidthEstimate);
             }
           });
 
           hls.on(HlsClass.Events.FRAG_BUFFERED, () => {
-            markPerformanceOnce("wm:first-frag:buffered", videoId);
+            markPerformanceOnce("ep:first-frag:buffered", videoId);
           });
 
           hls.on(HlsClass.Events.LEVEL_SWITCHED, (_event, data) => {
@@ -489,7 +489,7 @@ export function WatchMapPlayer({
                 const res = levelObj.height ? `${levelObj.height}p` : `Level ${data.level}`;
                 const br = Math.round(levelObj.bitrate / 1000);
                 const est = Math.round(hls.bandwidthEstimate / 1000);
-                console.log(`[WatchMap HLS] Level Switched: ${res} (${br} kbps) | Bandwidth Est: ${est} kbps`);
+                console.log(`[Evandro Player HLS] Level Switched: ${res} (${br} kbps) | Bandwidth Est: ${est} kbps`);
               }
             }
             if (hls.bandwidthEstimate && hls.bandwidthEstimate > 0) {
@@ -499,14 +499,14 @@ export function WatchMapPlayer({
 
           hls.on(HlsClass.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
             if (data.fatal) {
-              console.error("[WatchMap Player HLS Fatal Error]", data);
+              console.error("[Evandro Player HLS Fatal Error]", data);
               switch (data.type) {
                 case HlsClass.ErrorTypes.NETWORK_ERROR:
-                  console.warn("[WatchMap Player HLS] Retrying network error...");
+                  console.warn("[Evandro Player HLS] Retrying network error...");
                   hls.startLoad();
                   break;
                 case HlsClass.ErrorTypes.MEDIA_ERROR:
-                  console.warn("[WatchMap Player HLS] Recovering media error...");
+                  console.warn("[Evandro Player HLS] Recovering media error...");
                   hls.recoverMediaError();
                   break;
                 default:
@@ -522,12 +522,12 @@ export function WatchMapPlayer({
           return;
         }
       } catch (err) {
-        console.warn("[WatchMap Player] Dynamic HLS load error, falling back to native:", err);
+        console.warn("[Evandro Player] Dynamic HLS load error, falling back to native:", err);
       }
     }
 
     // 3. Fallback native
-    markPerformance("wm:manifest:start", videoId);
+    markPerformance("ep:manifest:start", videoId);
     video.src = mediaSrc;
   }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId, effectiveDebug, mediaStateManager]);
 
@@ -668,10 +668,10 @@ export function WatchMapPlayer({
           isEditor: Boolean(isEditor),
         }),
       }).catch((err) => {
-        console.warn("[WatchMap Player] Background play tracking network error:", err);
+        console.warn("[Evandro Player] Background play tracking network error:", err);
       });
     } catch (err) {
-      console.warn("[WatchMap Player] Background play tracking failed:", err);
+      console.warn("[Evandro Player] Background play tracking failed:", err);
     }
   }, [apiBase, videoId, getPlaySessionId, isEditor]);
 
@@ -680,7 +680,7 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    markPerformance("wm:user-play", videoId);
+    markPerformance("ep:user-play", videoId);
     userPlayClickTimestampRef.current = performance.now();
     mediaStateManager.onPlayRequested();
 
@@ -736,7 +736,7 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    markPerformance("wm:user-play", videoId);
+    markPerformance("ep:user-play", videoId);
     userPlayClickTimestampRef.current = performance.now();
 
     // If currently playing muted due to browser autoplay fallback, clicking anywhere on the player immediately unmutes with audio
@@ -1036,7 +1036,7 @@ export function WatchMapPlayer({
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
-      markPerformance("wm:canplay", videoId);
+      markPerformance("ep:canplay", videoId);
       if (videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
         setDuration(videoRef.current.duration);
       }
@@ -1047,7 +1047,7 @@ export function WatchMapPlayer({
   };
 
   const handleCanPlay = () => {
-    markPerformance("wm:canplay", videoId);
+    markPerformance("ep:canplay", videoId);
     if (videoRef.current && videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
       setDuration((prev) => (prev === 0 ? videoRef.current!.duration : prev));
     }
@@ -1086,7 +1086,7 @@ export function WatchMapPlayer({
     }
     // Only trigger error overlay if video has an actual native error code and valid src
     if (video?.error && src) {
-      console.error("[WatchMap Player Native Video Error]", video.error);
+      console.error("[Evandro Player Native Video Error]", video.error);
       setHasError(true);
       mediaStateManager.onError();
     }
@@ -1257,21 +1257,21 @@ export function WatchMapPlayer({
                 {/* Concentric sound waves */}
                 <span
                   aria-hidden="true"
-                  className="wm-sound-wave-1 absolute inset-0 rounded-full pointer-events-none"
+                  className="ep-sound-wave-1 absolute inset-0 rounded-full pointer-events-none"
                   style={{
                     backgroundColor: "var(--player-accent)",
                   }}
                 />
                 <span
                   aria-hidden="true"
-                  className="wm-sound-wave-2 absolute inset-0 rounded-full pointer-events-none"
+                  className="ep-sound-wave-2 absolute inset-0 rounded-full pointer-events-none"
                   style={{
                     backgroundColor: "var(--player-accent)",
                   }}
                 />
                 <span
                   aria-hidden="true"
-                  className="wm-sound-wave-3 absolute inset-0 rounded-full pointer-events-none"
+                  className="ep-sound-wave-3 absolute inset-0 rounded-full pointer-events-none"
                   style={{
                     backgroundColor: "var(--player-accent)",
                   }}
@@ -1302,7 +1302,7 @@ export function WatchMapPlayer({
           </div>
 
           <style>{`
-            @keyframes wm-sound-wave {
+            @keyframes ep-sound-wave {
               0% {
                 transform: scale(0.85);
                 opacity: 0.6;
@@ -1315,22 +1315,22 @@ export function WatchMapPlayer({
                 opacity: 0;
               }
             }
-            .wm-sound-wave-1 {
-              animation: wm-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+            .ep-sound-wave-1 {
+              animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
               animation-delay: 0s;
             }
-            .wm-sound-wave-2 {
-              animation: wm-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+            .ep-sound-wave-2 {
+              animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
               animation-delay: 0.7s;
             }
-            .wm-sound-wave-3 {
-              animation: wm-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+            .ep-sound-wave-3 {
+              animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
               animation-delay: 1.4s;
             }
             @media (prefers-reduced-motion: reduce) {
-              .wm-sound-wave-1,
-              .wm-sound-wave-2,
-              .wm-sound-wave-3 {
+              .ep-sound-wave-1,
+              .ep-sound-wave-2,
+              .ep-sound-wave-3 {
                 display: none !important;
                 animation: none !important;
               }
@@ -1385,7 +1385,7 @@ export function WatchMapPlayer({
               <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
                 <span
                   aria-hidden="true"
-                  className="wm-play-halo absolute inset-0 rounded-full pointer-events-none"
+                  className="ep-play-halo absolute inset-0 rounded-full pointer-events-none"
                   style={{
                     backgroundColor: "var(--player-accent)",
                   }}
@@ -1415,7 +1415,7 @@ export function WatchMapPlayer({
           </div>
 
           <style>{`
-            @keyframes wm-play-halo {
+            @keyframes ep-play-halo {
               0%, 100% {
                 transform: scale(0.95);
                 opacity: 0.45;
@@ -1425,11 +1425,11 @@ export function WatchMapPlayer({
                 opacity: 0;
               }
             }
-            .wm-play-halo {
-              animation: wm-play-halo 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            .ep-play-halo {
+              animation: ep-play-halo 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
             }
             @media (prefers-reduced-motion: reduce) {
-              .wm-play-halo {
+              .ep-play-halo {
                 display: none !important;
                 animation: none !important;
               }

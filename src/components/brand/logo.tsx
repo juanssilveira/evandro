@@ -1,7 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { WatchMapIcon } from "@/components/brand/watchmap-icon";
+import { EvandroWatchIcon } from "@/components/brand/evandro-watch-icon";
 
 export interface LogoProps {
   size?: "sm" | "md" | "lg";
@@ -50,7 +50,7 @@ export function Logo({
         className
       )}
     >
-      <WatchMapIcon size={config.iconSize} />
+      <EvandroWatchIcon size={config.iconSize} />
 
       <div className="flex flex-col justify-center leading-none text-left">
         <span
@@ -59,7 +59,7 @@ export function Logo({
             config.title
           )}
         >
-          WatchMap
+          Evandro Watch
         </span>
         {showSubtitle && (
           <span
@@ -69,7 +69,7 @@ export function Logo({
               config.spacing
             )}
           >
-            by Evandro Engine
+            by Evandro Intelligence
           </span>
         )}
       </div>
@@ -81,7 +81,7 @@ export function Logo({
       <Link
         href={href}
         className="inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-md transition-opacity hover:opacity-95"
-        aria-label="WatchMap — Página Inicial"
+        aria-label="Evandro Watch — Página Inicial"
       >
         {content}
       </Link>

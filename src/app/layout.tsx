@@ -23,29 +23,29 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.BASE_URL || "https://app.evandro.watch"),
   title: {
-    default: "WatchMap",
-    template: "%s | WatchMap",
+    default: "Evandro Watch",
+    template: "%s | Evandro Watch",
   },
-  applicationName: "WatchMap",
+  applicationName: "Evandro Watch",
   description: "Hospedagem de vídeo, player configurável e analytics para vídeos de venda.",
   icons: {
     icon: [
-      { url: "/brand/watchmap-icon.svg", type: "image/svg+xml" },
+      { url: "/brand/evandro-watch-icon.svg", type: "image/svg+xml" },
     ],
-    shortcut: "/brand/watchmap-icon.svg",
-    apple: "/brand/watchmap-icon.svg",
+    shortcut: "/brand/evandro-watch-icon.svg",
+    apple: "/brand/evandro-watch-icon.svg",
   },
   openGraph: {
     type: "website",
     locale: "pt_BR",
     url: "https://app.evandro.watch",
-    siteName: "WatchMap",
-    title: "WatchMap",
+    siteName: "Evandro Watch",
+    title: "Evandro Watch",
     description: "Hospedagem de vídeo, player configurável e analytics para vídeos de venda.",
   },
   twitter: {
     card: "summary",
-    title: "WatchMap",
+    title: "Evandro Watch",
     description: "Hospedagem de vídeo, player configurável e analytics para vídeos de venda.",
   },
 };

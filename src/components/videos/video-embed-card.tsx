@@ -39,9 +39,9 @@ export function VideoEmbedCard({
     : "16/9";
   const borderRadius = config.appearance?.borderRadius ?? 12;
 
-  const playerEmbedCode = `<watchmap-player\n  video-id="${publicId}"\n  style="display:block;width:100%;aspect-ratio:${aspectRatio};background:#000;border-radius:${borderRadius}px;overflow:hidden;"\n></watchmap-player>\n<script src="${cleanCdnUrl}/embed/v1/watchmap-player.js" async fetchpriority="high"></script>`;
+  const playerEmbedCode = `<evandro-player\n  video-id="${publicId}"\n  style="display:block;width:100%;aspect-ratio:${aspectRatio};background:#000;border-radius:${borderRadius}px;overflow:hidden;"\n></evandro-player>\n<script src="${cleanCdnUrl}/embed/v1/evandro-player.js" async fetchpriority="high"></script>`;
 
-  const headOptimizationCode = `<link rel="preconnect" href="${cleanCdnUrl}">\n<link rel="preconnect" href="${cleanCdnUrl}" crossorigin>\n<link rel="dns-prefetch" href="${cleanCdnUrl}">\n<link\n  rel="preload"\n  href="${cleanCdnUrl}/embed/v1/watchmap-player.js"\n  as="script"\n  fetchpriority="high"\n>`;
+  const headOptimizationCode = `<link rel="preconnect" href="${cleanCdnUrl}">\n<link rel="preconnect" href="${cleanCdnUrl}" crossorigin>\n<link rel="dns-prefetch" href="${cleanCdnUrl}">\n<link\n  rel="preload"\n  href="${cleanCdnUrl}/embed/v1/evandro-player.js"\n  as="script"\n  fetchpriority="high"\n>`;
 
   const copyToClipboard = async (text: string, setCopied: (v: boolean) => void) => {
     try {
@@ -101,9 +101,9 @@ export function VideoEmbedCard({
             <Code2 className="size-4 text-foreground/80" />
             Código de Embed
           </CardTitle>
-          {/* WatchMap Player Technical Version Chip */}
+          {/* Evandro Player Technical Version Chip */}
           <span
-            className="watchmap-badge relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider select-none overflow-hidden cursor-default"
+            className="evandro-player-badge relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider select-none overflow-hidden cursor-default"
             style={{
               background: "linear-gradient(135deg, #6d28d9 0%, #7c3aed 40%, #4f46e5 100%)",
               boxShadow:
@@ -127,7 +127,7 @@ export function VideoEmbedCard({
                 background:
                   "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%)",
                 backgroundSize: "200% 100%",
-                animation: "wm-shimmer 2.8s ease-in-out infinite",
+                animation: "ep-shimmer 2.8s ease-in-out infinite",
               }}
             />
             {/* Dot indicator */}
@@ -140,10 +140,10 @@ export function VideoEmbedCard({
               }}
             />
             <span className="relative text-white/95" style={{ letterSpacing: "0.06em" }}>
-              WM Player v1.0
+              Evandro Player v1.0
             </span>
             <style>{`
-              @keyframes wm-shimmer {
+              @keyframes ep-shimmer {
                 0%   { background-position: 200% center; }
                 60%  { background-position: -200% center; }
                 100% { background-position: -200% center; }

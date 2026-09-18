@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { WatchMapPlayer } from "@/components/player/watchmap-player";
+import { EvandroPlayer } from "@/components/player/evandro-player";
 import { VideoSettings } from "./video-settings";
 import { VideoEmbedCard } from "./video-embed-card";
 import type { PlayerConfig } from "@/types/player-config";
@@ -63,7 +63,7 @@ export function VideoPlayerView({
 
             {/* Stable Canvas Stage: fixed aspect-video viewport where the video adapts to fit inside */}
             <div className="relative w-full aspect-video flex items-center justify-center overflow-hidden">
-              <WatchMapPlayer
+              <EvandroPlayer
                 src={playbackUrl}
                 posterUrl={posterUrl}
                 backgroundPreviewUrl={backgroundPreviewUrl}

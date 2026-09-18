@@ -1,5 +1,5 @@
 /**
- * WatchMap Media Startup State Machine & Loading UX
+ * Evandro Player Media Startup State Machine & Loading UX
  * Decouples low-level media events (LOAD_START, CAN_PLAY, MANIFEST_PARSED) from UI spinner visibility.
  * Implements delayed spinner triggers so fast startups (<200ms) never flicker a loading spinner.
  */

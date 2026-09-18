@@ -1,5 +1,5 @@
 /**
- * WatchMap Startup ABR Configuration Helper
+ * Evandro Player Startup ABR Configuration Helper
  * Pure, isolated functions for HLS startup ABR optimization, initial bandwidth seeding,
  * and provider-origin session bandwidth memory.
  */
@@ -8,7 +8,7 @@ export const DEFAULT_INITIAL_BANDWIDTH_SEED = 500_000; // 500 kbps
 export const MIN_BANDWIDTH_SEED = 500_000; // 500 kbps floor
 export const MAX_BANDWIDTH_SEED = 5_000_000; // 5 Mbps seed ceiling
 export const CONSERVATIVE_FACTOR = 0.7; // 70% of measured bandwidth for subsequent startup
-export const BANDWIDTH_STORAGE_PREFIX = "watchmap:hls-bandwidth:v1:";
+export const BANDWIDTH_STORAGE_PREFIX = "evandro-player:hls-bandwidth:v1:";
 
 /**
  * Extracts provider origin and builds a unique sessionStorage key.
@@ -17,7 +17,7 @@ export const BANDWIDTH_STORAGE_PREFIX = "watchmap:hls-bandwidth:v1:";
 export function getBandwidthStorageKey(mediaUrl: string): string {
   if (!mediaUrl) return `${BANDWIDTH_STORAGE_PREFIX}default`;
   try {
-    const parsed = new URL(mediaUrl, "https://watchmap.local");
+    const parsed = new URL(mediaUrl, "https://evandro-player.local");
     return `${BANDWIDTH_STORAGE_PREFIX}${parsed.origin}`;
   } catch {
     return `${BANDWIDTH_STORAGE_PREFIX}default`;

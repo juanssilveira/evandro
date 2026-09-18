@@ -24,17 +24,17 @@ export async function loadHlsEngine(): Promise<HlsConstructor | null> {
     return hlsPromise;
   }
 
-  markPerformance("wm:hls-engine:start");
+  markPerformance("ep:hls-engine:start");
 
   hlsPromise = (async () => {
     try {
       // Dynamic import of hls.js build
       const hlsModule = await import("hls.js");
       const HlsClass = (hlsModule.default || hlsModule) as unknown as HlsConstructor;
-      markPerformance("wm:hls-engine:ready");
+      markPerformance("ep:hls-engine:ready");
       return HlsClass;
     } catch (err) {
-      console.error("[WatchMap HLS Engine] Failed to load HLS engine:", err);
+      console.error("[Evandro Player HLS Engine] Failed to load HLS engine:", err);
       hlsPromise = null;
       return null;
     }

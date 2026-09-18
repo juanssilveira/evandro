@@ -8,7 +8,7 @@ import { Logo } from "@/components/brand/logo";
 
 export const metadata: Metadata = {
   title: "Acesso",
-  description: "Ative seu acesso no WatchMap.",
+  description: "Ative seu acesso no Evandro Watch.",
 };
 
 export default async function NoPlanPage() {

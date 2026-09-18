@@ -716,7 +716,7 @@ export function VideosLibrary({
       )}
 
       <style>{`
-        @keyframes wm-table-shimmer {
+        @keyframes ep-table-shimmer {
           0% { transform: translateX(0); }
           100% { transform: translateX(100%); }
         }

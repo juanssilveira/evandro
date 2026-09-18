@@ -92,7 +92,7 @@ export function VideoCard({
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!canDrag) return;
-    e.dataTransfer.setData("application/x-watchmap-video", video.id);
+    e.dataTransfer.setData("application/x-evandro-watch-video", video.id);
     e.dataTransfer.setData("text/plain", video.id);
     e.dataTransfer.effectAllowed = "move";
     setIsDragging(true);
@@ -139,7 +139,7 @@ export function VideoCard({
             className="h-full w-[200%] absolute top-0 -left-full bg-gradient-to-r from-transparent via-amber-500/10 dark:via-amber-400/10 to-transparent"
             style={{
               animation:
-                "wm-table-shimmer 2.2s infinite cubic-bezier(0.4, 0, 0.2, 1)",
+                "ep-table-shimmer 2.2s infinite cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           />
         </div>

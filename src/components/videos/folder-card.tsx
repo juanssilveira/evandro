@@ -102,7 +102,7 @@ export function FolderCard({
   const handleDragOver = (e: React.DragEvent) => {
     if (
       e.dataTransfer &&
-      (e.dataTransfer.types.includes("application/x-watchmap-video") ||
+      (e.dataTransfer.types.includes("application/x-evandro-watch-video") ||
         e.dataTransfer.types.includes("text/plain"))
     ) {
       e.preventDefault();
@@ -126,7 +126,7 @@ export function FolderCard({
     setIsDragOver(false);
 
     const videoId =
-      e.dataTransfer.getData("application/x-watchmap-video") ||
+      e.dataTransfer.getData("application/x-evandro-watch-video") ||
       e.dataTransfer.getData("text/plain");
 
     if (videoId && onDropVideo) {

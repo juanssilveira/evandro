@@ -1,16 +1,16 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export interface WatchMapIconProps extends React.SVGProps<SVGSVGElement> {
+export interface EvandroWatchIconProps extends React.SVGProps<SVGSVGElement> {
   size?: number | string;
   className?: string;
 }
 
-export function WatchMapIcon({
+export function EvandroWatchIcon({
   size = 32,
   className,
   ...props
-}: WatchMapIconProps) {
+}: EvandroWatchIconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -24,7 +24,7 @@ export function WatchMapIcon({
     >
       <defs>
         <linearGradient
-          id="wm-icon-gradient-component"
+          id="evandro-watch-icon-gradient-component"
           x1="16"
           y1="1"
           x2="16"
@@ -41,7 +41,7 @@ export function WatchMapIcon({
         width="30"
         height="30"
         rx="7.5"
-        fill="url(#wm-icon-gradient-component)"
+        fill="url(#evandro-watch-icon-gradient-component)"
         stroke="#6D28D9"
         strokeWidth="1.2"
       />

@@ -1,25 +1,25 @@
 /**
- * WatchMap Player Tiny Loader (Budget <= 25 KB)
+ * Evandro Player Tiny Loader (Budget <= 25 KB)
  * Ultra-fast bootstrap coordinator, custom element registry, and parallel asset loader.
  */
 
 import { shouldUseNativeHls } from "./hls-capabilities";
 
-declare const __WATCHMAP_API_BASE__: string;
-declare const __WATCHMAP_CORE_FILENAME__: string;
-declare const __WATCHMAP_HLS_FILENAME__: string;
+declare const __EVANDRO_PLAYER_API_BASE__: string;
+declare const __EVANDRO_PLAYER_CORE_FILENAME__: string;
+declare const __EVANDRO_PLAYER_HLS_FILENAME__: string;
 
 const API_BASE: string =
-  typeof __WATCHMAP_API_BASE__ !== "undefined" ? __WATCHMAP_API_BASE__ : "";
+  typeof __EVANDRO_PLAYER_API_BASE__ !== "undefined" ? __EVANDRO_PLAYER_API_BASE__ : "";
 const CORE_FILENAME: string =
-  typeof __WATCHMAP_CORE_FILENAME__ !== "undefined" ? __WATCHMAP_CORE_FILENAME__ : "assets/player-core.js";
+  typeof __EVANDRO_PLAYER_CORE_FILENAME__ !== "undefined" ? __EVANDRO_PLAYER_CORE_FILENAME__ : "assets/player-core.js";
 const HLS_FILENAME: string =
-  typeof __WATCHMAP_HLS_FILENAME__ !== "undefined" ? __WATCHMAP_HLS_FILENAME__ : "";
+  typeof __EVANDRO_PLAYER_HLS_FILENAME__ !== "undefined" ? __EVANDRO_PLAYER_HLS_FILENAME__ : "";
 
 // 1. Mark loader execution start immediately
 if (typeof performance !== "undefined" && performance.mark) {
   try {
-    performance.mark("wm:loader:start");
+    performance.mark("ep:loader:start");
   } catch {
     // ignore
   }
@@ -47,7 +47,7 @@ export interface BootstrapVideoData {
   };
 }
 
-export interface WatchMapCoreModule {
+export interface EvandroPlayerCoreModule {
   mount: (
     container: HTMLDivElement,
     shadowRoot: ShadowRoot,
@@ -57,22 +57,22 @@ export interface WatchMapCoreModule {
   ready: boolean;
 }
 
-export interface WatchMapBootstrapRegistry {
+export interface EvandroPlayerBootstrapRegistry {
   map: Record<string, Promise<BootstrapVideoData>>;
   resolved: Record<string, BootstrapVideoData>;
   fetch: (apiBase: string, videoId: string) => Promise<BootstrapVideoData>;
   preconnect: (url: string) => void;
   preloadVisual: (url: string) => void;
   preloadHls: () => void;
-  corePromise: Promise<WatchMapCoreModule> | null;
+  corePromise: Promise<EvandroPlayerCoreModule> | null;
 }
 
-interface WindowWithWatchMap extends Window {
-  __WATCHMAP_BOOTSTRAP__?: WatchMapBootstrapRegistry;
-  __WATCHMAP_CORE__?: WatchMapCoreModule;
+interface WindowWithEvandroPlayer extends Window {
+  __EVANDRO_PLAYER_BOOTSTRAP__?: EvandroPlayerBootstrapRegistry;
+  __EVANDRO_PLAYER_CORE__?: EvandroPlayerCoreModule;
 }
 
-const win = (typeof window !== "undefined" ? window : undefined) as WindowWithWatchMap | undefined;
+const win = (typeof window !== "undefined" ? window : undefined) as WindowWithEvandroPlayer | undefined;
 
 function preconnectOrigin(origin: string): void {
   if (typeof document === "undefined" || !origin) return;
@@ -161,13 +161,13 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
   const base = (apiBase || "").replace(/\/$/, "");
   const cacheKey = `${base}:${videoId}`;
 
-  if (win?.__WATCHMAP_BOOTSTRAP__?.map[cacheKey]) {
-    return win.__WATCHMAP_BOOTSTRAP__.map[cacheKey];
+  if (win?.__EVANDRO_PLAYER_BOOTSTRAP__?.map[cacheKey]) {
+    return win.__EVANDRO_PLAYER_BOOTSTRAP__.map[cacheKey];
   }
 
   if (typeof performance !== "undefined" && performance.mark) {
     try {
-      performance.mark(`wm:bootstrap:start:${videoId}`);
+      performance.mark(`ep:bootstrap:start:${videoId}`);
     } catch {
       // ignore
     }
@@ -183,7 +183,7 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
     .then(async (res) => {
       if (typeof performance !== "undefined" && performance.mark) {
         try {
-          performance.mark(`wm:bootstrap:end:${videoId}`);
+          performance.mark(`ep:bootstrap:end:${videoId}`);
         } catch {
           // ignore
         }
@@ -204,8 +204,8 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
     })
     .then((json) => {
       // Store resolved data immediately for synchronous hydration in Core
-      if (win?.__WATCHMAP_BOOTSTRAP__) {
-        win.__WATCHMAP_BOOTSTRAP__.resolved[cacheKey] = json;
+      if (win?.__EVANDRO_PLAYER_BOOTSTRAP__) {
+        win.__EVANDRO_PLAYER_BOOTSTRAP__.resolved[cacheKey] = json;
       }
 
       // Warm provider CDN connection dynamically
@@ -229,20 +229,20 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
       return json;
     });
 
-  if (win?.__WATCHMAP_BOOTSTRAP__) {
-    win.__WATCHMAP_BOOTSTRAP__.map[cacheKey] = promise;
+  if (win?.__EVANDRO_PLAYER_BOOTSTRAP__) {
+    win.__EVANDRO_PLAYER_BOOTSTRAP__.map[cacheKey] = promise;
   }
   return promise;
 }
 
-function loadPlayerCore(): Promise<WatchMapCoreModule> {
-  if (win?.__WATCHMAP_BOOTSTRAP__?.corePromise) {
-    return win.__WATCHMAP_BOOTSTRAP__.corePromise;
+function loadPlayerCore(): Promise<EvandroPlayerCoreModule> {
+  if (win?.__EVANDRO_PLAYER_BOOTSTRAP__?.corePromise) {
+    return win.__EVANDRO_PLAYER_BOOTSTRAP__.corePromise;
   }
 
   if (typeof performance !== "undefined" && performance.mark) {
     try {
-      performance.mark("wm:core:start");
+      performance.mark("ep:core:start");
     } catch {
       // ignore
     }
@@ -251,10 +251,10 @@ function loadPlayerCore(): Promise<WatchMapCoreModule> {
   const embedBase = getEmbedBaseUrl();
   const coreUrl = new URL(CORE_FILENAME, embedBase).href;
 
-  const promise = new Promise<WatchMapCoreModule>((resolve, reject) => {
+  const promise = new Promise<EvandroPlayerCoreModule>((resolve, reject) => {
     // If already loaded via script
-    if (win?.__WATCHMAP_CORE__?.ready) {
-      resolve(win.__WATCHMAP_CORE__);
+    if (win?.__EVANDRO_PLAYER_CORE__?.ready) {
+      resolve(win.__EVANDRO_PLAYER_CORE__);
       return;
     }
 
@@ -265,31 +265,31 @@ function loadPlayerCore(): Promise<WatchMapCoreModule> {
     script.async = true;
 
     script.onload = () => {
-      if (win?.__WATCHMAP_CORE__) {
-        resolve(win.__WATCHMAP_CORE__);
+      if (win?.__EVANDRO_PLAYER_CORE__) {
+        resolve(win.__EVANDRO_PLAYER_CORE__);
       } else {
-        reject(new Error("Core module loaded but __WATCHMAP_CORE__ not found."));
+        reject(new Error("Core module loaded but __EVANDRO_PLAYER_CORE__ not found."));
       }
     };
 
     script.onerror = (err) => {
-      console.error("[WatchMap Loader] Failed to load Player Core:", coreUrl, err);
+      console.error("[Evandro Player Loader] Failed to load Player Core:", coreUrl, err);
       reject(err);
     };
 
     document.head.appendChild(script);
   });
 
-  if (win?.__WATCHMAP_BOOTSTRAP__) {
-    win.__WATCHMAP_BOOTSTRAP__.corePromise = promise;
+  if (win?.__EVANDRO_PLAYER_BOOTSTRAP__) {
+    win.__EVANDRO_PLAYER_BOOTSTRAP__.corePromise = promise;
   }
 
   return promise;
 }
 
 // Initialize global bootstrap registry with resolved storage
-if (win && !win.__WATCHMAP_BOOTSTRAP__) {
-  win.__WATCHMAP_BOOTSTRAP__ = {
+if (win && !win.__EVANDRO_PLAYER_BOOTSTRAP__) {
+  win.__EVANDRO_PLAYER_BOOTSTRAP__ = {
     map: {},
     resolved: {},
     fetch: startEarlyBootstrap,
@@ -306,8 +306,8 @@ if (API_BASE) {
 }
 preloadHlsEngine();
 
-// 3. Define Custom Element `<watchmap-player>`
-export class WatchMapPlayerElement extends HTMLElement {
+// 3. Define Custom Element `<evandro-player>`
+export class EvandroPlayerElement extends HTMLElement {
   public static get observedAttributes(): string[] {
     return ["video-id"];
   }
@@ -328,7 +328,7 @@ export class WatchMapPlayerElement extends HTMLElement {
 
       // Create React mount container
       this._mountContainer = document.createElement("div");
-      this._mountContainer.className = "watchmap-embed-root";
+      this._mountContainer.className = "evandro-player-embed-root";
       this._shadowRoot.appendChild(this._mountContainer);
     }
 
@@ -393,7 +393,7 @@ export class WatchMapPlayerElement extends HTMLElement {
       : data.posterUrl || data.backgroundPreviewUrl;
 
     const shell = document.createElement("div");
-    shell.setAttribute("data-wm-shell", "true");
+    shell.setAttribute("data-evandro-player-shell", "true");
     shell.style.cssText =
       "position:absolute;inset:0;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:12px;z-index:0;pointer-events:none;";
 
@@ -420,8 +420,8 @@ export class WatchMapPlayerElement extends HTMLElement {
 
       if (!this._mountContainer || !this._shadowRoot || !this.isConnected) return;
 
-      if (win?.__WATCHMAP_CORE__?.mount) {
-        this._mountHandle = win.__WATCHMAP_CORE__.mount(
+      if (win?.__EVANDRO_PLAYER_CORE__?.mount) {
+        this._mountHandle = win.__EVANDRO_PLAYER_CORE__.mount(
           this._mountContainer,
           this._shadowRoot,
           videoId,
@@ -440,19 +440,19 @@ export class WatchMapPlayerElement extends HTMLElement {
         }
       }
     } catch (err) {
-      console.error("[WatchMap Element] Error mounting player core:", err);
+      console.error("[Evandro Player Element] Error mounting player core:", err);
     }
   }
 }
 
 // 4. Register Custom Element once
-if (typeof window !== "undefined" && !customElements.get("watchmap-player")) {
-  customElements.define("watchmap-player", WatchMapPlayerElement);
+if (typeof window !== "undefined" && !customElements.get("evandro-player")) {
+  customElements.define("evandro-player", EvandroPlayerElement);
 }
 
 // 5. Scan for existing elements in DOM and start parallel preloading immediately
 if (typeof document !== "undefined") {
-  const existingElements = document.querySelectorAll("watchmap-player");
+  const existingElements = document.querySelectorAll("evandro-player");
   existingElements.forEach((el) => {
     const videoId = el.getAttribute("video-id");
     if (videoId) {

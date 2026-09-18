@@ -1,5 +1,5 @@
 /**
- * WatchMap Fake Progress Engine
+ * Evandro Player Fake Progress Engine
  *
  * Isolated layer responsible for calculating the intelligent fake progress curve
  * strongly modulated by video duration.

@@ -1,6 +1,17 @@
-# WatchMap — Agent Instructions
+# Evandro Watch — Agent Instructions
 
-Este repositório contém o desenvolvimento do WatchMap.
+Este repositório contém o desenvolvimento do Evandro Watch.
+
+## Nomenclatura Oficial do Produto
+
+A família oficial de produtos e componentes é:
+
+* **Evandro Watch**: a aplicação/plataforma principal.
+* **Evandro Player**: o smart player de vídeo / embed (`<evandro-player>`, `evandro-player.js`).
+* **Evandro Tracker**: camada de tracking avançado futuro.
+* **Evandro Intelligence**: camada de analytics e inteligência futura (assinatura visual: *Evandro Watch by Evandro Intelligence*).
+
+O nome **WatchMap** e prefixos legados associados (`wm:*`, `__WATCHMAP_*`, `<watchmap-player>`, `watchmap-player.js`) foram descontinuados e não devem ser utilizados em código ativo, UI, logs, globals ou documentação nova.
 
 ## Regra principal
 

@@ -1,55 +1,60 @@
-# WatchMap — Product
+# Evandro Watch — Product
 
-## O que é o WatchMap
+## O que é o Evandro Watch
 
-WatchMap é uma plataforma de hospedagem, reprodução e análise comportamental de vídeos de vendas.
+Evandro Watch é uma plataforma de hospedagem, reprodução e análise comportamental de vídeos de alta conversão.
 
 A plataforma é responsável por:
 
 * gerenciamento dos vídeos;
-* reprodução através do WatchMap Player;
-* coleta de dados de reprodução;
-* tracking comportamental através do motor Evandro;
-* processamento dos dados;
+* reprodução através do Evandro Player;
+* coleta de dados de reprodução e telemetria operacional;
+* tracking comportamental e análise futura (Evandro Tracker e Evandro Intelligence);
+* processamento e persistência dos dados;
 * visualização de analytics.
 
-## Diferencial central
+## Família de Produtos e Conceitos
 
-O principal diferencial do WatchMap é entender com profundidade como cada espectador se comporta durante um vídeo.
+O ecossistema Evandro é composto por quatro frentes conceituais:
 
-O produto combina duas tecnologias próprias:
+### 1. Evandro Watch (Aplicação / Plataforma)
 
-### WatchMap Player
+A plataforma principal onde usuários gerenciam contas, membros, vídeos, pastas, configurações de embed e visualizam dados.
+Assinatura visual oficial: **Evandro Watch by Evandro Intelligence**.
 
-Responsável pela reprodução do vídeo e por fornecer controle direto sobre o ciclo de playback.
+### 2. Evandro Player (Smart Player de Vídeo)
 
-### Evandro
+O componente cliente de reprodução ultrarrápida, embed e controle de playback (`<evandro-player>`, `evandro-player.js`). Responsável pelo ciclo de vida do vídeo, ABR de inicialização, autoplay em background e medição precisa de performance.
 
-Responsável por observar, registrar e interpretar o comportamento do espectador durante a reprodução.
+### 3. Evandro Tracker (Tracking Comportamental Avançado - Futuro)
 
-Player e Evandro trabalham de forma integrada, mas permanecem componentes independentes.
+Camada projetada para observação, registro e reconstrução detalhada do comportamento do espectador durante a sessão. Atualmente o player opera com telemetria operacional; o Evandro Tracker completo representa a evolução futura desse motor.
+
+### 4. Evandro Intelligence (Analytics e Inteligência - Futuro)
+
+Camada de interpretação avançada, inteligência de conversão e insights de audiência.
 
 ## Arquitetura conceitual
 
 ```text
-WATCHMAP
+EVANDRO WATCH
 │
-├── Plataforma
+├── Plataforma (Evandro Watch)
 │   ├── autenticação
 │   ├── contas
-│   ├── vídeos
+│   ├── vídeos e pastas
 │   └── configurações
 │
-├── WatchMap Player
-│   └── reprodução
+├── Evandro Player
+│   └── reprodução e performance de playback
 │
-├── Evandro
-│   └── tracking comportamental
+├── Evandro Tracker (Tracking avançado futuro)
+│   └── observação comportamental profunda
 │
 ├── Backend
 │   └── persistência e processamento
 │
-└── Analytics
+└── Evandro Intelligence (Analytics & inteligência futura)
     └── interpretação e visualização
 ```
 
@@ -67,7 +72,7 @@ VIDEO
 
 Usuários acessam os dados através de sua associação com uma conta.
 
-A arquitetura deve permitir múltiplos usuários por conta sem alterar o modelo fundamental dos dados.
+A arquitetura permite múltiplos usuários por conta sem alterar o modelo fundamental dos dados.
 
 ## Princípios do produto
 
@@ -79,19 +84,19 @@ Evitar complexidade e abstrações prematuras.
 
 ### Controle do player
 
-O WatchMap utiliza seu próprio player como base para reprodução e coleta de dados.
+O Evandro Watch utiliza seu próprio player (Evandro Player) como base para reprodução e coleta de dados.
 
 O controle direto do player é parte fundamental da qualidade e profundidade do tracking.
 
 ### Separação de responsabilidades
 
-O WatchMap Player é responsável por reprodução.
+O Evandro Player é responsável por reprodução e performance.
 
-O Evandro é responsável por tracking e comportamento.
+O tracking comportamental evolui na camada Evandro Tracker.
 
-A plataforma é responsável por gestão, configuração e visualização.
+A plataforma Evandro Watch é responsável por gestão, configuração e visualização.
 
-Cada componente deve possuir responsabilidades claras.
+Cada componente possui responsabilidades claras e delimitadas.
 
 ### Dados antes de interpretação
 
@@ -99,10 +104,10 @@ A prioridade é coletar dados confiáveis e reconstruir corretamente o comportam
 
 ### Produção real
 
-Player e tracking devem ser projetados para funcionar em condições reais de produção desde o início.
+Player e telemetria são projetados para funcionar em condições reais de produção com alta performance e baixo overhead.
 
 ### Evolução incremental
 
-O produto deve evoluir através de funcionalidades pequenas, especificadas e testáveis.
+O produto evolui através de funcionalidades pequenas, especificadas e testáveis.
 
-Cada nova camada deve aproveitar a fundação existente sem exigir reconstruções desnecessárias.
+Cada nova camada aproveita a fundação existente sem exigir reconstruções desnecessárias.

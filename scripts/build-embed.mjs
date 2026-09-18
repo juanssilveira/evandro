@@ -46,11 +46,16 @@ const inputCssPath = path.join(
 console.log("[Build Embed] 1/4 Compiling Tailwind CSS for Embed Shadow DOM...");
 fs.mkdirSync(publicEmbedDir, { recursive: true });
 
-// Clean previous assets directory
+// Clean previous assets directory and legacy watchmap-player.js if present
 if (fs.existsSync(publicAssetsDir)) {
   fs.rmSync(publicAssetsDir, { recursive: true, force: true });
 }
 fs.mkdirSync(publicAssetsDir, { recursive: true });
+
+const legacyLoaderPath = path.join(publicEmbedDir, "watchmap-player.js");
+if (fs.existsSync(legacyLoaderPath)) {
+  fs.rmSync(legacyLoaderPath, { force: true });
+}
 
 // Compile Tailwind CSS to standalone CSS file
 execSync(`npx @tailwindcss/cli -i "${inputCssPath}" -o "${generatedCssPath}" --minify`, {
@@ -120,7 +125,7 @@ const coreBuildResult = await esbuild.build({
   },
   define: {
     "process.env.NODE_ENV": '"production"',
-    "__WATCHMAP_API_BASE__": JSON.stringify(apiBaseUrl),
+    "__EVANDRO_PLAYER_API_BASE__": JSON.stringify(apiBaseUrl),
   },
   plugins: [pathAliasPlugin],
 });
@@ -164,7 +169,7 @@ const loaderEntryFile = path.join(
   "embed",
   "loader-entry.ts"
 );
-const loaderOutputFile = path.join(publicEmbedDir, "watchmap-player.js");
+const loaderOutputFile = path.join(publicEmbedDir, "evandro-player.js");
 
 await esbuild.build({
   entryPoints: [loaderEntryFile],
@@ -181,9 +186,9 @@ await esbuild.build({
   },
   define: {
     "process.env.NODE_ENV": '"production"',
-    "__WATCHMAP_API_BASE__": JSON.stringify(apiBaseUrl),
-    "__WATCHMAP_CORE_FILENAME__": JSON.stringify(coreOutputRelativePath),
-    "__WATCHMAP_HLS_FILENAME__": JSON.stringify(hlsOutputRelativePath),
+    "__EVANDRO_PLAYER_API_BASE__": JSON.stringify(apiBaseUrl),
+    "__EVANDRO_PLAYER_CORE_FILENAME__": JSON.stringify(coreOutputRelativePath),
+    "__EVANDRO_PLAYER_HLS_FILENAME__": JSON.stringify(hlsOutputRelativePath),
   },
   plugins: [pathAliasPlugin],
 });
@@ -198,7 +203,7 @@ const loaderBudgetKb = 25.0;
 const oldMonolithSize = 1410269; // ~1.41 MB
 
 console.log("\n========================================================");
-console.log("            WATCHMAP PLAYER EMBED BUILD REPORT          ");
+console.log("            EVANDRO PLAYER EMBED BUILD REPORT           ");
 console.log("========================================================");
 console.log(`- Tiny Loader: ${loaderOutputFile}`);
 console.log(`  Size: ${loaderStats.size.toLocaleString()} bytes (${loaderSizeKb} KB) / Budget: <= ${loaderBudgetKb} KB [${loaderStats.size <= loaderBudgetKb * 1024 ? "PASS" : "FAIL"}]`);

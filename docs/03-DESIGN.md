@@ -1,8 +1,8 @@
-# WatchMap — Design System
+# Evandro Watch — Design System
 
 ## Objetivo
 
-Este documento é a referência prescritiva para qualquer agente ou desenvolvedor construindo interfaces no WatchMap.
+Este documento é a referência prescritiva para qualquer agente ou desenvolvedor construindo interfaces no Evandro Watch.
 
 Toda nova interface deve seguir rigorosamente estas regras para garantir consistência visual, hierarquia de ações e sensação de produto técnico refinado.
 
@@ -15,13 +15,13 @@ O design deve transmitir:
 * fisicalidade e profundidade discreta;
 * consistência operacional.
 
-O WatchMap é uma ferramenta de trabalho. A interface prioriza legibilidade, densidade adequada e velocidade operacional.
+O Evandro Watch é uma ferramenta de trabalho. A interface prioriza legibilidade, densidade adequada e velocidade operacional.
 
 ---
 
 # Direção visual
 
-A linguagem visual do WatchMap combina estética operacional moderna com superfícies limpas, bordas nítidas e sutis toques de profundidade física.
+A linguagem visual do Evandro Watch combina estética operacional moderna com superfícies limpas, bordas nítidas e sutis toques de profundidade física.
 
 Referência conceitual:
 
@@ -40,7 +40,7 @@ hierarquia precisa de ações
 * separação entre fundo e cards baseada em background e bordas bem definidas;
 * sombras discretas e pequenos efeitos táteis de profundidade;
 * gradientes usados com moderação (principalmente em botões primários);
-* roxo WatchMap como cor de marca e destaque pontual;
+* roxo de marca como cor primária e destaque pontual;
 * evitar aparência genérica de template SaaS.
 
 ### O que evitar estritamente:
@@ -81,7 +81,7 @@ Foreground Muted   #71717A   (descrições, legendas, placeholders)
 
 Utilizar tokens semânticos baseados em CSS variables. Não espalhar valores hexadecimais hardcoded nos componentes.
 
-## Cor de marca (WatchMap Purple)
+## Cor de marca (Evandro Purple)
 
 ```text
 Primary              #7C3AED   (roxo principal da marca)
@@ -365,7 +365,7 @@ Nunca usar dois botões Primary no rodapé de um modal.
 
 # Profundidade visual física
 
-A profundidade no WatchMap é **técnica, física e moderada**.
+A profundidade no Evandro Watch é **técnica, física e moderada**.
 
 ### Onde aplicar profundidade:
 * **Primary Buttons**: gradiente vertical suave + borda inferior escura + highlight superior.

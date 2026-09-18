@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { WatchMapPlayer } from "../watchmap-player";
+import { EvandroPlayer } from "../evandro-player";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type PlayerConfig, DEFAULT_PLAYER_CONFIG, parsePlayerConfig } from "@/types/player-config";
@@ -52,7 +52,7 @@ interface BootstrapError {
 // Global shared bootstrap registry interface
 declare global {
   interface Window {
-    __WATCHMAP_BOOTSTRAP__?: {
+    __EVANDRO_PLAYER_BOOTSTRAP__?: {
       map: Record<string, Promise<BootstrapResponsePayload>>;
       resolved: Record<string, BootstrapResponsePayload>;
       fetch: (apiBase: string, videoId: string) => Promise<BootstrapResponsePayload>;
@@ -98,10 +98,10 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
     if (
       typeof window !== "undefined" &&
-      window.__WATCHMAP_BOOTSTRAP__?.resolved &&
-      cacheKey in window.__WATCHMAP_BOOTSTRAP__.resolved
+      window.__EVANDRO_PLAYER_BOOTSTRAP__?.resolved &&
+      cacheKey in window.__EVANDRO_PLAYER_BOOTSTRAP__.resolved
     ) {
-      const resolvedData = window.__WATCHMAP_BOOTSTRAP__.resolved[cacheKey];
+      const resolvedData = window.__EVANDRO_PLAYER_BOOTSTRAP__.resolved[cacheKey];
       return {
         status: "ready",
         data: parsePayloadToEmbedData(resolvedData, videoId),
@@ -123,7 +123,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
       return;
     }
 
-    markPerformance("wm:core:ready", videoId);
+    markPerformance("ep:core:ready", videoId);
 
     // If state was already synchronously hydrated from resolved bootstrap cache on first render
     if (state.status === "ready" && retryCount === 0) {
@@ -139,13 +139,13 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
         // Consume in-flight bootstrap promise from tiny loader if present
         if (
           typeof window !== "undefined" &&
-          window.__WATCHMAP_BOOTSTRAP__?.map &&
-          cacheKey in window.__WATCHMAP_BOOTSTRAP__.map &&
+          window.__EVANDRO_PLAYER_BOOTSTRAP__?.map &&
+          cacheKey in window.__EVANDRO_PLAYER_BOOTSTRAP__.map &&
           retryCount === 0
         ) {
-          jsonPromise = window.__WATCHMAP_BOOTSTRAP__.map[cacheKey];
+          jsonPromise = window.__EVANDRO_PLAYER_BOOTSTRAP__.map[cacheKey];
         } else {
-          markPerformance("wm:bootstrap:start", videoId);
+          markPerformance("ep:bootstrap:start", videoId);
           const url = `${base}/api/embed/videos/${encodeURIComponent(videoId)}`;
 
           jsonPromise = fetch(url, {
@@ -171,24 +171,24 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
             return response.json() as Promise<BootstrapResponsePayload>;
           });
 
-          if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__) {
-            window.__WATCHMAP_BOOTSTRAP__.map[cacheKey] = jsonPromise;
+          if (typeof window !== "undefined" && window.__EVANDRO_PLAYER_BOOTSTRAP__) {
+            window.__EVANDRO_PLAYER_BOOTSTRAP__.map[cacheKey] = jsonPromise;
           }
         }
 
         const json = await jsonPromise;
-        markPerformance("wm:bootstrap:end", videoId);
+        markPerformance("ep:bootstrap:end", videoId);
 
-        if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__) {
-          window.__WATCHMAP_BOOTSTRAP__.resolved[cacheKey] = json;
+        if (typeof window !== "undefined" && window.__EVANDRO_PLAYER_BOOTSTRAP__) {
+          window.__EVANDRO_PLAYER_BOOTSTRAP__.resolved[cacheKey] = json;
         }
 
         // Preconnect provider origin dynamically once playbackUrl is resolved
         const playbackUrl = json.playback?.url || json.playbackUrl || null;
-        if (playbackUrl && typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__?.preconnect) {
+        if (playbackUrl && typeof window !== "undefined" && window.__EVANDRO_PLAYER_BOOTSTRAP__?.preconnect) {
           try {
             const providerOrigin = new URL(playbackUrl).origin;
-            window.__WATCHMAP_BOOTSTRAP__.preconnect(providerOrigin);
+            window.__EVANDRO_PLAYER_BOOTSTRAP__.preconnect(providerOrigin);
           } catch {
             // ignore malformed URL
           }
@@ -199,11 +199,11 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
           : DEFAULT_PLAYER_CONFIG;
 
         // Warm up priority visual asset
-        if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__?.preloadVisual) {
+        if (typeof window !== "undefined" && window.__EVANDRO_PLAYER_BOOTSTRAP__?.preloadVisual) {
           if (parsedConfig.playback?.backgroundAutoplay && json.backgroundPreviewUrl) {
-            window.__WATCHMAP_BOOTSTRAP__.preloadVisual(json.backgroundPreviewUrl);
+            window.__EVANDRO_PLAYER_BOOTSTRAP__.preloadVisual(json.backgroundPreviewUrl);
           } else if (json.posterUrl) {
-            window.__WATCHMAP_BOOTSTRAP__.preloadVisual(json.posterUrl);
+            window.__EVANDRO_PLAYER_BOOTSTRAP__.preloadVisual(json.posterUrl);
           }
         }
 
@@ -224,7 +224,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
       } catch (err: unknown) {
         if (controller.signal.aborted) return;
 
-        console.error("[WatchMap Embed] Failed to resolve video:", err);
+        console.error("[Evandro Player Embed] Failed to resolve video:", err);
 
         const typedErr = err as BootstrapError | undefined;
 
@@ -258,9 +258,9 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
   }, [videoId, base, cacheKey, retryCount, state.status]);
 
   const handleRetry = () => {
-    if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__) {
-      delete window.__WATCHMAP_BOOTSTRAP__.map[cacheKey];
-      delete window.__WATCHMAP_BOOTSTRAP__.resolved[cacheKey];
+    if (typeof window !== "undefined" && window.__EVANDRO_PLAYER_BOOTSTRAP__) {
+      delete window.__EVANDRO_PLAYER_BOOTSTRAP__.map[cacheKey];
+      delete window.__EVANDRO_PLAYER_BOOTSTRAP__.resolved[cacheKey];
     }
     setState({
       status: "loading",
@@ -347,7 +347,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
   }
 
   return (
-    <WatchMapPlayer
+    <EvandroPlayer
       src={data.playbackUrl || undefined}
       apiBase={apiBase}
       posterUrl={data.posterUrl}

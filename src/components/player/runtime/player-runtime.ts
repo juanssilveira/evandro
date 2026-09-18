@@ -65,7 +65,7 @@ export class PlayerRuntime {
     this.previousMuted = Boolean(video.muted);
 
     if (this.debug) {
-      console.log(`[WatchMap Runtime] INITIALIZE videoId=${this.videoId}`);
+      console.log(`[Evandro Player Runtime] INITIALIZE videoId=${this.videoId}`);
     }
 
     this.attachEventListeners();
@@ -143,7 +143,7 @@ export class PlayerRuntime {
     if (this.isDestroyed) return;
 
     if (this.debug) {
-      console.log(`[WatchMap Runtime] DESTROY videoId=${this.videoId}`);
+      console.log(`[Evandro Player Runtime] DESTROY videoId=${this.videoId}`);
     }
 
     this.isDestroyed = true;
@@ -173,7 +173,7 @@ export class PlayerRuntime {
       try {
         listener(event);
       } catch (err) {
-        console.error("[WatchMap Runtime] Error in listener:", err);
+        console.error("[Evandro Player Runtime] Error in listener:", err);
       }
     }
   }
@@ -367,7 +367,7 @@ export class PlayerRuntime {
   }
 
   private logDebug(event: PlayerRuntimeEvent): void {
-    const prefix = "[WatchMap Runtime]";
+    const prefix = "[Evandro Player Runtime]";
     switch (event.type) {
       case PlayerEventType.PLAYER_READY:
         console.log(`${prefix} PLAYER_READY`);

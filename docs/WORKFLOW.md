@@ -1,12 +1,12 @@
 # Workflow de Versionamento e Deploy
 
-Este documento detalha o fluxo oficial de desenvolvimento, controle de versão, migrações de banco e deploy dos ambientes do **WatchMap**.
+Este documento detalha o fluxo oficial de desenvolvimento, controle de versão, migrações de banco e deploy dos ambientes do **Evandro Watch**.
 
 ---
 
 ## 1. Visão Geral dos Ambientes
 
-O WatchMap opera com **dois ambientes isolados**, cada um mapeado para uma branch Git permanente e recursos de infraestrutura dedicados:
+O Evandro Watch opera com **dois ambientes isolados**, cada um mapeado para uma branch Git permanente e recursos de infraestrutura dedicados:
 
 ```text
 ┌─────────────────────────┐          ┌─────────────────────────┐

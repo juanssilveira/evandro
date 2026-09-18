@@ -14,7 +14,7 @@ export async function sendPasswordResetEmail(
   params: SendPasswordResetEmailParams
 ): Promise<{ success: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
-  const emailFrom = process.env.EMAIL_FROM || "WatchMap <onboarding@resend.dev>";
+  const emailFrom = process.env.EMAIL_FROM || "Evandro Watch <onboarding@resend.dev>";
 
   if (!apiKey || apiKey.trim().length === 0) {
     console.warn("[Email Service] RESEND_API_KEY não está configurada. Email de reset não enviado.");
@@ -36,12 +36,12 @@ export async function sendPasswordResetEmail(
       body: JSON.stringify({
         from: emailFrom,
         to: [email],
-        subject: "Redefinição de senha — WatchMap",
+        subject: "Redefinição de senha — Evandro Watch",
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111827;">
             <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Redefinição de Senha</h2>
             <p style="font-size: 14px; line-height: 24px; color: #374151; margin-bottom: 24px;">
-              Olá ${name ? `<strong>${name}</strong>` : ""}, recebemos uma solicitação para redefinir a senha da sua conta WatchMap.
+              Olá ${name ? `<strong>${name}</strong>` : ""}, recebemos uma solicitação para redefinir a senha da sua conta Evandro Watch.
             </p>
             <div style="margin-bottom: 24px;">
               <a href="${resetUrl}" style="display: inline-block; background-color: #0f172a; color: #ffffff; padding: 12px 24px; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 6px;">
@@ -60,7 +60,7 @@ export async function sendPasswordResetEmail(
             </p>
           </div>
         `,
-        text: `Olá, recebemos uma solicitação para redefinir sua senha no WatchMap.\n\nAcesse o link abaixo para criar uma nova senha:\n${resetUrl}\n\nSe você não solicitou isso, desconsidere esta mensagem.`,
+        text: `Olá, recebemos uma solicitação para redefinir sua senha no Evandro Watch.\n\nAcesse o link abaixo para criar uma nova senha:\n${resetUrl}\n\nSe você não solicitou isso, desconsidere esta mensagem.`,
       }),
     });
 

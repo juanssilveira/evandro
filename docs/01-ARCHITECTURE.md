@@ -1,8 +1,8 @@
-# WatchMap — Architecture
+# Evandro Watch — Architecture
 
 ## Objetivo
 
-Este documento define as decisões técnicas fundamentais do WatchMap.
+Este documento define as decisões técnicas fundamentais do Evandro Watch.
 
 Decisões específicas de funcionalidades pertencem às respectivas specs.
 
@@ -60,7 +60,7 @@ A arquitetura deve priorizar:
 
 # Princípio de portabilidade
 
-Sempre que possível, o WatchMap deve depender de padrões e tecnologias portáveis em vez de recursos proprietários de fornecedores.
+Sempre que possível, o Evandro Watch deve depender de padrões e tecnologias portáveis em vez de recursos proprietários de fornecedores.
 
 Exemplo:
 
@@ -92,7 +92,7 @@ Um componente só deve utilizar `"use client"` quando realmente depender de comp
 * eventos do usuário;
 * APIs do browser;
 * hooks client-side;
-* WatchMap Player.
+* Evandro Player.
 
 Não transformar páginas ou grandes árvores de componentes em Client Components sem necessidade.
 
@@ -130,7 +130,7 @@ Better Auth é responsável por autenticação:
 Quem é este usuário?
 ```
 
-WatchMap é responsável por autorização:
+Evandro Watch é responsável por autorização:
 
 ```text
 A quais contas este usuário pertence?
@@ -233,7 +233,7 @@ Exemplos:
 * dropdown;
 * modal;
 * formulário interativo;
-* WatchMap Player;
+* Evandro Player;
 * APIs específicas do navegador.
 
 Evitar `"use client"` em páginas ou layouts inteiros quando apenas uma pequena parte precisa dele.
@@ -364,13 +364,13 @@ Conversão para timezone pertence à camada de apresentação.
 
 # Autenticação
 
-Better Auth será a camada de autenticação do WatchMap.
+Better Auth será a camada de autenticação do Evandro Watch.
 
 Dados de autenticação e sessões devem permanecer no PostgreSQL utilizado pela aplicação.
 
 A integração com o banco deve utilizar o adapter oficial do Drizzle.
 
-A autenticação deve permanecer separada das regras de domínio e autorização do WatchMap.
+A autenticação deve permanecer separada das regras de domínio e autorização do Evandro Watch.
 
 ---
 
@@ -403,7 +403,7 @@ Exemplos:
 * Skeleton
 * Table
 
-Os componentes pertencem ao projeto e podem ser adaptados ao design do WatchMap.
+Os componentes pertencem ao projeto e podem ser adaptados ao design do Evandro Watch.
 
 Não instalar componentes que ainda não estão sendo utilizados.
 

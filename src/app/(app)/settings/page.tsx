@@ -10,7 +10,7 @@ import { SettingsView } from "@/components/settings/settings-view";
 
 export const metadata: Metadata = {
   title: "Configurações",
-  description: "Gerencie sua conta, segurança e plano no WatchMap.",
+  description: "Gerencie sua conta, segurança e plano no Evandro Watch.",
 };
 
 interface SettingsPageProps {

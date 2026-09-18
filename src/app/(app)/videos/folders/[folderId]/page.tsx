@@ -43,7 +43,7 @@ export async function generateMetadata({
     }
     return {
       title: folder.name,
-      description: `Vídeos da pasta ${folder.name} no WatchMap.`,
+      description: `Vídeos da pasta ${folder.name} no Evandro Watch.`,
     };
   } catch {
     return { title: "Pasta" };

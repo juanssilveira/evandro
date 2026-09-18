@@ -1,26 +1,26 @@
 /**
- * WatchMap Player Performance Instrumentation
+ * Evandro Player Performance Instrumentation
  * Standardized performance.mark / performance.measure hooks for loading lifecycle.
  */
 
 export type PerformanceMarkName =
-  | "wm:loader:start"
-  | "wm:bootstrap:start"
-  | "wm:bootstrap:end"
-  | "wm:core:start"
-  | "wm:core:ready"
-  | "wm:hls-engine:start"
-  | "wm:hls-engine:ready"
-  | "wm:media:attach"
-  | "wm:manifest:start"
-  | "wm:manifest:parsed"
-  | "wm:first-frag:start"
-  | "wm:first-frag:loaded"
-  | "wm:first-frag:buffered"
-  | "wm:canplay"
-  | "wm:first-frame"
-  | "wm:user-play"
-  | "wm:user-play-first-frame";
+  | "ep:loader:start"
+  | "ep:bootstrap:start"
+  | "ep:bootstrap:end"
+  | "ep:core:start"
+  | "ep:core:ready"
+  | "ep:hls-engine:start"
+  | "ep:hls-engine:ready"
+  | "ep:media:attach"
+  | "ep:manifest:start"
+  | "ep:manifest:parsed"
+  | "ep:first-frag:start"
+  | "ep:first-frag:loaded"
+  | "ep:first-frag:buffered"
+  | "ep:canplay"
+  | "ep:first-frame"
+  | "ep:user-play"
+  | "ep:user-play-first-frame";
 
 export interface PerformanceTimingsSummary {
   videoId?: string;
@@ -155,7 +155,7 @@ export function logPerformanceDebugReport(videoId: string, timings: PerformanceT
   if (typeof window === "undefined") return;
 
   const lines: string[] = [
-    `%c[WatchMap Performance] Video: ${videoId}`,
+    `%c[Evandro Player Performance] Video: ${videoId}`,
     "color: #7C3AED; font-weight: bold; font-size: 12px;",
     "\n",
   ];
@@ -177,7 +177,7 @@ export function logPerformanceDebugReport(videoId: string, timings: PerformanceT
   // Dispatch custom performance event for telemetry / developer testing hooks
   try {
     window.dispatchEvent(
-      new CustomEvent("watchmap:performance", {
+      new CustomEvent("evandro-player:performance", {
         detail: {
           videoId,
           ...timings,

@@ -8,29 +8,29 @@ export interface PlayerMountHandle {
   update: (videoId: string, apiBase: string) => void;
 }
 
-export interface WatchMapCoreRegistry {
-  mount: typeof mountWatchMapPlayer;
+export interface EvandroPlayerCoreRegistry {
+  mount: typeof mountEvandroPlayer;
   ready: boolean;
 }
 
 interface WindowWithCore extends Window {
-  __WATCHMAP_CORE__?: WatchMapCoreRegistry;
+  __EVANDRO_PLAYER_CORE__?: EvandroPlayerCoreRegistry;
 }
 
 /**
  * Mounts React EmbedPlayer inside the provided shadow root and container.
  * Injects isolated Shadow DOM CSS styles.
  */
-export function mountWatchMapPlayer(
+export function mountEvandroPlayer(
   container: HTMLDivElement,
   shadowRoot: ShadowRoot,
   videoId: string,
   apiBase: string
 ): PlayerMountHandle {
   // Check if style is already injected
-  if (!shadowRoot.querySelector("style[data-wm-styles]")) {
+  if (!shadowRoot.querySelector("style[data-evandro-player-styles]")) {
     const styleEl = document.createElement("style");
-    styleEl.setAttribute("data-wm-styles", "true");
+    styleEl.setAttribute("data-evandro-player-styles", "true");
     styleEl.textContent = String(EMBED_CSS);
     shadowRoot.prepend(styleEl);
   }
@@ -52,11 +52,11 @@ export function mountWatchMapPlayer(
 // Global registry for loader coordination
 if (typeof window !== "undefined") {
   const win = window as WindowWithCore;
-  win.__WATCHMAP_CORE__ = {
-    mount: mountWatchMapPlayer,
+  win.__EVANDRO_PLAYER_CORE__ = {
+    mount: mountEvandroPlayer,
     ready: true,
   };
 
   // Dispatch event notifying any pending custom elements
-  window.dispatchEvent(new CustomEvent("watchmap:core-loaded"));
+  window.dispatchEvent(new CustomEvent("evandro-player:core-loaded"));
 }

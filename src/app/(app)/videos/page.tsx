@@ -15,7 +15,7 @@ import { VideosLibrary } from "@/components/videos/videos-library";
 
 export const metadata: Metadata = {
   title: "Biblioteca",
-  description: "Gerencie seus vídeos no WatchMap.",
+  description: "Gerencie seus vídeos no Evandro Watch.",
 };
 
 export default async function VideosPage() {

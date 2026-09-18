@@ -107,7 +107,7 @@ export class PlaybackController {
     } catch {
       // If even muted autoplay fails (e.g. strict low power mode)
       if (this.config.development.debug) {
-        console.log("[WatchMap Player] BACKGROUND_AUTOPLAY_BLOCKED");
+        console.log("[Evandro Player] BACKGROUND_AUTOPLAY_BLOCKED");
       }
     }
   }
@@ -157,7 +157,7 @@ export class PlaybackController {
       await this.video.play();
     } catch (err) {
       if (this.config.development.debug) {
-        console.warn("[WatchMap Player] Foreground play failed on user gesture:", err);
+        console.warn("[Evandro Player] Foreground play failed on user gesture:", err);
       }
     }
   }

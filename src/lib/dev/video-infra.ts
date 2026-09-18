@@ -255,7 +255,7 @@ export async function getVideoInfraFullReport(
   const currentProvider = await getDefaultVideoProviderSetting(adminDb);
   const configStatus = getProviderConfigurationStatusForConfig(config);
 
-  // 1. Local WatchMap DB aggregation by provider for the selected environment
+  // 1. Local Evandro Watch DB aggregation by provider for the selected environment
   const videoAggs = await adminDb
     .select({
       provider: videos.provider,

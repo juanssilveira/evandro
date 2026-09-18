@@ -197,10 +197,10 @@ export function VideoInfraView({ report, env }: VideoInfraViewProps) {
               )}
             </div>
 
-            {/* WatchMap DB Metrics */}
+            {/* Evandro Watch DB Metrics */}
             <div className="space-y-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                Dados WatchMap (Banco Local)
+                Dados Evandro Watch (Banco Local)
               </span>
               <div className="grid grid-cols-3 gap-3 p-3.5 bg-muted/30 border border-border rounded-lg text-xs font-mono">
                 <div>
@@ -220,7 +220,7 @@ export function VideoInfraView({ report, env }: VideoInfraViewProps) {
                 <div>
                   <span className="text-muted-foreground block text-[10px] uppercase">Plays Totais</span>
                   <span className="text-sm font-bold text-foreground">{localStats.mux.totalPlays.toLocaleString("pt-BR")}</span>
-                  <span className="text-[10px] text-muted-foreground block">via WatchMap</span>
+                  <span className="text-[10px] text-muted-foreground block">via Evandro Watch</span>
                 </div>
               </div>
             </div>
@@ -345,10 +345,10 @@ export function VideoInfraView({ report, env }: VideoInfraViewProps) {
               )}
             </div>
 
-            {/* WatchMap DB Metrics */}
+            {/* Evandro Watch DB Metrics */}
             <div className="space-y-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                Dados WatchMap (Banco Local)
+                Dados Evandro Watch (Banco Local)
               </span>
               <div className="grid grid-cols-3 gap-3 p-3.5 bg-muted/30 border border-border rounded-lg text-xs font-mono">
                 <div>
@@ -368,7 +368,7 @@ export function VideoInfraView({ report, env }: VideoInfraViewProps) {
                 <div>
                   <span className="text-muted-foreground block text-[10px] uppercase">Plays Totais</span>
                   <span className="text-sm font-bold text-foreground">{localStats.bunny.totalPlays.toLocaleString("pt-BR")}</span>
-                  <span className="text-[10px] text-muted-foreground block">via WatchMap</span>
+                  <span className="text-[10px] text-muted-foreground block">via Evandro Watch</span>
                 </div>
               </div>
             </div>
@@ -443,7 +443,7 @@ export function VideoInfraView({ report, env }: VideoInfraViewProps) {
             Distribuição de Vídeos por Infraestrutura
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Contagem física de registros na base de dados WatchMap. Cada vídeo permanece na infraestrutura gravada no momento do upload.
+            Contagem física de registros na base de dados Evandro Watch. Cada vídeo permanece na infraestrutura gravada no momento do upload.
           </p>
         </div>
 

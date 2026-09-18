@@ -1,8 +1,8 @@
-# WatchMap — Database
+# Evandro Watch — Database
 
 ## Objetivo
 
-Este documento define as convenções e o modelo de dados fundamentais do WatchMap.
+Este documento define as convenções e o modelo de dados fundamentais do Evandro Watch.
 
 O banco principal é PostgreSQL, hospedado inicialmente na Neon e acessado pela aplicação através do Drizzle ORM.
 
@@ -14,7 +14,7 @@ O modelo deve permanecer simples, relacional e portável.
 
 ## PostgreSQL é a fonte de verdade
 
-Dados persistentes do WatchMap devem possuir representação explícita no PostgreSQL.
+Dados persistentes do Evandro Watch devem possuir representação explícita no PostgreSQL.
 
 Não depender de estado mantido exclusivamente no frontend ou em serviços externos.
 
@@ -51,9 +51,9 @@ account
 verification
 ```
 
-O conceito `account` utilizado internamente pelo Better Auth para provedores de autenticação não deve ser confundido com a entidade de negócio `accounts` do WatchMap.
+O conceito `account` utilizado internamente pelo Better Auth para provedores de autenticação não deve ser confundido com a entidade de negócio `accounts` do Evandro Watch.
 
-As tabelas de domínio do WatchMap devem permanecer explicitamente separadas das tabelas gerenciadas pelo Better Auth.
+As tabelas de domínio do Evandro Watch devem permanecer explicitamente separadas das tabelas gerenciadas pelo Better Auth.
 
 ---
 
@@ -86,7 +86,7 @@ O Drizzle deve realizar esse mapeamento de forma explícita no schema.
 
 ## IDs
 
-Entidades de domínio do WatchMap devem utilizar UUID.
+Entidades de domínio do Evandro Watch devem utilizar UUID.
 
 Gerar IDs na aplicação utilizando APIs criptograficamente seguras.
 
@@ -139,7 +139,7 @@ Além das tabelas gerenciadas pelo Better Auth.
 
 # accounts
 
-Representa uma conta do WatchMap.
+Representa uma conta do Evandro Watch.
 
 É a principal unidade de propriedade e isolamento dos dados.
 
@@ -180,7 +180,7 @@ Obrigatório.
 
 # account_members
 
-Relaciona usuários autenticados às contas do WatchMap.
+Relaciona usuários autenticados às contas do Evandro Watch.
 
 ```text
 USER
@@ -273,7 +273,7 @@ account_members
 
 # videos
 
-Representa um vídeo pertencente a uma conta WatchMap.
+Representa um vídeo pertencente a uma conta Evandro Watch.
 
 Upload, processamento e armazenamento físico não fazem parte deste modelo.
 
@@ -368,7 +368,7 @@ videos
 
 # video_player_settings
 
-Configurações persistidas e versionadas do WatchMap Player para um vídeo.
+Configurações persistidas e versionadas do Evandro Player para um vídeo.
 
 Relação 1:1 com `videos`.
 

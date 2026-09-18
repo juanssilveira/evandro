@@ -1,4 +1,4 @@
-# WatchMap — Infraestrutura, Ambientes e CDN
+# Evandro Watch — Infraestrutura, Ambientes e CDN
 
 ## 1. Repositório e fluxo Git
 
@@ -59,7 +59,7 @@ Nenhum ambiente pode utilizar banco, credenciais Mux ou secrets de outro ambient
 
 O mesmo repositório GitHub alimenta dois projetos Vercel na produção.
 
-### `watchmap`
+### Aplicação Principal (`watchmap` / `evandro-watch`)
 
 Responsável pela aplicação principal:
 
@@ -83,7 +83,7 @@ Domínio de Production:
 https://app.evandro.watch
 ```
 
-### `watchmap-player-cdn`
+### Player CDN (`watchmap-player-cdn` / `evandro-player-cdn`)
 
 Responsável somente pelos assets públicos do player.
 
@@ -120,13 +120,13 @@ scripts/build-embed.mjs
 gera:
 
 ```text
-public/embed/v1/watchmap-player.js
+public/embed/v1/evandro-player.js
 ```
 
 URL pública de produção:
 
 ```text
-https://cdn.evandro.watch/embed/v1/watchmap-player.js
+https://cdn.evandro.watch/embed/v1/evandro-player.js
 ```
 
 Enquanto o build continuar usando `/embed/v1/`, essa é a rota oficial do bundle.
@@ -150,9 +150,9 @@ Fluxo do embed:
 ```text
 Página externa
     ↓
-cdn.evandro.watch/embed/v1/watchmap-player.js
+cdn.evandro.watch/embed/v1/evandro-player.js
     ↓
-<watchmap-player>
+<evandro-player>
     ↓
 app.evandro.watch/api/embed/videos/{publicId}
     ↓
@@ -209,11 +209,11 @@ Preferir resolver `BASE_URL` e `CDN_URL` no servidor e passar os valores como pr
 O snippet deve usar o CDN para o script e a aplicação para a API:
 
 ```html
-<script src="https://cdn.evandro.watch/embed/v1/watchmap-player.js" defer></script>
+<script src="https://cdn.evandro.watch/embed/v1/evandro-player.js" defer></script>
 
-<watchmap-player
+<evandro-player
   video-id="PUBLIC_VIDEO_ID">
-</watchmap-player>
+</evandro-player>
 ```
 
 Regra:
@@ -242,12 +242,11 @@ development → main
 Quando `main` recebe uma nova versão:
 
 ```text
-watchmap
+evandro-watch (App)
 → deploy da aplicação
 
-watchmap-player-cdn
+evandro-player-cdn (CDN)
 → build e publicação do bundle do player
 ```
 
 Não é necessário trocar de repositório para desenvolver o player.
-
