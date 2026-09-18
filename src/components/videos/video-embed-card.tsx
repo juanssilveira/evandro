@@ -83,16 +83,16 @@ export function VideoEmbedCard({
   };
 
   return (
-    <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden">
-      <CardHeader className="pb-3 border-b border-border/40">
+    <Card className="border border-dashed border-border/90 bg-zinc-50/50 dark:bg-zinc-900/20 shadow-xs rounded-xl overflow-hidden">
+      <CardHeader className="pb-3 border-b border-dashed border-border/70 bg-zinc-100/40 dark:bg-zinc-900/40">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Code2 className="size-4 text-muted-foreground" />
+            <Code2 className="size-4 text-foreground/80" />
             Código de Embed
           </CardTitle>
-          {/* WatchMap Player 3D shimmer badge */}
+          {/* WatchMap Player Technical Version Chip */}
           <span
-            className="watchmap-badge relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider select-none overflow-hidden cursor-default"
+            className="watchmap-badge relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider select-none overflow-hidden cursor-default"
             style={{
               background: "linear-gradient(135deg, #6d28d9 0%, #7c3aed 40%, #4f46e5 100%)",
               boxShadow:
@@ -128,7 +128,7 @@ export function VideoEmbedCard({
                 boxShadow: "0 0 4px 1px rgba(167,139,250,0.7)",
               }}
             />
-            <span className="relative text-white/90" style={{ letterSpacing: "0.06em" }}>
+            <span className="relative text-white/95" style={{ letterSpacing: "0.06em" }}>
               WM Player v1.0
             </span>
             <style>{`
@@ -147,9 +147,9 @@ export function VideoEmbedCard({
 
       <CardContent className="pt-4 space-y-3.5">
         {/* Code Snippet Box Container */}
-        <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4 space-y-3">
+        <div className="rounded-lg border border-dashed border-border/80 bg-background/80 dark:bg-zinc-950/40 p-3.5 sm:p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-foreground">
+            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
               Snippet de integração
             </span>
             <Button
@@ -157,7 +157,7 @@ export function VideoEmbedCard({
               variant="outline"
               size="sm"
               onClick={handleCopy}
-              className="h-7 px-2.5 text-xs font-medium gap-1.5 shrink-0 cursor-pointer shadow-2xs"
+              className="h-7 px-2.5 text-xs font-medium gap-1.5 shrink-0 cursor-pointer shadow-2xs hover:bg-muted"
             >
               {copied ? (
                 <>
@@ -173,35 +173,35 @@ export function VideoEmbedCard({
             </Button>
           </div>
 
-          <div className="relative rounded-lg bg-zinc-950 px-3.5 py-2.5 border border-border/50 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed">
+          <div className="relative rounded-lg bg-zinc-950 dark:bg-black px-3.5 py-2.5 border border-zinc-800/80 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed shadow-inner">
             <div className="text-zinc-400">{`<script src="${cleanCdnUrl}/embed/v1/watchmap-player.js" defer></script>`}</div>
             <div className="text-zinc-200">{`<watchmap-player video-id="${publicId}"></watchmap-player>`}</div>
           </div>
         </div>
 
         {/* Instructions */}
-        <div className="flex items-start gap-2.5 rounded-lg bg-muted/30 border border-border/50 p-3 sm:p-3.5 text-[11px] text-muted-foreground">
+        <div className="flex items-start gap-2.5 rounded-lg bg-zinc-100/60 dark:bg-zinc-900/40 border border-dashed border-border/70 p-3 sm:p-3.5 text-[11px] text-muted-foreground">
           <Info className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
           <p className="leading-normal">
-            Cole a tag <code className="text-foreground font-mono bg-muted px-1 py-0.5 rounded text-[10px]">&lt;script&gt;</code> no cabeçalho e <code className="text-foreground font-mono bg-muted px-1 py-0.5 rounded text-[10px]">&lt;watchmap-player&gt;</code> onde deseja exibir o vídeo.
+            Cole a tag <code className="text-foreground font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;script&gt;</code> no cabeçalho e <code className="text-foreground font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;watchmap-player&gt;</code> onde deseja exibir o vídeo.
           </p>
         </div>
 
         {/* Sub-section: Testes e Debug */}
-        <div className="pt-4 sm:pt-5 border-t border-border/50 space-y-3">
+        <div className="pt-4 sm:pt-5 border-t border-dashed border-border/70 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400">
-              <Bug className="size-3.5" />
+            <div className="flex items-center gap-1.5 text-foreground/85">
+              <Bug className="size-3.5 text-amber-500 dark:text-amber-400" />
               <span className="text-xs font-semibold tracking-tight">
                 Testes e Debug
               </span>
             </div>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wide">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wide">
               Apenas para Testes
             </span>
           </div>
 
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-dashed border-border/80 bg-background/80 dark:bg-zinc-950/40 p-3.5 sm:p-4">
             <div className="space-y-1">
               <Label
                 htmlFor={`embed-debug-switch-${videoId}`}
