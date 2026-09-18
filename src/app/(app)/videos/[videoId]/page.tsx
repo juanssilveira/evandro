@@ -23,6 +23,7 @@ import { AppHeader } from "@/components/app-header";
 
 interface VideoPageProps {
   params: Promise<{ videoId: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }
 
 export async function generateMetadata({
@@ -52,8 +53,19 @@ export async function generateMetadata({
   }
 }
 
-export default async function VideoDetailsPage({ params }: VideoPageProps) {
+export default async function VideoDetailsPage({
+  params,
+  searchParams,
+}: VideoPageProps) {
   const { videoId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const rawTab = resolvedSearchParams.tab?.toLowerCase().trim();
+  let defaultTab: "appearance" | "playback" | "controls" = "appearance";
+  if (rawTab === "playback" || rawTab === "reproducao" || rawTab === "reprodução") {
+    defaultTab = "playback";
+  } else if (rawTab === "controls" || rawTab === "controles") {
+    defaultTab = "controls";
+  }
 
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -132,6 +144,7 @@ export default async function VideoDetailsPage({ params }: VideoPageProps) {
           backgroundPreviewUrl={backgroundPreviewUrl}
           initialConfig={playerConfig}
           cdnUrl={cdnUrl}
+          defaultTab={defaultTab}
         />
       </main>
     </div>

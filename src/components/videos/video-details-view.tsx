@@ -16,6 +16,7 @@ interface VideoDetailsViewProps {
   backgroundPreviewUrl?: string | null;
   initialConfig: PlayerConfig;
   cdnUrl: string;
+  defaultTab?: "appearance" | "playback" | "controls";
 }
 
 export function VideoDetailsView({
@@ -27,6 +28,7 @@ export function VideoDetailsView({
   backgroundPreviewUrl,
   initialConfig,
   cdnUrl,
+  defaultTab,
 }: VideoDetailsViewProps) {
   const [currentTitle, setCurrentTitle] = useState(video.title);
 
@@ -49,6 +51,7 @@ export function VideoDetailsView({
         initialConfig={initialConfig}
         publicId={video.publicId}
         cdnUrl={cdnUrl}
+        defaultTab={defaultTab}
       />
     </div>
   );

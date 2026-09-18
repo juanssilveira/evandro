@@ -15,6 +15,7 @@ interface VideoPlayerViewProps {
   initialConfig: PlayerConfig;
   publicId: string;
   cdnUrl: string;
+  defaultTab?: "appearance" | "playback" | "controls";
 }
 
 export function VideoPlayerView({
@@ -26,6 +27,7 @@ export function VideoPlayerView({
   initialConfig,
   publicId,
   cdnUrl,
+  defaultTab,
 }: VideoPlayerViewProps) {
   const [config, setConfig] = useState<PlayerConfig>(initialConfig);
 
@@ -91,6 +93,7 @@ export function VideoPlayerView({
           videoId={videoId}
           config={config}
           onConfigChange={handleConfigChange}
+          defaultTab={defaultTab}
         />
       </div>
     </div>

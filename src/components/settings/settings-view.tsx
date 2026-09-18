@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { User, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AccountSettingsCard } from "@/components/settings/account-settings-card";
@@ -33,7 +34,38 @@ export function SettingsView({
   plan,
   defaultTab = "general",
 }: SettingsViewProps) {
-  const [activeTab, setActiveTab] = React.useState<SettingsTab>(defaultTab);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  const tabParam = searchParams?.get("tab");
+  const tabFromUrl = React.useMemo<SettingsTab | null>(() => {
+    if (!tabParam) return null;
+    const lower = tabParam.toLowerCase().trim();
+    if (lower === "general" || lower === "geral" || lower === "account" || lower === "conta") return "general";
+    if (lower === "plan" || lower === "plano" || lower === "subscription") return "plan";
+    return null;
+  }, [tabParam]);
+
+  const [uncontrolledTab, setUncontrolledTab] = React.useState<SettingsTab>(defaultTab);
+  const activeTab = tabFromUrl ?? uncontrolledTab;
+
+  const handleTabChange = (tabId: SettingsTab) => {
+    setUncontrolledTab(tabId);
+    try {
+      const currentParams = new URLSearchParams(searchParams?.toString() || "");
+      if (currentParams.get("tab") !== tabId) {
+        currentParams.set("tab", tabId);
+        const newUrl = `${pathname}?${currentParams.toString()}`;
+        if (typeof window !== "undefined" && window.history?.replaceState) {
+          window.history.replaceState(null, "", newUrl);
+        }
+        router.replace(newUrl, { scroll: false });
+      }
+    } catch {
+      // safe fallback
+    }
+  };
 
   return (
     <div className="flex flex-col lg:flex-row items-start gap-6">
@@ -46,7 +78,7 @@ export function SettingsView({
           {/* Tab 1: Configurações Gerais */}
           <button
             type="button"
-            onClick={() => setActiveTab("general")}
+            onClick={() => handleTabChange("general")}
             className={cn(
               "flex-1 lg:flex-initial flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all cursor-pointer",
               activeTab === "general"
@@ -77,7 +109,7 @@ export function SettingsView({
           {/* Tab 2: Plano e Faturamento */}
           <button
             type="button"
-            onClick={() => setActiveTab("plan")}
+            onClick={() => handleTabChange("plan")}
             className={cn(
               "flex-1 lg:flex-initial flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all cursor-pointer",
               activeTab === "plan"

@@ -13,7 +13,18 @@ export const metadata: Metadata = {
   description: "Gerencie sua conta, segurança e plano no WatchMap.",
 };
 
-export default async function SettingsPage() {
+interface SettingsPageProps {
+  searchParams?: Promise<{ tab?: string }>;
+}
+
+export default async function SettingsPage({ searchParams }: SettingsPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const rawTab = resolvedSearchParams.tab?.toLowerCase().trim();
+  const defaultTab =
+    rawTab === "plan" || rawTab === "plano" || rawTab === "subscription"
+      ? "plan"
+      : "general";
+
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -73,6 +84,7 @@ export default async function SettingsPage() {
               ? usageStats.subscription.expiresAt.toISOString()
               : null,
           }}
+          defaultTab={defaultTab}
         />
       </main>
     </div>

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useTransition, useState } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { updatePlayerConfigAction } from "@/app/actions/videos";
 import { useToast } from "@/components/ui/toast";
 import { Switch } from "@/components/ui/switch";
@@ -92,14 +93,42 @@ export function VideoSettings({
   const [pendingField, setPendingField] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  const tabParam = searchParams?.get("tab");
+  const tabFromUrl = React.useMemo<VideoSettingsTabId | null>(() => {
+    if (!tabParam) return null;
+    const lower = tabParam.toLowerCase().trim();
+    if (lower === "appearance" || lower === "aparencia" || lower === "aparência") return "appearance";
+    if (lower === "playback" || lower === "reproducao" || lower === "reprodução") return "playback";
+    if (lower === "controls" || lower === "controles") return "controls";
+    return null;
+  }, [tabParam]);
+
   const [uncontrolledTab, setUncontrolledTab] = useState<VideoSettingsTabId>(defaultTab);
-  const activeTab = activeTabProp ?? uncontrolledTab;
+  const activeTab = activeTabProp ?? tabFromUrl ?? uncontrolledTab;
 
   const handleTabSelect = (tabId: VideoSettingsTabId) => {
     if (activeTabProp === undefined) {
       setUncontrolledTab(tabId);
     }
     onTabChange?.(tabId);
+
+    try {
+      const currentParams = new URLSearchParams(searchParams?.toString() || "");
+      if (currentParams.get("tab") !== tabId) {
+        currentParams.set("tab", tabId);
+        const newUrl = `${pathname}?${currentParams.toString()}`;
+        if (typeof window !== "undefined" && window.history?.replaceState) {
+          window.history.replaceState(null, "", newUrl);
+        }
+        router.replace(newUrl, { scroll: false });
+      }
+    } catch {
+      // safe fallback
+    }
   };
 
   const handleTabKeyDown = (
