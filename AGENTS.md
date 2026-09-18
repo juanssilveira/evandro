@@ -12,6 +12,7 @@ Antes de implementar ou alterar qualquer funcionalidade:
 4. Implemente somente o que foi solicitado.
 5. Leia `docs/03-DESIGN.md` antes de criar ou modificar interfaces.
 6. Leia `docs/DEPLOYMENT-CDN.md` ao trabalhar com infraestrutura, deploy, CDN ou embed.
+7. Cada vez que o AGENTE fizer uma modificação importante que pode quebrar o código se não for seguida, documente no local mais apropriado para ser consultado depois.
 
 ## Princípios de desenvolvimento
 

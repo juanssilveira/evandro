@@ -92,8 +92,9 @@ export default async function VideoDetailsPage({
   // If video is still processing or waiting for upload, attempt to sync status
   let currentVideo = video;
   if (
-    video.status !== "ready" &&
-    (video.providerVideoId || video.providerUploadId || video.muxAssetId || video.muxUploadId)
+    (video.status !== "ready" &&
+      (video.providerVideoId || video.providerUploadId || video.muxAssetId || video.muxUploadId)) ||
+    (video.status === "ready" && video.backgroundPreviewStatus === "pending")
   ) {
     const syncRes = await syncVideoStatus(video.id, account.id);
     if (syncRes.video) {

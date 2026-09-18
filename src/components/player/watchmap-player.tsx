@@ -164,17 +164,20 @@ export function WatchMapPlayer({
   const pendingForegroundActivationRef = useRef(false);
   const [hasStartedPlayingForeground, setHasStartedPlayingForeground] = useState(false);
   const [isTransitioningPreviewOut, setIsTransitioningPreviewOut] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
 
   if (src !== prevSrc) {
     setPrevSrc(src);
     setUserActivatedForeground(false);
     setHasStartedPlayingForeground(false);
+    setPreviewError(false);
   }
 
   if (playbackKey !== prevPlaybackKey) {
     setPrevPlaybackKey(playbackKey);
     setUserActivatedForeground(false);
     setHasStartedPlayingForeground(false);
+    setPreviewError(false);
   }
 
   // Dynamic mode resolution based on config and user interaction
@@ -183,9 +186,10 @@ export function WatchMapPlayer({
   );
 
   // Derive highest-quality available preview (prefer animated preview if background autoplay is active, prefer static poster in normal mode)
+  const candidateBgPreview = previewError ? null : backgroundPreviewUrl;
   const displayPreviewSrc = isBackgroundAutoplay
-    ? backgroundPreviewUrl || posterUrl || null
-    : posterUrl || backgroundPreviewUrl || null;
+    ? candidateBgPreview || posterUrl || null
+    : posterUrl || candidateBgPreview || null;
 
   const playbackMode: PlaybackMode = isBackgroundAutoplay ? "background_autoplay" : "foreground";
 
@@ -234,11 +238,30 @@ export function WatchMapPlayer({
     modeRef.current = playbackMode;
   }, [effectiveConfig, playbackMode]);
 
-  // Reset initial playback resolution on src or playback config change
+  // Reset initial playback resolution on src change
   useEffect(() => {
     hasResolvedInitialPlaybackRef.current = false;
     pendingForegroundActivationRef.current = false;
-  }, [src, playbackKey]);
+  }, [src]);
+
+  // React immediately to dynamic changes in backgroundAutoplay (e.g. live toggle in editor)
+  const isInitialMountRef = useRef(true);
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    const controller = playbackControllerRef.current;
+    const video = videoRef.current;
+    if (!controller || !video) return;
+
+    if (effectiveConfig.playback?.backgroundAutoplay) {
+      controller.startBackgroundAutoplay().catch(() => {});
+    } else {
+      controller.stopBackgroundAutoplay();
+    }
+  }, [playbackKey, effectiveConfig.playback?.backgroundAutoplay]);
 
   // Apply default media settings (volume and rate) on fresh playback init
   const applyInitialMediaSettings = useCallback(() => {
@@ -957,6 +980,11 @@ export function WatchMapPlayer({
           <img
             src={displayPreviewSrc}
             alt=""
+            onError={() => {
+              if (!previewError && candidateBgPreview) {
+                setPreviewError(true);
+              }
+            }}
             className="w-full h-full object-contain pointer-events-none select-none"
           />
         </div>

@@ -119,6 +119,12 @@ export async function updatePlayerConfigAction(rawInput: unknown) {
       return { error: "Vídeo não encontrado ou não pertence a esta conta." };
     }
 
+    if (parsed.data.config.playback?.backgroundAutoplay) {
+      syncVideoStatus(parsed.data.videoId, account.id).catch((err) => {
+        console.warn("[PlayerConfig] Background preview generation triggered error:", err);
+      });
+    }
+
     revalidatePath(`/videos/${parsed.data.videoId}`);
     return { success: true, config: updated };
   } catch (error) {

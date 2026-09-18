@@ -26,7 +26,29 @@ export class PlaybackController {
   }
 
   public updateConfig(newConfig: PlayerConfig): void {
+    const prevBackgroundAutoplay = Boolean(this.config.playback?.backgroundAutoplay);
+    const nextBackgroundAutoplay = Boolean(newConfig.playback?.backgroundAutoplay);
     this.config = newConfig;
+
+    if (prevBackgroundAutoplay !== nextBackgroundAutoplay) {
+      if (nextBackgroundAutoplay) {
+        this.startBackgroundAutoplay().catch(() => {});
+      } else {
+        this.stopBackgroundAutoplay();
+      }
+    }
+  }
+
+  public stopBackgroundAutoplay(): void {
+    if (this.isDisposed) return;
+    this.video.pause();
+    this.video.loop = false;
+    try {
+      this.video.currentTime = 0;
+    } catch {
+      // ignore
+    }
+    this.setContext("foreground", "user");
   }
 
   public updateDependencies(video: HTMLVideoElement, runtime: PlayerRuntime): void {
@@ -169,7 +191,7 @@ export class PlaybackController {
     this.isDisposed = true;
   }
 
-  private setContext(mode: PlaybackMode, initiator: PlaybackInitiator): void {
+  public setContext(mode: PlaybackMode, initiator: PlaybackInitiator): void {
     this.runtime.setPlaybackContext(mode, initiator);
     this.onModeChange?.(mode);
     this.onInitiatorChange?.(initiator);
