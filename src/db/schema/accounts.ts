@@ -4,6 +4,9 @@ import { user } from "./auth";
 export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  status: text("status", { enum: ["active", "disabled"] }).notNull().default("active"),
+  disabledAt: timestamp("disabled_at"),
+  disabledReason: text("disabled_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()

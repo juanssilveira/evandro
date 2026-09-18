@@ -1,25 +1,21 @@
 import { assertLocalDevPanelAccess } from "@/lib/dev/guard";
 import {
-  getDevOverviewMetrics,
-  getDevAccountUsageList,
+  getDevPlatformOverviewAnalytics,
   getDevUsersList,
   getDevRedeemCodesList,
+  getVideoInfraFullReport,
 } from "@/lib/dev/service";
 import { OverviewView } from "@/components/dev/overview-view";
 import { UsersView } from "@/components/dev/users-view";
 import { RedeemCodesView } from "@/components/dev/redeem-codes-view";
 import { VideoInfraView } from "@/components/dev/video-infra-view";
-import { getDefaultVideoProviderSetting } from "@/lib/settings/app-settings";
-import {
-  getVideoProviderConfigurationStatus,
-  getVideoCountsByProvider,
-} from "@/lib/video-providers";
 
 export const dynamic = "force-dynamic";
 
 interface DevPageProps {
   searchParams: Promise<{
     tab?: string;
+    range?: string;
   }>;
 }
 
@@ -29,21 +25,11 @@ export default async function DevPage({ searchParams }: DevPageProps) {
 
   const resolvedParams = await searchParams;
   const currentTab = resolvedParams.tab || "overview";
+  const range = resolvedParams.range || "30d";
 
   if (currentTab === "video-infra") {
-    const [currentProvider, configStatus, videoCounts] = await Promise.all([
-      getDefaultVideoProviderSetting(),
-      getVideoProviderConfigurationStatus(),
-      getVideoCountsByProvider(),
-    ]);
-
-    return (
-      <VideoInfraView
-        currentProvider={currentProvider}
-        configStatus={configStatus}
-        videoCounts={videoCounts}
-      />
-    );
+    const report = await getVideoInfraFullReport();
+    return <VideoInfraView report={report} />;
   }
 
   if (currentTab === "users") {
@@ -56,11 +42,7 @@ export default async function DevPage({ searchParams }: DevPageProps) {
     return <RedeemCodesView codes={codes} />;
   }
 
-  // Default to overview
-  const [metrics, accounts] = await Promise.all([
-    getDevOverviewMetrics(),
-    getDevAccountUsageList(),
-  ]);
-
-  return <OverviewView metrics={metrics} accounts={accounts} />;
+  // Default to overview operational analytics
+  const analytics = await getDevPlatformOverviewAnalytics(range);
+  return <OverviewView analytics={analytics} />;
 }

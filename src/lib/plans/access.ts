@@ -9,6 +9,7 @@ import {
 import { eq, and, desc, sql, inArray, or, isNull, gt } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { getCurrentAccount } from "@/lib/accounts";
+import { assertAccountActive } from "@/lib/accounts/status";
 import { getPlanByCode, PRO_PLAN, type PlanDefinition } from "./catalog";
 
 export interface ActivePlanContext {
@@ -103,6 +104,8 @@ export async function requireActivePlan(customHeaders?: Headers) {
   if (!account) {
     throw new Error("ACCOUNT_NOT_FOUND");
   }
+
+  assertAccountActive(account);
 
   const activePlan = await getActivePlanForUser(session.user.id);
   if (!activePlan) {

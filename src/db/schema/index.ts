@@ -5,4 +5,5 @@ export * from "./videos";
 export * from "./player-settings";
 export * from "./plans";
 export * from "./app-settings";
+export * from "./audit";
 

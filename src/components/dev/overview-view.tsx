@@ -1,261 +1,447 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
 import {
   Users,
-  Building2,
   Video,
   PlaySquare,
   HardDrive,
-  Clock,
-  CheckCircle2,
-  Clock3,
-  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  Sparkles,
+  Calendar,
+  ArrowUpRight,
 } from "lucide-react";
-import { type OverviewMetrics, type AccountUsageRow } from "@/lib/dev/service";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
+import type { PlatformOverviewAnalytics, AnalyticsRange } from "@/lib/dev/analytics";
 import { formatBytes, formatDuration, formatDate } from "@/lib/dev/formatters";
 
 interface OverviewViewProps {
-  metrics: OverviewMetrics;
-  accounts: AccountUsageRow[];
+  analytics: PlatformOverviewAnalytics;
 }
 
-export function OverviewView({ metrics, accounts }: OverviewViewProps) {
+export function OverviewView({ analytics }: OverviewViewProps) {
+  const { range, rangeDays, kpis, consumption, dailyPlays, growthSeries } = analytics;
+
+  const renderDelta = (deltaPercent: number | null, label = "vs período anterior") => {
+    if (deltaPercent === null) {
+      return <span className="text-xs text-muted-foreground">—</span>;
+    }
+
+    const isPositive = deltaPercent > 0;
+    const isZero = deltaPercent === 0;
+
+    return (
+      <div className="flex items-center gap-1 text-xs">
+        {isPositive ? (
+          <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-medium">
+            <TrendingUp className="size-3" />
+            +{deltaPercent}%
+          </span>
+        ) : isZero ? (
+          <span className="text-muted-foreground font-medium">0%</span>
+        ) : (
+          <span className="inline-flex items-center gap-0.5 text-rose-600 dark:text-rose-400 font-medium">
+            <TrendingDown className="size-3" />
+            {deltaPercent}%
+          </span>
+        )}
+        <span className="text-muted-foreground text-[11px]">{label}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8">
-      {/* Top Section Header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-foreground">
-          Visão Geral da Plataforma
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Métricas consolidadas e uso de recursos no ambiente local de desenvolvimento.
-        </p>
-      </div>
-
-      {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Total Users */}
-        <div className="bg-card border border-border rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Usuários
-            </span>
-            <div className="p-2 rounded-md bg-primary/10 text-primary">
-              <Users className="size-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-foreground">
-              {metrics.totalUsers}
-            </span>
-            <span className="text-xs text-muted-foreground">total</span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between text-xs">
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-              {metrics.activePlanUsers} com plano ativo
-            </span>
-            <span className="text-muted-foreground">
-              {metrics.noPlanUsers} sem plano
-            </span>
-          </div>
-        </div>
-
-        {/* Total Accounts */}
-        <div className="bg-card border border-border rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Contas
-            </span>
-            <div className="p-2 rounded-md bg-zinc-500/10 text-zinc-600 dark:text-zinc-400">
-              <Building2 className="size-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-foreground">
-              {metrics.totalAccounts}
-            </span>
-            <span className="text-xs text-muted-foreground">organizações/contas</span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-border/60 text-xs text-muted-foreground">
-            Média de {metrics.totalAccounts > 0 ? (metrics.totalUsers / metrics.totalAccounts).toFixed(1) : 0} usuários por conta
-          </div>
-        </div>
-
-        {/* Total Videos & Breakdown */}
-        <div className="bg-card border border-border rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Vídeos
-            </span>
-            <div className="p-2 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <Video className="size-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-foreground">
-              {metrics.totalVideos}
-            </span>
-            <span className="text-xs text-muted-foreground">total</span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-3 text-xs">
-            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="size-3" />
-              {metrics.videoStatusCounts.ready} ready
-            </span>
-            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
-              <Clock3 className="size-3" />
-              {metrics.videoStatusCounts.processing + metrics.videoStatusCounts.uploading} proc
-            </span>
-            {metrics.videoStatusCounts.errored > 0 && (
-              <span className="inline-flex items-center gap-1 text-destructive">
-                <AlertCircle className="size-3" />
-                {metrics.videoStatusCounts.errored} err
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Plays This Month */}
-        <div className="bg-card border border-border rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Plays do Mês
-            </span>
-            <div className="p-2 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400">
-              <PlaySquare className="size-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-foreground">
-              {metrics.totalMonthlyPlays.toLocaleString("pt-BR")}
-            </span>
-            <span className="text-xs text-muted-foreground">reproduções</span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-border/60 text-xs text-muted-foreground">
-            Soma de plays no período corrente (UTC)
-          </div>
-        </div>
-
-        {/* Total Media Size */}
-        <div className="bg-card border border-border rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Mídia Enviada
-            </span>
-            <div className="p-2 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
-              <HardDrive className="size-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-foreground">
-              {formatBytes(metrics.totalMediaSizeBytes)}
-            </span>
-            <span className="text-xs text-muted-foreground">volume de arquivos</span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-border/60 text-xs text-muted-foreground">
-            Soma dos tamanhos originais persistidos
-          </div>
-        </div>
-
-        {/* Total Duration */}
-        <div className="bg-card border border-border rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Duração Hospedada
-            </span>
-            <div className="p-2 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-              <Clock className="size-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-foreground">
-              {formatDuration(metrics.totalDurationSeconds)}
-            </span>
-            <span className="text-xs text-muted-foreground">tempo total</span>
-          </div>
-          <div className="mt-3 pt-3 border-t border-border/60 text-xs text-muted-foreground">
-            Duração combinada de todos os vídeos
-          </div>
-        </div>
-      </div>
-
-      {/* Account Usage Breakdown Table */}
-      <div className="space-y-4">
+      {/* Top Header & Range Filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-foreground">
-            Uso por Conta
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Métricas discriminadas de cada conta cadastrada no ambiente local.
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Painel Operacional
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Métricas de crescimento, consumo e atividade da plataforma.
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-lg overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-muted/50 border-b border-border text-xs text-muted-foreground uppercase font-medium">
-                <tr>
-                  <th className="px-4 py-3">Conta / Usuário</th>
-                  <th className="px-4 py-3">Plano</th>
-                  <th className="px-4 py-3">Validade</th>
-                  <th className="px-4 py-3 text-center">Vídeos</th>
-                  <th className="px-4 py-3 text-center">Plays Mês</th>
-                  <th className="px-4 py-3 text-right">Mídia</th>
-                  <th className="px-4 py-3 text-right">Duração</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {accounts.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                      Nenhuma conta cadastrada.
-                    </td>
-                  </tr>
-                ) : (
-                  accounts.map((acc) => {
-                    const isPro = acc.planCode === "pro" && acc.subscriptionStatus === "active";
-                    return (
-                      <tr key={acc.accountId} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-foreground">{acc.accountName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {acc.primaryEmail !== "—" ? acc.primaryEmail : acc.primaryUserName}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {isPro ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                              Pro
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground border border-border">
-                              Sem plano
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {isPro
-                            ? acc.expiresAt
-                              ? formatDate(acc.expiresAt)
-                              : "Sem vencimento"
-                            : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-center font-mono text-xs">
-                          {acc.videoCount} / {isPro ? "10" : "0"}
-                        </td>
-                        <td className="px-4 py-3 text-center font-mono text-xs">
-                          {acc.playsThisMonth.toLocaleString("pt-BR")}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs">
-                          {formatBytes(acc.totalMediaSizeBytes)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">
-                          {formatDuration(acc.totalDurationSeconds)}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+        {/* Range Selector */}
+        <div className="flex items-center bg-card border border-border p-1 rounded-lg shadow-2xs self-start sm:self-auto">
+          <Calendar className="size-3.5 text-muted-foreground ml-2 mr-1" />
+          <span className="text-xs text-muted-foreground mr-2 font-medium">Período:</span>
+          {(["7d", "30d", "90d"] as AnalyticsRange[]).map((r) => {
+            const isActive = range === r;
+            const labels: Record<AnalyticsRange, string> = {
+              "7d": "7 dias",
+              "30d": "30 dias",
+              "90d": "90 dias",
+            };
+            return (
+              <Link
+                key={r}
+                href={`/dev?tab=overview&range=${r}`}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {labels[r]}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Users */}
+        <div className="bg-card border border-border rounded-xl p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Usuários
+              </span>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Users className="size-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
+                {kpis.totalUsers}
+              </span>
+              <span className="text-xs text-muted-foreground">cadastrados</span>
+            </div>
+            <div className="mt-2 text-xs">
+              <span className="font-semibold text-foreground">+{kpis.newUsers.current}</span>
+              <span className="text-muted-foreground ml-1">nos últimos {rangeDays}d</span>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-border/60">
+            {renderDelta(kpis.newUsers.deltaPercent)}
+          </div>
+        </div>
+
+        {/* Active Subscriptions */}
+        <div className="bg-card border border-border rounded-xl p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Assinantes Pro
+              </span>
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+                <Sparkles className="size-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
+                {kpis.activePlanUsers}
+              </span>
+              <span className="text-xs text-muted-foreground">com plano ativo</span>
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              {kpis.totalUsers > 0
+                ? `${Math.round((kpis.activePlanUsers / kpis.totalUsers) * 100)}% da base total`
+                : "0% da base"}
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-border/60 text-xs text-muted-foreground flex justify-between">
+            <span>{kpis.noPlanUsers} sem plano</span>
+            <span>{kpis.totalAccounts} contas</span>
+          </div>
+        </div>
+
+        {/* Video Uploads */}
+        <div className="bg-card border border-border rounded-xl p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Uploads
+              </span>
+              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                <Video className="size-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
+                {kpis.uploadsInRange.current}
+              </span>
+              <span className="text-xs text-muted-foreground">em {rangeDays}d</span>
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              Total ativo: <span className="font-semibold text-foreground font-mono">{kpis.totalVideos}</span> vídeos
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-border/60">
+            {renderDelta(kpis.uploadsInRange.deltaPercent)}
+          </div>
+        </div>
+
+        {/* Plays in Range */}
+        <div className="bg-card border border-border rounded-xl p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Plays ({rangeDays}d)
+              </span>
+              <div className="p-2 rounded-lg bg-violet-500/10 text-violet-500">
+                <PlaySquare className="size-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
+                {kpis.playsInRange.current.toLocaleString("pt-BR")}
+              </span>
+              <span className="text-xs text-muted-foreground">plays</span>
+            </div>
+            <div className="mt-2 text-xs">
+              <span className="font-semibold text-foreground font-mono">{kpis.playsToday.toLocaleString("pt-BR")}</span>
+              <span className="text-muted-foreground ml-1">plays hoje</span>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-border/60">
+            {renderDelta(kpis.playsInRange.deltaPercent)}
+          </div>
+        </div>
+      </div>
+
+      {/* Chart 1: Daily Plays Time Series */}
+      <div className="bg-card border border-border rounded-xl p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">
+              Reproduções por Dia
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Volume diário de sessões de reprodução nos últimos {rangeDays} dias.
+            </p>
+          </div>
+          <div className="text-xs font-mono text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-md">
+            Fonte: play_sessions.created_at
+          </div>
+        </div>
+
+        <div className="h-64 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={dailyPlays} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="playsGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--color-primary, #6366f1)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="var(--color-primary, #6366f1)" stopOpacity={0.0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #27272a)" opacity={0.4} vertical={false} />
+              <XAxis
+                dataKey="date"
+                stroke="var(--muted-foreground, #71717a)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(val: string) => {
+                  const parts = val.split("-");
+                  return `${parts[2]}/${parts[1]}`;
+                }}
+              />
+              <YAxis
+                stroke="var(--muted-foreground, #71717a)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "var(--card, #18181b)",
+                  borderColor: "var(--border, #27272a)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "var(--foreground, #fafafa)",
+                }}
+                labelFormatter={(label) => typeof label === "string" ? `Data: ${formatDate(label)}` : String(label ?? "")}
+                formatter={(value) => [`${value} plays`, "Reproduções"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="plays"
+                stroke="var(--color-primary, #6366f1)"
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#playsGradient)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Chart 2: Growth Series (Users + Uploads) */}
+      <div className="bg-card border border-border rounded-xl p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">
+              Crescimento de Cadastros e Uploads
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Novos usuários e novos vídeos adicionados por dia.
+            </p>
+          </div>
+          <div className="text-xs font-mono text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-md">
+            Fontes: user.created_at & videos.created_at
+          </div>
+        </div>
+
+        <div className="h-64 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={growthSeries} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #27272a)" opacity={0.4} vertical={false} />
+              <XAxis
+                dataKey="date"
+                stroke="var(--muted-foreground, #71717a)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(val: string) => {
+                  const parts = val.split("-");
+                  return `${parts[2]}/${parts[1]}`;
+                }}
+              />
+              <YAxis
+                stroke="var(--muted-foreground, #71717a)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "var(--card, #18181b)",
+                  borderColor: "var(--border, #27272a)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "var(--foreground, #fafafa)",
+                }}
+                labelFormatter={(label) => typeof label === "string" ? `Data: ${formatDate(label)}` : String(label ?? "")}
+              />
+              <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
+              <Bar dataKey="newUsers" name="Novos Usuários" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="uploads" name="Uploads de Vídeo" fill="#10b981" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Video Consumption & Provider Split */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">
+              Consumo da Operação
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Volume físico e distribuição de infraestrutura de vídeo armazenada no banco.
+            </p>
+          </div>
+          <Link
+            href="/dev?tab=video-infra"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary-hover font-medium"
+          >
+            <span>Ver Infra de Vídeo</span>
+            <ArrowUpRight className="size-3.5" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* General Stats */}
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <HardDrive className="size-4 text-cyan-500" />
+              <span>Volume Total</span>
+            </div>
+            <div>
+              <div className="text-2xl font-bold font-mono text-foreground">
+                {formatBytes(consumption.totalMediaSizeBytes)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {formatDuration(consumption.totalDurationSeconds)} de vídeo hospedado
+              </div>
+            </div>
+            <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs">
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                {consumption.videoStatusCounts.ready} prontos
+              </span>
+              <span className="text-amber-600 dark:text-amber-400">
+                {consumption.videoStatusCounts.processing + consumption.videoStatusCounts.uploading} em proc
+              </span>
+              {consumption.videoStatusCounts.errored > 0 && (
+                <span className="text-destructive">
+                  {consumption.videoStatusCounts.errored} com erro
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Mux Provider Box */}
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <span className="size-2 rounded-full bg-[#FF2B6D]"></span>
+                <span>Mux</span>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">
+                {consumption.totalVideos > 0
+                  ? `${Math.round((consumption.providers.mux.videoCount / consumption.totalVideos) * 100)}%`
+                  : "0%"}
+              </span>
+            </div>
+            <div>
+              <div className="text-2xl font-bold font-mono text-foreground">
+                {consumption.providers.mux.videoCount} <span className="text-sm font-normal text-muted-foreground">vídeos</span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {formatBytes(consumption.providers.mux.totalSizeBytes)} · {formatDuration(consumption.providers.mux.totalDurationSeconds)}
+              </div>
+            </div>
+            <div className="pt-3 border-t border-border/60 text-xs text-muted-foreground flex justify-between font-mono">
+              <span>{consumption.providers.mux.totalPlays.toLocaleString("pt-BR")} plays</span>
+              <span>Mux Assets</span>
+            </div>
+          </div>
+
+          {/* Bunny Stream Box */}
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <span className="size-2 rounded-full bg-[#FF8400]"></span>
+                <span>Bunny Stream</span>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">
+                {consumption.totalVideos > 0
+                  ? `${Math.round((consumption.providers.bunny.videoCount / consumption.totalVideos) * 100)}%`
+                  : "0%"}
+              </span>
+            </div>
+            <div>
+              <div className="text-2xl font-bold font-mono text-foreground">
+                {consumption.providers.bunny.videoCount} <span className="text-sm font-normal text-muted-foreground">vídeos</span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {formatBytes(consumption.providers.bunny.totalSizeBytes)} · {formatDuration(consumption.providers.bunny.totalDurationSeconds)}
+              </div>
+            </div>
+            <div className="pt-3 border-t border-border/60 text-xs text-muted-foreground flex justify-between font-mono">
+              <span>{consumption.providers.bunny.totalPlays.toLocaleString("pt-BR")} plays</span>
+              <span>Bunny Video Library</span>
+            </div>
           </div>
         </div>
       </div>

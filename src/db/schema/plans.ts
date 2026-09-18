@@ -88,6 +88,8 @@ export const playSessions = pgTable(
     ),
     index("play_sessions_video_id_idx").on(t.videoId),
     index("play_sessions_owner_user_id_idx").on(t.ownerUserId),
+    index("play_sessions_created_at_idx").on(t.createdAt),
+    index("play_sessions_owner_created_at_idx").on(t.ownerUserId, t.createdAt),
   ]
 );
 

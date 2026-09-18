@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { KeyRound, Plus, Copy, Check, AlertTriangle, Loader2 } from "lucide-react";
-import { type DevRedeemCodeRow } from "@/lib/dev/service";
+import { useRouter } from "next/navigation";
+import { KeyRound, Plus, Copy, Check, AlertTriangle, Loader2, Trash2, ShieldAlert } from "lucide-react";
+import { type DevRedeemCodeRow } from "@/lib/dev/redeem";
 import { formatDate } from "@/lib/dev/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,13 +17,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { createDevRedeemCodeAction } from "@/app/actions/dev";
+import { createDevRedeemCodeAction, deleteRedeemCodeAction } from "@/app/actions/dev";
 
 interface RedeemCodesViewProps {
   codes: DevRedeemCodeRow[];
 }
 
 export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
+  const router = useRouter();
   const { toast } = useToast();
 
   const [isGenerateOpen, setIsGenerateOpen] = React.useState(false);
@@ -36,6 +38,10 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
     durationDays: number;
   } | null>(null);
   const [copied, setCopied] = React.useState(false);
+
+  // Delete Redeem Code state
+  const [codeToDelete, setCodeToDelete] = React.useState<DevRedeemCodeRow | null>(null);
+  const [deletePending, setDeletePending] = React.useState(false);
 
   const handleGenerateCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +60,7 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
         });
         setIsGenerateOpen(false);
         toast("Código de resgate criado com sucesso.", "success");
+        router.refresh();
       } else {
         toast(res.error, "error");
       }
@@ -61,6 +68,29 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
       toast("Falha ao gerar código de resgate.", "error");
     } finally {
       setGeneratePending(false);
+    }
+  };
+
+  const handleDeleteCode = async () => {
+    if (!codeToDelete) return;
+    setDeletePending(true);
+
+    const formData = new FormData();
+    formData.append("codeId", codeToDelete.id);
+
+    try {
+      const res = await deleteRedeemCodeAction(formData);
+      if (res.success) {
+        toast("Código de resgate excluído com sucesso.", "success");
+        setCodeToDelete(null);
+        router.refresh();
+      } else {
+        toast(res.error, "error");
+      }
+    } catch {
+      toast("Falha ao excluir código de resgate.", "error");
+    } finally {
+      setDeletePending(false);
     }
   };
 
@@ -75,7 +105,6 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
     }
   };
 
-
   return (
     <div className="space-y-8">
       {/* Header with Title and Generate Button */}
@@ -85,7 +114,7 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
             Códigos de Resgate (Redeem Codes)
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Gere e acompanhe códigos promocionais para liberação de acesso Pro.
+            Gere, acompanhe e gerencie códigos promocionais para liberação de acesso Pro.
           </p>
         </div>
 
@@ -103,7 +132,7 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
 
       {/* One-time Newly Generated Code Card */}
       {newlyGeneratedCode && (
-        <div className="p-5 bg-primary/5 border border-primary/20 rounded-lg space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xs">
+        <div className="p-5 bg-primary/5 border border-primary/20 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xs">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-primary">
               <KeyRound className="size-4" />
@@ -117,7 +146,7 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
             </button>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-background border border-border rounded-md">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-background border border-border rounded-lg">
             <div>
               <div className="text-xs text-muted-foreground">Código de Resgate:</div>
               <div className="text-lg font-mono font-bold tracking-wider text-foreground select-all">
@@ -125,7 +154,7 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground mr-2">
+              <span className="text-xs text-muted-foreground mr-2 font-medium">
                 Duração: {newlyGeneratedCode.durationDays} dias
               </span>
               <Button
@@ -150,23 +179,24 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
       )}
 
       {/* Codes List Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden shadow-xs">
+      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/50 border-b border-border text-xs text-muted-foreground uppercase font-medium">
               <tr>
-                <th className="px-4 py-3">Criado em</th>
-                <th className="px-4 py-3">Plano</th>
-                <th className="px-4 py-3">Duração</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Utilizado em</th>
-                <th className="px-4 py-3">Utilizado por</th>
+                <th className="px-4 py-3.5">Criado em</th>
+                <th className="px-4 py-3.5">Plano</th>
+                <th className="px-4 py-3.5">Duração</th>
+                <th className="px-4 py-3.5">Status</th>
+                <th className="px-4 py-3.5">Utilizado em</th>
+                <th className="px-4 py-3.5">Utilizado por</th>
+                <th className="px-4 py-3.5 text-right">Ação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {codes.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     Nenhum código gerado até o momento.
                   </td>
                 </tr>
@@ -175,18 +205,18 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
                   const isUsed = Boolean(c.usedAt);
                   return (
                     <tr key={c.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground font-mono">
                         {formatDate(c.createdAt, true)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3.5">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                           Pro
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs font-medium text-foreground">
+                      <td className="px-4 py-3.5 text-xs font-medium text-foreground">
                         {c.durationDays} dias
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3.5">
                         {isUsed ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground border border-border">
                             Utilizado
@@ -197,10 +227,10 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground">
                         {c.usedAt ? formatDate(c.usedAt, true) : "—"}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground">
                         {c.usedByUser ? (
                           <div>
                             <span className="font-medium text-foreground">{c.usedByUser.name}</span>
@@ -211,6 +241,17 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
                         ) : (
                           "—"
                         )}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setCodeToDelete(c)}
+                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="size-3.5 mr-1" />
+                          <span>Excluir</span>
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -291,7 +332,53 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
           </form>
         </DialogPopup>
       </Dialog>
+
+      {/* Modal: Confirm Delete Redeem Code */}
+      <Dialog open={codeToDelete !== null} onOpenChange={(open) => !open && setCodeToDelete(null)}>
+        <DialogPopup className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="size-4 text-destructive" />
+              <span>Excluir Código de Resgate?</span>
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-left space-y-2">
+              {codeToDelete?.usedAt ? (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    <ShieldAlert className="size-4 shrink-0" />
+                    <span>Este código já foi utilizado</span>
+                  </div>
+                  <p>
+                    Excluir este registro <strong>NÃO</strong> remove ou altera o plano concedido ao usuário ({codeToDelete.usedByUser?.email || "usuário"}).
+                  </p>
+                </div>
+              ) : (
+                <span>Este código ainda não foi utilizado e será permanentemente invalidado.</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-4 gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setCodeToDelete(null)}
+              disabled={deletePending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteCode}
+              disabled={deletePending}
+            >
+              {deletePending && <Loader2 className="size-4 animate-spin mr-2" />}
+              Excluir Código
+            </Button>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
     </div>
   );
 }
-

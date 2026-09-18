@@ -2,8 +2,17 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, Sparkles, Calendar, ShieldCheck, Loader2 } from "lucide-react";
-import { type DevUserRow } from "@/lib/dev/service";
+import {
+  UserPlus,
+  Sparkles,
+  Calendar,
+  ShieldCheck,
+  Loader2,
+  ShieldAlert,
+  Ban,
+  ChevronRight,
+} from "lucide-react";
+import { type DevUserRow } from "@/lib/dev/users";
 import { formatDate } from "@/lib/dev/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,14 +51,15 @@ export function UsersView({ users }: UsersViewProps) {
   const [expirationDate, setExpirationDate] = React.useState("");
   const [planPending, setPlanPending] = React.useState(false);
 
-  const handleOpenPlanModal = (u: DevUserRow) => {
-    // 1. Reset all fields to clean defaults
+  const handleOpenPlanModal = (u: DevUserRow, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
     setPlanMode("none");
     setTemporaryType("days");
     setDurationDays("30");
     setExpirationDate("");
 
-    // 2. Set user and populate actual persisted state
     setSelectedUser(u);
     if (u.planCode === "pro" && u.subscriptionStatus === "active") {
       if (u.expiresAt) {
@@ -124,6 +134,9 @@ export function UsersView({ users }: UsersViewProps) {
     }
   };
 
+  const handleRowClick = (userId: string) => {
+    router.push(`/dev/users/${userId}`);
+  };
 
   return (
     <div className="space-y-8">
@@ -134,7 +147,7 @@ export function UsersView({ users }: UsersViewProps) {
             Gerenciamento de Usuários
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Listagem, criação e atribuição de planos no ambiente local.
+            Clique em qualquer usuário para acessar o diagnóstico completo e executar ações operacionais.
           </p>
         </div>
 
@@ -148,41 +161,73 @@ export function UsersView({ users }: UsersViewProps) {
       </div>
 
       {/* Users Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden shadow-xs">
+      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/50 border-b border-border text-xs text-muted-foreground uppercase font-medium">
               <tr>
-                <th className="px-4 py-3">Usuário</th>
-                <th className="px-4 py-3">Conta</th>
-                <th className="px-4 py-3">Plano</th>
-                <th className="px-4 py-3">Expiração</th>
-                <th className="px-4 py-3 text-center">Vídeos</th>
-                <th className="px-4 py-3 text-center">Plays Mês</th>
-                <th className="px-4 py-3">Criado em</th>
-                <th className="px-4 py-3 text-right">Ação</th>
+                <th className="px-4 py-3.5">Usuário</th>
+                <th className="px-4 py-3.5">Conta</th>
+                <th className="px-4 py-3.5">Status</th>
+                <th className="px-4 py-3.5">Plano</th>
+                <th className="px-4 py-3.5">Expiração</th>
+                <th className="px-4 py-3.5 text-center">Vídeos</th>
+                <th className="px-4 py-3.5 text-center">Plays Mês</th>
+                <th className="px-4 py-3.5">Criado em</th>
+                <th className="px-4 py-3.5 text-right">Ação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
               ) : (
                 users.map((u) => {
                   const isPro = u.planCode === "pro" && u.subscriptionStatus === "active";
+                  const isAccountDisabled = u.accountStatus === "disabled";
+                  const isBanned = u.isBanned;
+
                   return (
-                    <tr key={u.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-foreground">{u.name}</div>
+                    <tr
+                      key={u.id}
+                      onClick={() => handleRowClick(u.id)}
+                      className="hover:bg-muted/40 transition-colors cursor-pointer group"
+                    >
+                      <td className="px-4 py-3.5">
+                        <div className="font-medium text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
+                          <span>{u.name}</span>
+                          <ChevronRight className="size-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
                         <div className="text-xs text-muted-foreground font-mono">{u.email}</div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground">
                         {u.accountName || "—"}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-col gap-1 items-start">
+                          {isBanned && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-destructive/10 text-destructive border border-destructive/20">
+                              <Ban className="size-3" />
+                              Banido
+                            </span>
+                          )}
+                          {isAccountDisabled && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              <ShieldAlert className="size-3" />
+                              Conta desativada
+                            </span>
+                          )}
+                          {!isBanned && !isAccountDisabled && (
+                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                              Ativo
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
                         {isPro ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                             <Sparkles className="size-3" />
@@ -194,30 +239,32 @@ export function UsersView({ users }: UsersViewProps) {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground">
                         {isPro
                           ? u.expiresAt
                             ? formatDate(u.expiresAt)
                             : "Sem vencimento"
                           : "—"}
                       </td>
-                      <td className="px-4 py-3 text-center font-mono text-xs">
+                      <td className="px-4 py-3.5 text-center font-mono text-xs">
                         {u.videoCount}
                       </td>
-                      <td className="px-4 py-3 text-center font-mono text-xs">
+                      <td className="px-4 py-3.5 text-center font-mono text-xs">
                         {u.playsThisMonth.toLocaleString("pt-BR")}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground">
                         {formatDate(u.createdAt)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleOpenPlanModal(u)}
-                        >
-                          Alterar Plano
-                        </Button>
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(e) => handleOpenPlanModal(u, e)}
+                          >
+                            Plano
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -305,7 +352,6 @@ export function UsersView({ users }: UsersViewProps) {
       >
         <DialogPopup className="sm:max-w-md">
           <form onSubmit={handleUpdatePlan}>
-
             <DialogHeader>
               <DialogTitle>Configurar Plano do Usuário</DialogTitle>
               <DialogDescription>
@@ -460,4 +506,3 @@ export function UsersView({ users }: UsersViewProps) {
     </div>
   );
 }
-

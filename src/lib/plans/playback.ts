@@ -1,7 +1,8 @@
 import { db } from "@/db";
-import { videos, accountMembers, monthlyUsage } from "@/db/schema";
+import { videos, accounts, accountMembers, monthlyUsage } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { getVideoPlaybackUrl } from "@/lib/video-providers";
+import { isAccountActive } from "@/lib/accounts/status";
 import {
   getActivePlanForUser,
   getCurrentPeriodKey,
@@ -79,7 +80,25 @@ export async function resolvePlaybackEntitlement(
     };
   }
 
-  // 2. Resolve account owner userId
+  // 2. Check if account is active
+  const [account] = await db
+    .select({
+      id: accounts.id,
+      status: accounts.status,
+    })
+    .from(accounts)
+    .where(eq(accounts.id, minVideo.accountId))
+    .limit(1);
+
+  if (!account || !isAccountActive(account)) {
+    return {
+      authorized: false,
+      error: "Este vídeo está temporariamente indisponível.",
+      statusCode: 403,
+    };
+  }
+
+  // 3. Resolve account owner userId
   const [ownerMember] = await db
     .select({ userId: accountMembers.userId })
     .from(accountMembers)
@@ -101,7 +120,7 @@ export async function resolvePlaybackEntitlement(
 
   const ownerUserId = ownerMember.userId;
 
-  // 3. Verify owner has active plan (status === 'active' and unexpired)
+  // 4. Verify owner has active plan (status === 'active' and unexpired)
   const activePlan = await getActivePlanForUser(ownerUserId);
   if (!activePlan) {
     return {
@@ -111,7 +130,7 @@ export async function resolvePlaybackEntitlement(
     };
   }
 
-  // 4. Verify monthly play limits (read-only, no reservation or locks)
+  // 5. Verify monthly play limits (read-only, no reservation or locks)
   const hasQuota = await canLoadPlayback(ownerUserId, activePlan);
   if (!hasQuota) {
     return {
