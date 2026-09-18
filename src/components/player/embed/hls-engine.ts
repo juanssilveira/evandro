@@ -46,9 +46,8 @@ export async function loadHlsEngine(): Promise<HlsConstructor | null> {
 
   hlsPromise = (async () => {
     try {
-      // Dynamic import of hls.js light build
-      // @ts-expect-error hls.js/light types map to hls.js
-      const hlsModule = await import("hls.js/light");
+      // Dynamic import of full hls.js build (supports Mux audio tracks and demuxing)
+      const hlsModule = await import("hls.js");
       const HlsClass = (hlsModule.default || hlsModule) as unknown as HlsConstructor;
       return HlsClass;
     } catch (err) {
