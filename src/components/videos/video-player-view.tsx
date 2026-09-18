@@ -34,9 +34,9 @@ export function VideoPlayerView({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[600px_minmax(0,1fr)] xl:grid-cols-[640px_minmax(0,1fr)] gap-6 lg:gap-8">
-      {/* Left Column (Sticky Preview Canvas + Embed Code) */}
-      <div className="w-full lg:sticky lg:top-20 space-y-4 self-start">
+    <div className="grid grid-cols-1 lg:grid-cols-[600px_minmax(0,1fr)] xl:grid-cols-[640px_minmax(0,1fr)] gap-6 lg:gap-8 items-start">
+      {/* Left Column (Preview Canvas + Embed Code) */}
+      <div className="w-full space-y-4">
         {/* Preview Canvas */}
         <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
@@ -85,8 +85,8 @@ export function VideoPlayerView({
         />
       </div>
 
-      {/* Right Column (Player Settings Categories - Sticky Panel) */}
-      <div className="space-y-6 min-w-0 lg:sticky lg:top-20 self-start">
+      {/* Right Column (Player Settings Categories) */}
+      <div className="space-y-6 min-w-0">
         <VideoSettings
           videoId={videoId}
           config={config}
