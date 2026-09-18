@@ -19,7 +19,11 @@ import {
   getCurrentPeriodKey,
   getPlanUsage,
 } from "@/lib/plans/access";
-import { validateAndActivatePlayback } from "@/lib/plans/playback";
+import {
+  resolvePlaybackEntitlement,
+  recordPlaybackSession,
+  canLoadPlayback,
+} from "@/lib/plans/playback";
 import {
   createVideoUploadSession,
 } from "@/lib/videos";
@@ -38,7 +42,7 @@ function assert(condition: boolean, message: string) {
 }
 
 async function runTests() {
-  console.log("=== STARTING SPEC 024 PLANS & REAL LIMITS TEST SUITE ===\n");
+  console.log("=== STARTING SPEC 038 PRELOADED PLAYBACK AUTHORIZATION & LIMITS TEST SUITE ===\n");
 
   const testEmail = `test_limits_${Date.now()}@evandro.watch`;
   const testUserId = `user_test_${Date.now()}`;
@@ -184,9 +188,9 @@ async function runTests() {
     assert(threwOn11th, "11º vídeo bloqueado com VIDEO_LIMIT_REACHED");
 
     // -------------------------------------------------------------
-    // TEST 6, 7, 8, 9, 10, 11: Plays, Idempotência e PlaySessions
+    // TEST 6, 7, 8, 9, 10, 11: SPEC 038 Preloaded Authorization & Background Tracking
     // -------------------------------------------------------------
-    console.log("\n6, 7, 8, 9, 10, 11. Teste: Views vs Plays, Idempotência e PlaySessions");
+    console.log("\n6, 7, 8, 9, 10, 11. Teste: Spec 038 Bootstrap Entitlement & Tracking");
     const testVideoPublicId = crypto.randomUUID();
     const testVideoId = crypto.randomUUID();
 
@@ -208,97 +212,85 @@ async function runTests() {
     const usageBefore = await getPlanUsage(testUserId, testAccountId);
     assert(usageBefore.playsThisMonth === 0, "Uso inicial de plays no mês é 0");
 
-    // 6 & 7: Render / Preview does not increment plays (only intentional activation does)
-    assert(usageBefore.playsThisMonth === 0, "Render e Background Preview têm 0 Plays");
+    // 6: Bootstrap Entitlement is authorized on load (Read-only, 0 plays increment)
+    const bootstrapEntitlement = await resolvePlaybackEntitlement(testVideoPublicId);
+    assert(bootstrapEntitlement.authorized === true, "Bootstrap entitlement autorizado no carregamento");
+    const usageAfterBootstrap = await getPlanUsage(testUserId, testAccountId);
+    assert(usageAfterBootstrap.playsThisMonth === 0, "Bootstrap de load NÃO incrementa contador de plays");
 
-    // 8: First intentional activation -> +1 Play
+    // 7: First Play tracking in background -> records session + increments monthly_usage
     const session1Id = "playsession_alpha_1";
-    const activation1 = await validateAndActivatePlayback({
+    const track1 = await recordPlaybackSession({
       publicId: testVideoPublicId,
       playSessionId: session1Id,
     });
-    assert(activation1.authorized === true, "1ª ativação autorizada");
-    assert(Boolean(activation1.playbackUrl?.includes("dummy_playback_id_12345")), "HLS entregue após autorização");
+    assert(track1.success === true && track1.recorded === true, "1ª sessão de play registrada em background");
 
     const usageAfter1 = await getPlanUsage(testUserId, testAccountId);
     assert(usageAfter1.playsThisMonth === 1, `Plays incrementado para 1 (atual: ${usageAfter1.playsThisMonth})`);
 
-    // 9 & 10: Pause/Play & Retry with SAME playSessionId -> continues 1 (Idempotent)
-    const activation1Retry = await validateAndActivatePlayback({
+    // 8: Idempotency: retry with SAME playSessionId -> does NOT increment plays
+    const track1Retry = await recordPlaybackSession({
       publicId: testVideoPublicId,
       playSessionId: session1Id,
     });
-    assert(activation1Retry.authorized === true, "Retry da mesma playSession autorizado");
+    assert(track1Retry.success === true && track1Retry.recorded === false, "Retry da mesma playSession é idempotente (recorded = false)");
     const usageAfterRetry = await getPlanUsage(testUserId, testAccountId);
     assert(usageAfterRetry.playsThisMonth === 1, `Plays continua 1 após retry na mesma sessão (atual: ${usageAfterRetry.playsThisMonth})`);
 
-    // 11: New playSession -> +1 Play
+    // 9: New playSession -> increments plays to 2
     const session2Id = "playsession_beta_2";
-    const activation2 = await validateAndActivatePlayback({
+    const track2 = await recordPlaybackSession({
       publicId: testVideoPublicId,
       playSessionId: session2Id,
     });
-    assert(activation2.authorized === true, "2ª playSession autorizada");
+    assert(track2.success === true && track2.recorded === true, "Nova sessão incrementou plays");
     const usageAfter2 = await getPlanUsage(testUserId, testAccountId);
     assert(usageAfter2.playsThisMonth === 2, `Nova sessão incrementou plays para 2 (atual: ${usageAfter2.playsThisMonth})`);
 
-    // Internal editor testing does NOT consume quota
-    const editorTestActivation = await validateAndActivatePlayback({
+    // 10: Editor preview tracking exemption
+    const editorPreviewTrack = await recordPlaybackSession({
       publicId: testVideoPublicId,
       playSessionId: "editor_preview_session",
       isEditorAdmin: true,
       adminUserId: testUserId,
     });
-    assert(editorTestActivation.authorized === true, "Preview interno autorizado");
+    assert(editorPreviewTrack.success === true && editorPreviewTrack.recorded === false, "Preview do editor não consome quota");
     const usageAfterEditor = await getPlanUsage(testUserId, testAccountId);
-    assert(usageAfterEditor.playsThisMonth === 2, `Preview do editor não consumiu quota (continua ${usageAfterEditor.playsThisMonth})`);
+    assert(usageAfterEditor.playsThisMonth === 2, `Preview do editor manteve plays inalterado (continua ${usageAfterEditor.playsThisMonth})`);
 
     // -------------------------------------------------------------
-    // TEST 12 & 13: Concorrência 4999 Plays -> duas sessões simultâneas -> final 5000 (NUNCA 5001)
+    // TEST 12 & 13: Limite de 5000 plays -> Bootstrap bloqueia novo load com 403
     // -------------------------------------------------------------
-    console.log("\n12 & 13. Teste: Concorrência em 4999 Plays (duas sessões simultâneas -> max 5000)");
-    // Set plays to 4999 directly
+    console.log("\n12 & 13. Teste: Limite de Quota no Bootstrap (plays >= 5000 -> 403)");
+    // Set plays to 4999 (can load)
     await db
       .update(schema.monthlyUsage)
       .set({ plays: 4999 })
       .where(and(eq(schema.monthlyUsage.userId, testUserId), eq(schema.monthlyUsage.periodKey, periodKey)));
 
-    const usageAt4999 = await getPlanUsage(testUserId, testAccountId);
-    assert(usageAt4999.playsThisMonth === 4999, "Plays configurado para 4999");
+    const canLoadAt4999 = await canLoadPlayback(testUserId, activePlan!);
+    assert(canLoadAt4999 === true, "Com 4999/5000 plays, canLoadPlayback é true");
+    const entitlementAt4999 = await resolvePlaybackEntitlement(testVideoPublicId);
+    assert(entitlementAt4999.authorized === true, "Bootstrap autorizado com 4999/5000 plays");
 
-    // Fire 2 concurrent new activations
-    console.log("  Disparando 2 novas ativações simultâneas em 4999 plays...");
-    const concurrentPlayResults = await Promise.all([
-      validateAndActivatePlayback({
-        publicId: testVideoPublicId,
-        playSessionId: "session_concurrent_x",
-      }),
-      validateAndActivatePlayback({
-        publicId: testVideoPublicId,
-        playSessionId: "session_concurrent_y",
-      }),
-    ]);
-
-    const playAuths = concurrentPlayResults.filter((r) => r.authorized);
-    const playDenials = concurrentPlayResults.filter((r) => !r.authorized);
-
-    assert(playAuths.length === 1, "Exatamente 1 sessão atingiu o 5000º Play e foi autorizada");
-    assert(playDenials.length === 1, "A outra sessão concorrente foi negada por quota cheia");
-
-    const usageFinal5000 = await getPlanUsage(testUserId, testAccountId);
-    assert(
-      usageFinal5000.playsThisMonth === 5000,
-      `Plays final é exatamente 5000 (NUNCA 5001) - Encontrado: ${usageFinal5000.playsThisMonth}`
-    );
-
-    // 13: At 5000/5000 Plays, any new activation is DENIED and no HLS returned
-    const deniedSession = await validateAndActivatePlayback({
+    // Simulate play happening and reaching 5000 plays
+    await recordPlaybackSession({
       publicId: testVideoPublicId,
-      playSessionId: "session_at_5000_limit",
+      playSessionId: "session_5000th",
     });
-    assert(deniedSession.authorized === false, "Nova sessão com 5000 plays foi negada");
-    assert(deniedSession.playbackUrl === undefined, "Nenhum HLS retornado com quota cheia");
-    assert(deniedSession.error === "Este vídeo está temporariamente indisponível.", "Mensagem neutra de indisponibilidade retornada");
+
+    const usageAt5000 = await getPlanUsage(testUserId, testAccountId);
+    assert(usageAt5000.playsThisMonth === 5000, `Uso atual é 5000/5000 plays`);
+
+    // Now, on NEXT bootstrap load -> blocked with 403!
+    const canLoadAt5000 = await canLoadPlayback(testUserId, activePlan!);
+    assert(canLoadAt5000 === false, "Com 5000/5000 plays, canLoadPlayback é false");
+
+    const entitlementAt5000 = await resolvePlaybackEntitlement(testVideoPublicId);
+    assert(entitlementAt5000.authorized === false, "Bootstrap com quota esgotada retorna authorized = false");
+    assert(entitlementAt5000.statusCode === 403, "Status code retornado é 403 Forbidden");
+    assert(entitlementAt5000.error === "Este vídeo está temporariamente indisponível.", "Mensagem neutra de indisponibilidade retornada");
 
     // -------------------------------------------------------------
     // TEST 14: Duração > 20 min (1200s) -> Rejeitado
@@ -318,9 +310,9 @@ async function runTests() {
     });
 
     // -------------------------------------------------------------
-    // TEST 15: Revoke Pro -> bloqueio imediato sem precisar logout
+    // TEST 15: Revoke Pro -> bloqueio imediato no Bootstrap
     // -------------------------------------------------------------
-    console.log("\n15. Teste: Revoke Pro bloqueia novas requisições privadas e públicas imediatamente");
+    console.log("\n15. Teste: Revoke Pro bloqueia Bootstrap público imediatamente com 403");
     await db
       .update(schema.subscriptions)
       .set({
@@ -342,12 +334,10 @@ async function runTests() {
     }
     assert(threwOnPrivateAfterRevoke, "Ação privada bloqueada imediatamente com NO_ACTIVE_PLAN");
 
-    const publicActivationAfterRevoke = await validateAndActivatePlayback({
-      publicId: testVideoPublicId,
-      playSessionId: "session_after_revoke",
-    });
-    assert(publicActivationAfterRevoke.authorized === false, "Ativação pública bloqueada imediatamente após revoke");
-    assert(publicActivationAfterRevoke.error === "Este vídeo está temporariamente indisponível.", "Mensagem neutra exibida no player");
+    const bootstrapAfterRevoke = await resolvePlaybackEntitlement(testVideoPublicId);
+    assert(bootstrapAfterRevoke.authorized === false, "Bootstrap público bloqueado imediatamente após revoke");
+    assert(bootstrapAfterRevoke.statusCode === 403, "Status code é 403");
+    assert(bootstrapAfterRevoke.error === "Este vídeo está temporariamente indisponível.", "Mensagem neutra exibida no player");
 
   } finally {
     // Cleanup test data

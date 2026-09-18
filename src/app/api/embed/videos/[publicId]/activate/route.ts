@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateAndActivatePlayback } from "@/lib/plans/playback";
+import { recordPlaybackSession } from "@/lib/plans/playback";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -60,31 +60,17 @@ export async function POST(
       }
     }
 
-    const result = await validateAndActivatePlayback({
+    const result = await recordPlaybackSession({
       publicId,
       playSessionId: playSessionId.trim(),
       isEditorAdmin: Boolean(isEditor && adminUserId),
       adminUserId,
     });
 
-    if (!result.authorized || !result.playbackUrl) {
-      return NextResponse.json(
-        { error: result.error || "Este vídeo está temporariamente indisponível." },
-        {
-          status: result.statusCode || 403,
-          headers: CORS_HEADERS,
-        }
-      );
-    }
-
     return NextResponse.json(
       {
-        authorized: true,
-        playback: {
-          type: "hls",
-          url: result.playbackUrl,
-        },
-        playbackUrl: result.playbackUrl,
+        ok: result.success,
+        recorded: result.recorded ?? false,
       },
       {
         status: 200,
@@ -96,9 +82,11 @@ export async function POST(
     );
   } catch (error) {
     console.error("[Activation Endpoint Error]", error);
+    // Non-blocking tracking response
     return NextResponse.json(
-      { error: "Este vídeo está temporariamente indisponível." },
-      { status: 500, headers: CORS_HEADERS }
+      { ok: false, error: "Falha ao registrar play." },
+      { status: 200, headers: CORS_HEADERS }
     );
   }
 }
+

@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { videos, accountMembers } from "@/db/schema";
+import { videos, accountMembers, monthlyUsage } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { getHlsPlaybackUrl } from "@/lib/mux";
 import {
@@ -19,9 +19,36 @@ export interface PlaybackEntitlementResult {
 }
 
 /**
- * FASE 1 — ENTITLEMENT
- * Resolves only minimal video identity and validates that the account owner has an active plan.
- * NEVER resolves or returns media information (playbackUrl, playbackId, poster, HLS, etc.).
+ * Verifies current monthly usage against plan limits for read-only bootstrap checks.
+ * Does NOT reserve quota, increment counters, create playSessions, or acquire locks.
+ */
+export async function canLoadPlayback(
+  ownerUserId: string,
+  activePlan: ActivePlanContext
+): Promise<boolean> {
+  const periodKey = getCurrentPeriodKey();
+  const maxPlays = activePlan.plan.limits.maxPlaysPerMonth;
+
+  const [usage] = await db
+    .select({ plays: monthlyUsage.plays })
+    .from(monthlyUsage)
+    .where(
+      and(
+        eq(monthlyUsage.userId, ownerUserId),
+        eq(monthlyUsage.periodKey, periodKey)
+      )
+    )
+    .limit(1);
+
+  const currentPlays = usage?.plays ?? 0;
+  return currentPlays < maxPlays;
+}
+
+/**
+ * BOOTSTRAP ENTITLEMENT
+ * Resolves video identity, verifies active subscription, and verifies available monthly limits.
+ * If authorized, enables public bootstrap endpoint to return playbackUrl and metadata.
+ * Does NOT register plays or modify data.
  */
 export async function resolvePlaybackEntitlement(
   publicId: string
@@ -84,6 +111,16 @@ export async function resolvePlaybackEntitlement(
     };
   }
 
+  // 4. Verify monthly play limits (read-only, no reservation or locks)
+  const hasQuota = await canLoadPlayback(ownerUserId, activePlan);
+  if (!hasQuota) {
+    return {
+      authorized: false,
+      error: "Este vídeo está temporariamente indisponível.",
+      statusCode: 403,
+    };
+  }
+
   return {
     authorized: true,
     videoId: minVideo.id,
@@ -91,6 +128,141 @@ export async function resolvePlaybackEntitlement(
     ownerUserId,
     activePlan,
   };
+}
+
+export interface RecordPlaybackInput {
+  publicId: string;
+  playSessionId: string;
+  isEditorAdmin?: boolean;
+  adminUserId?: string;
+}
+
+export interface RecordPlaybackResult {
+  success: boolean;
+  recorded?: boolean;
+  error?: string;
+}
+
+/**
+ * Records a play session in background and increments monthly_usage.plays.
+ * Does NOT verify active plan or quota, does NOT block playback, and does NOT return playbackUrl.
+ */
+export async function recordPlaybackSession(
+  input: RecordPlaybackInput
+): Promise<RecordPlaybackResult> {
+  const { publicId, playSessionId, isEditorAdmin, adminUserId } = input;
+
+  if (!playSessionId || typeof playSessionId !== "string" || !playSessionId.trim()) {
+    return {
+      success: false,
+      error: "Identificador de sessão de reprodução inválido.",
+    };
+  }
+
+  // 1. Resolve video and accountId
+  const [video] = await db
+    .select({
+      id: videos.id,
+      accountId: videos.accountId,
+    })
+    .from(videos)
+    .where(eq(videos.publicId, publicId.trim()))
+    .limit(1);
+
+  if (!video) {
+    return {
+      success: false,
+      error: "Vídeo não encontrado.",
+    };
+  }
+
+  // 2. Editor preview exemption: authenticated account member skips tracking / quota consumption
+  if (isEditorAdmin && adminUserId) {
+    const [membership] = await db
+      .select({ id: accountMembers.id })
+      .from(accountMembers)
+      .where(
+        and(
+          eq(accountMembers.accountId, video.accountId),
+          eq(accountMembers.userId, adminUserId)
+        )
+      )
+      .limit(1);
+
+    if (membership) {
+      return {
+        success: true,
+        recorded: false,
+      };
+    }
+  }
+
+  // 3. Resolve owner userId
+  const [ownerMember] = await db
+    .select({ userId: accountMembers.userId })
+    .from(accountMembers)
+    .where(
+      and(
+        eq(accountMembers.accountId, video.accountId),
+        eq(accountMembers.role, "owner")
+      )
+    )
+    .limit(1);
+
+  if (!ownerMember) {
+    return {
+      success: false,
+      error: "Proprietário do vídeo não encontrado.",
+    };
+  }
+
+  const ownerUserId = ownerMember.userId;
+  const periodKey = getCurrentPeriodKey();
+
+  let recorded = false;
+
+  try {
+    await db.transaction(async (tx) => {
+      // Step A: Ensure monthly_usage row exists for (ownerUserId, periodKey)
+      await tx.execute(sql`
+        INSERT INTO monthly_usage (id, user_id, period_key, plays, created_at, updated_at)
+        VALUES (gen_random_uuid(), ${ownerUserId}, ${periodKey}, 0, NOW(), NOW())
+        ON CONFLICT (user_id, period_key) DO NOTHING
+      `);
+
+      // Step B: Attempt to register play_session (idempotent for same videoId + playSessionId)
+      const sessionInsert = await tx.execute(sql`
+        INSERT INTO play_sessions (id, video_id, owner_user_id, play_session_id, created_at)
+        VALUES (gen_random_uuid(), ${video.id}, ${ownerUserId}, ${playSessionId.trim()}, NOW())
+        ON CONFLICT (video_id, play_session_id) DO NOTHING
+        RETURNING id
+      `);
+
+      const isNewSession = (sessionInsert.rows?.length ?? 0) > 0;
+      recorded = isNewSession;
+
+      // Step C: If new session, increment monthly_usage.plays without blocking or quota checks
+      if (isNewSession) {
+        await tx.execute(sql`
+          UPDATE monthly_usage
+          SET plays = plays + 1, updated_at = NOW()
+          WHERE user_id = ${ownerUserId}
+            AND period_key = ${periodKey}
+        `);
+      }
+    });
+
+    return {
+      success: true,
+      recorded,
+    };
+  } catch (error) {
+    console.error("[Record Playback Error]", error);
+    return {
+      success: false,
+      error: "Falha ao registrar sessão de reprodução.",
+    };
+  }
 }
 
 export interface ActivatePlaybackInput {
@@ -108,145 +280,38 @@ export interface ActivatePlaybackResult {
 }
 
 /**
- * Validates entitlement first (FASE 1), then checks media availability,
- * processes quota, and generates signed playback URL (FASE 2).
+ * Backward compatibility helper for legacy callers.
+ * Records playback in background and returns playbackUrl if video exists.
  */
 export async function validateAndActivatePlayback(
   input: ActivatePlaybackInput
 ): Promise<ActivatePlaybackResult> {
-  const { publicId, playSessionId, isEditorAdmin, adminUserId } = input;
-
-  if (!playSessionId || typeof playSessionId !== "string" || !playSessionId.trim()) {
+  const recordResult = await recordPlaybackSession(input);
+  if (!recordResult.success) {
     return {
       authorized: false,
-      error: "Identificador de sessão de reprodução inválido.",
-      statusCode: 400,
+      error: recordResult.error || "Falha ao registrar reprodução.",
+      statusCode: 500,
     };
   }
 
-  // -------------------------------------------------------------
-  // FASE 1 — ENTITLEMENT (Obligatory first phase)
-  // -------------------------------------------------------------
-  const entitlement = await resolvePlaybackEntitlement(publicId);
-  if (!entitlement.authorized) {
-    return {
-      authorized: false,
-      error: entitlement.error || "Este vídeo está temporariamente indisponível.",
-      statusCode: entitlement.statusCode || 403,
-    };
-  }
-
-  const { videoId, accountId, ownerUserId, activePlan } = entitlement;
-
-  // -------------------------------------------------------------
-  // FASE 2 — PLAYBACK & MEDIA RELEASE
-  // -------------------------------------------------------------
-
-  // 1. Verify editor status server-side if requested
-  let isVerifiedEditor = false;
-  if (isEditorAdmin && adminUserId && accountId) {
-    const [membership] = await db
-      .select({ id: accountMembers.id })
-      .from(accountMembers)
-      .where(
-        and(
-          eq(accountMembers.accountId, accountId),
-          eq(accountMembers.userId, adminUserId)
-        )
-      )
-      .limit(1);
-
-    if (membership) {
-      isVerifiedEditor = true;
-    }
-  }
-
-  // 2. Query full video record to inspect media readiness and playback ID
   const [video] = await db
-    .select()
+    .select({ muxPlaybackId: videos.muxPlaybackId })
     .from(videos)
-    .where(eq(videos.id, videoId!))
+    .where(eq(videos.publicId, input.publicId.trim()))
     .limit(1);
 
-  if (!video || video.status !== "ready" || !video.muxPlaybackId) {
+  if (!video?.muxPlaybackId) {
     return {
       authorized: false,
-      error: "Vídeo em processamento ou indisponível.",
+      error: "Vídeo não encontrado ou indisponível.",
       statusCode: 404,
     };
   }
 
-  // 3. Editor preview exemption: authenticated account member skips quota consumption
-  if (isVerifiedEditor) {
-    const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
-    return {
-      authorized: true,
-      playbackUrl,
-      statusCode: 200,
-    };
-  }
-
-  // 4. Regular viewer: enforce monthly play quota atomically & register play_session
-  const periodKey = getCurrentPeriodKey();
-  const maxPlays = activePlan!.plan.limits.maxPlaysPerMonth;
-
-  try {
-    await db.transaction(async (tx) => {
-      // Step A: Ensure monthly_usage row exists for (ownerUserId, periodKey)
-      await tx.execute(sql`
-        INSERT INTO monthly_usage (id, user_id, period_key, plays, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${ownerUserId!}, ${periodKey}, 0, NOW(), NOW())
-        ON CONFLICT (user_id, period_key) DO NOTHING
-      `);
-
-      // Step B: Attempt to register play_session (idempotent for same videoId + playSessionId)
-      const sessionInsert = await tx.execute(sql`
-        INSERT INTO play_sessions (id, video_id, owner_user_id, play_session_id, created_at)
-        VALUES (gen_random_uuid(), ${video.id}, ${ownerUserId!}, ${playSessionId.trim()}, NOW())
-        ON CONFLICT (video_id, play_session_id) DO NOTHING
-        RETURNING id
-      `);
-
-      const isNewSession = (sessionInsert.rows?.length ?? 0) > 0;
-
-      // Step C: If new session, check limit and increment atomically
-      if (isNewSession) {
-        const updateRes = await tx.execute(sql`
-          UPDATE monthly_usage
-          SET plays = plays + 1, updated_at = NOW()
-          WHERE user_id = ${ownerUserId!}
-            AND period_key = ${periodKey}
-            AND plays < ${maxPlays}
-          RETURNING plays
-        `);
-
-        if (!updateRes.rows || updateRes.rows.length === 0) {
-          // Quota exhausted!
-          throw new Error("QUOTA_EXHAUSTED");
-        }
-      }
-    });
-
-    const playbackUrl = getHlsPlaybackUrl(video.muxPlaybackId);
-    return {
-      authorized: true,
-      playbackUrl,
-      statusCode: 200,
-    };
-  } catch (error) {
-    if (error instanceof Error && error.message === "QUOTA_EXHAUSTED") {
-      return {
-        authorized: false,
-        error: "Este vídeo está temporariamente indisponível.",
-        statusCode: 403,
-      };
-    }
-
-    console.error("[Playback Activation Error]", error);
-    return {
-      authorized: false,
-      error: "Este vídeo está temporariamente indisponível.",
-      statusCode: 500,
-    };
-  }
+  return {
+    authorized: true,
+    playbackUrl: getHlsPlaybackUrl(video.muxPlaybackId),
+    statusCode: 200,
+  };
 }

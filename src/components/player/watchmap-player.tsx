@@ -87,7 +87,6 @@ export function WatchMapPlayer({
   const hasResolvedInitialPlaybackRef = useRef(false);
 
   const resolvedSrc = src || "";
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Play session ID for server-side activation and quota tracking (idempotent per instance)
   const playSessionIdRef = useRef<string | null>(null);
@@ -463,20 +462,21 @@ export function WatchMapPlayer({
     }
   };
 
-  // Deduped session activation for quota tracking
+  // Deduped session activation for background quota tracking
   const hasActivatedSessionRef = useRef(false);
 
   useEffect(() => {
     hasActivatedSessionRef.current = false;
   }, [src, videoId]);
 
-  const activateSession = useCallback(async () => {
+  const activateSession = useCallback(() => {
     if (hasActivatedSessionRef.current) return;
     hasActivatedSessionRef.current = true;
+
     try {
       const base = (apiBase || "").replace(/\/$/, "");
       const activateEndpoint = `${base}/api/embed/videos/${encodeURIComponent(videoId)}/activate`;
-      const response = await fetch(activateEndpoint, {
+      fetch(activateEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -486,20 +486,11 @@ export function WatchMapPlayer({
           playSessionId: getPlaySessionId(),
           isEditor: Boolean(isEditor),
         }),
+      }).catch((err) => {
+        console.warn("[WatchMap Player] Background play tracking network error:", err);
       });
-
-      if (!response.ok) {
-        const errorJson = await response.json().catch(() => ({}));
-        const msg = errorJson.error || "Este vídeo está temporariamente indisponível.";
-        setErrorMessage(msg);
-        setHasError(true);
-        const video = videoRef.current;
-        if (video) {
-          video.pause();
-        }
-      }
     } catch (err) {
-      console.error("[WatchMap Player] Play activation failed:", err);
+      console.warn("[WatchMap Player] Background play tracking failed:", err);
     }
   }, [apiBase, videoId, getPlaySessionId, isEditor]);
 
@@ -1015,7 +1006,7 @@ export function WatchMapPlayer({
               Não foi possível reproduzir o vídeo
             </h3>
             <p className="text-xs text-zinc-400 max-w-sm">
-              {errorMessage || "Este vídeo está temporariamente indisponível."}
+              Este vídeo está temporariamente indisponível.
             </p>
           </div>
           <button
