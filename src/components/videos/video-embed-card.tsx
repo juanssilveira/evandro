@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useTransition } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Code2, Copy, Check, Info, Bug, Loader2 } from "lucide-react";
+import { Code2, Copy, Check, Info, Bug, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -25,22 +25,33 @@ export function VideoEmbedCard({
   config,
   onConfigChange,
 }: VideoEmbedCardProps) {
-  const [copied, setCopied] = useState(false);
+  const [copiedPlayer, setCopiedPlayer] = useState(false);
+  const [copiedHead, setCopiedHead] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const cleanCdnUrl = cdnUrl.replace(/\/$/, "");
-  const embedCode = `<script src="${cleanCdnUrl}/embed/v1/watchmap-player.js" defer></script>\n<watchmap-player video-id="${publicId}"></watchmap-player>`;
 
-  const handleCopy = async () => {
+  const aspectRatio = config.appearance?.aspectRatio === "9:16"
+    ? "9/16"
+    : config.appearance?.aspectRatio === "1:1"
+    ? "1/1"
+    : "16/9";
+  const borderRadius = config.appearance?.borderRadius ?? 12;
+
+  const playerEmbedCode = `<watchmap-player\n  video-id="${publicId}"\n  style="display:block;width:100%;aspect-ratio:${aspectRatio};background:#000;border-radius:${borderRadius}px;overflow:hidden;"\n></watchmap-player>\n<script src="${cleanCdnUrl}/embed/v1/watchmap-player.js" async fetchpriority="high"></script>`;
+
+  const headOptimizationCode = `<link rel="preconnect" href="${cleanCdnUrl}">\n<link rel="preconnect" href="${cleanCdnUrl}" crossorigin>\n<link rel="dns-prefetch" href="${cleanCdnUrl}">\n<link\n  rel="preload"\n  href="${cleanCdnUrl}/embed/v1/watchmap-player.js"\n  as="script"\n  fetchpriority="high"\n>`;
+
+  const copyToClipboard = async (text: string, setCopied: (v: boolean) => void) => {
     try {
-      await navigator.clipboard.writeText(embedCode);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback if clipboard API fails
       const textarea = document.createElement("textarea");
-      textarea.value = embedCode;
+      textarea.value = text;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand("copy");
@@ -141,25 +152,25 @@ export function VideoEmbedCard({
           </span>
         </div>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          Incorpore o player em qualquer página HTML através do elemento customizado com Shadow DOM isolado.
+          Incorpore o player em qualquer página HTML através do elemento customizado com Shadow DOM isolado e carregamento ultra-rápido.
         </p>
       </CardHeader>
 
-      <CardContent className="pt-4 space-y-3.5">
-        {/* Code Snippet Box Container */}
+      <CardContent className="pt-4 space-y-4">
+        {/* Main Player Code Box */}
         <div className="rounded-lg border border-dashed border-border/80 bg-background/80 dark:bg-zinc-950/40 p-3.5 sm:p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              Snippet de integração
+              Código do Player
             </span>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleCopy}
+              onClick={() => copyToClipboard(playerEmbedCode, setCopiedPlayer)}
               className="h-7 px-2.5 text-xs font-medium gap-1.5 shrink-0 cursor-pointer shadow-2xs hover:bg-muted"
             >
-              {copied ? (
+              {copiedPlayer ? (
                 <>
                   <Check className="size-3 text-emerald-500 stroke-[2.5]" />
                   <span className="text-emerald-500 font-semibold">Copiado!</span>
@@ -173,17 +184,60 @@ export function VideoEmbedCard({
             </Button>
           </div>
 
-          <div className="relative rounded-lg bg-zinc-950 dark:bg-black px-3.5 py-2.5 border border-zinc-800/80 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed shadow-inner">
-            <div className="text-zinc-400">{`<script src="${cleanCdnUrl}/embed/v1/watchmap-player.js" defer></script>`}</div>
-            <div className="text-zinc-200">{`<watchmap-player video-id="${publicId}"></watchmap-player>`}</div>
+          <div className="relative rounded-lg bg-zinc-950 dark:bg-black px-3.5 py-2.5 border border-zinc-800/80 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed shadow-inner whitespace-pre">
+            {playerEmbedCode}
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            Cole onde o vídeo deve aparecer na página.
+          </p>
+        </div>
+
+        {/* Head Optimization Code Box */}
+        <div className="rounded-lg border border-dashed border-violet-500/30 bg-violet-500/5 dark:bg-violet-950/10 p-3.5 sm:p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Zap className="size-3.5 text-violet-500 fill-violet-500/20" />
+                Otimização de carregamento
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/25">
+                Recomendado
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => copyToClipboard(headOptimizationCode, setCopiedHead)}
+              className="h-7 px-2.5 text-xs font-medium gap-1.5 shrink-0 cursor-pointer shadow-2xs hover:bg-muted"
+            >
+              {copiedHead ? (
+                <>
+                  <Check className="size-3 text-emerald-500 stroke-[2.5]" />
+                  <span className="text-emerald-500 font-semibold">Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="size-3 text-muted-foreground" />
+                  <span>Copiar</span>
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="relative rounded-lg bg-zinc-950 dark:bg-black px-3.5 py-2.5 border border-zinc-800/80 font-mono text-[11px] text-zinc-300 overflow-x-auto select-all leading-relaxed shadow-inner whitespace-pre">
+            {headOptimizationCode}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Cole no <code className="text-violet-500 dark:text-violet-400 font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;head&gt;</code> para antecipar conexões DNS e preload do loader antes do body.
+          </p>
         </div>
 
         {/* Instructions */}
         <div className="flex items-start gap-2.5 rounded-lg bg-zinc-100/60 dark:bg-zinc-900/40 border border-dashed border-border/70 p-3 sm:p-3.5 text-[11px] text-muted-foreground">
           <Info className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
           <p className="leading-normal">
-            Cole a tag <code className="text-red-500 dark:text-red-400 font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;script&gt;</code> no cabeçalho e <code className="text-red-500 dark:text-red-400 font-mono bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&lt;watchmap-player&gt;</code> onde deseja exibir o vídeo.
+            O player inicia o bootstrap do vídeo e o download dos componentes em paralelo imediatamente, garantindo reprodução instantânea com zero layout shift.
           </p>
         </div>
 
@@ -207,10 +261,10 @@ export function VideoEmbedCard({
                 htmlFor={`embed-debug-switch-${videoId}`}
                 className="text-xs font-semibold text-foreground cursor-pointer block"
               >
-                Debug do Player Runtime
+                Debug do Player Runtime & Métricas de Performance
               </Label>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Registra eventos do ciclo de vida no console do DevTools.
+                Exibe no console os marcos de timing (Bootstrap, Core Ready, Manifest, First Frame, Click → Frame).
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">

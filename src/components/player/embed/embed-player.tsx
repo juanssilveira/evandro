@@ -6,6 +6,7 @@ import { WatchMapPlayer } from "../watchmap-player";
 import { Loader2, AlertCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type PlayerConfig, DEFAULT_PLAYER_CONFIG, parsePlayerConfig } from "@/types/player-config";
+import { markPerformance } from "./performance-timing";
 
 export interface EmbedPlayerProps {
   videoId: string;
@@ -29,6 +30,36 @@ interface EmbedState {
   errorMessage: string | null;
 }
 
+interface BootstrapResponsePayload {
+  videoId?: string;
+  title?: string;
+  playbackUrl?: string | null;
+  playback?: {
+    type?: string;
+    url?: string;
+  };
+  posterUrl?: string | null;
+  backgroundPreviewUrl?: string | null;
+  config?: unknown;
+}
+
+interface BootstrapError {
+  status?: number;
+  message?: string;
+}
+
+// Global shared bootstrap registry interface
+declare global {
+  interface Window {
+    __WATCHMAP_BOOTSTRAP__?: {
+      map: Record<string, Promise<BootstrapResponsePayload>>;
+      fetch: (apiBase: string, videoId: string) => Promise<BootstrapResponsePayload>;
+      preconnect?: (url: string) => void;
+      preloadVisual?: (url: string) => void;
+    };
+  }
+}
+
 export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
   const [state, setState] = useState<EmbedState>(() => ({
     status: videoId ? "loading" : "not_found",
@@ -42,53 +73,82 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
       return;
     }
 
+    markPerformance("wm:core:ready", videoId);
+
     const controller = new AbortController();
+    const base = (apiBase || "").replace(/\/$/, "");
+    const cacheKey = `${base}:${videoId}`;
 
-    async function fetchEmbedData() {
+    async function executeBootstrap() {
       try {
-        const base = (apiBase || "").replace(/\/$/, "");
-        const url = `${base}/api/embed/videos/${encodeURIComponent(videoId)}`;
+        let jsonPromise: Promise<BootstrapResponsePayload>;
 
-        const response = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            Accept: "application/json",
-          },
-        });
+        // Consume already-started bootstrap promise from tiny loader if present
+        if (
+          typeof window !== "undefined" &&
+          window.__WATCHMAP_BOOTSTRAP__?.map &&
+          cacheKey in window.__WATCHMAP_BOOTSTRAP__.map &&
+          retryCount === 0
+        ) {
+          jsonPromise = window.__WATCHMAP_BOOTSTRAP__.map[cacheKey];
+        } else {
+          markPerformance("wm:bootstrap:start", videoId);
+          const url = `${base}/api/embed/videos/${encodeURIComponent(videoId)}`;
 
-        if (response.status === 403) {
-          if (!controller.signal.aborted) {
-            setState({
-              status: "error",
-              data: null,
-              errorMessage: "Este vídeo está temporariamente indisponível.",
-            });
+          jsonPromise = fetch(url, {
+            signal: controller.signal,
+            headers: {
+              Accept: "application/json",
+            },
+          }).then(async (response) => {
+            if (response.status === 403) {
+              const errData = (await response.json().catch(() => ({}))) as { error?: string };
+              const err: BootstrapError = { status: 403, message: errData.error || "Este vídeo está temporariamente indisponível." };
+              throw err;
+            }
+            if (response.status === 404) {
+              const errData = (await response.json().catch(() => ({}))) as { error?: string };
+              const err: BootstrapError = { status: 404, message: errData.error || "Vídeo não encontrado ou indisponível." };
+              throw err;
+            }
+            if (!response.ok) {
+              const err: BootstrapError = { status: response.status, message: `HTTP error ${response.status}` };
+              throw err;
+            }
+            return response.json() as Promise<BootstrapResponsePayload>;
+          });
+
+          if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__) {
+            window.__WATCHMAP_BOOTSTRAP__.map[cacheKey] = jsonPromise;
           }
-          return;
         }
 
-        if (response.status === 404) {
-          if (!controller.signal.aborted) {
-            setState({
-              status: "not_found",
-              data: null,
-              errorMessage: "Vídeo não encontrado ou indisponível.",
-            });
+        const json = await jsonPromise;
+        markPerformance("wm:bootstrap:end", videoId);
+
+        // Preconnect provider origin dynamically once playbackUrl is resolved
+        const playbackUrl = json.playback?.url || json.playbackUrl || null;
+        if (playbackUrl && typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__?.preconnect) {
+          try {
+            const providerOrigin = new URL(playbackUrl).origin;
+            window.__WATCHMAP_BOOTSTRAP__.preconnect(providerOrigin);
+          } catch {
+            // ignore malformed URL
           }
-          return;
         }
-
-        if (!response.ok) {
-          throw new Error(`HTTP error ${response.status}`);
-        }
-
-        const json = await response.json();
 
         const parsedConfig = json.config
           ? parsePlayerConfig(json.config)
           : DEFAULT_PLAYER_CONFIG;
 
-        const playbackUrl = json.playback?.url || json.playbackUrl || null;
+        // Warm up priority visual asset
+        if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__?.preloadVisual) {
+          if (parsedConfig.playback?.backgroundAutoplay && json.backgroundPreviewUrl) {
+            window.__WATCHMAP_BOOTSTRAP__.preloadVisual(json.backgroundPreviewUrl);
+          } else if (json.posterUrl) {
+            window.__WATCHMAP_BOOTSTRAP__.preloadVisual(json.posterUrl);
+          }
+        }
 
         if (!controller.signal.aborted) {
           setState({
@@ -108,15 +168,32 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
         if (controller.signal.aborted) return;
 
         console.error("[WatchMap Embed] Failed to resolve video:", err);
-        setState({
-          status: "error",
-          data: null,
-          errorMessage: "Não foi possível carregar as informações do vídeo.",
-        });
+
+        const typedErr = err as BootstrapError | undefined;
+
+        if (typedErr?.status === 403) {
+          setState({
+            status: "error",
+            data: null,
+            errorMessage: typedErr.message || "Este vídeo está temporariamente indisponível.",
+          });
+        } else if (typedErr?.status === 404) {
+          setState({
+            status: "not_found",
+            data: null,
+            errorMessage: typedErr.message || "Vídeo não encontrado ou indisponível.",
+          });
+        } else {
+          setState({
+            status: "error",
+            data: null,
+            errorMessage: "Não foi possível carregar as informações do vídeo.",
+          });
+        }
       }
     }
 
-    fetchEmbedData();
+    executeBootstrap();
 
     return () => {
       controller.abort();
@@ -124,6 +201,11 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
   }, [videoId, apiBase, retryCount]);
 
   const handleRetry = () => {
+    const base = (apiBase || "").replace(/\/$/, "");
+    const cacheKey = `${base}:${videoId}`;
+    if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__?.map) {
+      delete window.__WATCHMAP_BOOTSTRAP__.map[cacheKey];
+    }
     setState({
       status: "loading",
       data: null,

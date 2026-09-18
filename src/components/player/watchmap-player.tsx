@@ -31,7 +31,14 @@ import {
   PLAYER_ACCENT_PRESETS,
 } from "@/types/player-config";
 import { calculateFakeProgress } from "@/lib/player/fake-progress-engine";
-import Hls from "hls.js";
+import type Hls from "hls.js";
+import { shouldUseNativeHls, loadHlsEngine } from "./embed/hls-engine";
+import {
+  markPerformance,
+  measurePerformance,
+  onFirstVideoFrame,
+  logPerformanceDebugReport,
+} from "./embed/performance-timing";
 
 interface WatchMapPlayerProps {
   src?: string;
@@ -85,6 +92,7 @@ export function WatchMapPlayer({
   const playbackControllerRef = useRef<PlaybackController | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const hasResolvedInitialPlaybackRef = useRef(false);
+  const userPlayClickTimestampRef = useRef<number | null>(null);
 
   const resolvedSrc = src || "";
 
@@ -311,8 +319,48 @@ export function WatchMapPlayer({
     playbackControllerRef.current?.updateConfig(effectiveConfig);
   }, [effectiveConfig]);
 
-  // Media source attachment (Prioritize HLS.js for all MSE browsers, fallback to native Safari)
-  const attachMediaSource = useCallback((mediaSrc: string) => {
+  // First frame detection & click-to-frame performance tracking
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const cleanup = onFirstVideoFrame(video, (frameTime) => {
+      markPerformance("wm:first-frame", videoId);
+
+      if (userPlayClickTimestampRef.current != null) {
+        markPerformance("wm:user-play-first-frame", videoId);
+        const clickToFrame = Math.round(frameTime - userPlayClickTimestampRef.current);
+        if (effectiveDebug) {
+          logPerformanceDebugReport(videoId, {
+            clickToFrameDurationMs: clickToFrame,
+          });
+        }
+        userPlayClickTimestampRef.current = null;
+      }
+
+      if (effectiveDebug) {
+        const bootstrapDur = measurePerformance("wm:bootstrap", "wm:bootstrap:start", "wm:bootstrap:end", videoId);
+        const coreReadyDur = measurePerformance("wm:core:ready", "wm:core:start", "wm:core:ready", videoId);
+        const manifestDur = measurePerformance("wm:manifest", "wm:manifest:start", "wm:manifest:parsed", videoId);
+        const canPlayDur = measurePerformance("wm:canplay", "wm:media:attach", "wm:canplay", videoId);
+        const firstFrameDur = measurePerformance("wm:first-frame", "wm:media:attach", "wm:first-frame", videoId);
+
+        logPerformanceDebugReport(videoId, {
+          videoId,
+          bootstrapDurationMs: bootstrapDur ?? undefined,
+          coreReadyDurationMs: coreReadyDur ?? undefined,
+          manifestDurationMs: manifestDur ?? undefined,
+          canPlayDurationMs: canPlayDur ?? undefined,
+          firstFrameDurationMs: firstFrameDur ?? undefined,
+        });
+      }
+    });
+
+    return cleanup;
+  }, [videoId, effectiveDebug]);
+
+  // Media source attachment (Native Safari HLS bypass + Dynamic HLS Light for MSE)
+  const attachMediaSource = useCallback(async (mediaSrc: string) => {
     const video = videoRef.current;
     if (!video || !mediaSrc) return;
 
@@ -323,6 +371,7 @@ export function WatchMapPlayer({
     attachedSrcRef.current = mediaSrc;
     setHasError(false);
     setIsLoading(true);
+    markPerformance("wm:media:attach", videoId);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -331,52 +380,71 @@ export function WatchMapPlayer({
 
     const isHls = mediaSrc.includes(".m3u8") || mediaSrc.includes("m3u8");
 
-    if (isHls && Hls.isSupported()) {
-      // 1. MSE-capable browsers (Chrome, Edge, Firefox, etc.)
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-      });
-
-      hls.loadSource(mediaSrc);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsLoading(false);
-        setHasError(false);
-        applyInitialMediaSettings();
-        triggerInitialPlaybackIfNeeded();
-      });
-
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          console.error("[WatchMap Player HLS Fatal Error]", data);
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.warn("[WatchMap Player HLS] Retrying network error...");
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn("[WatchMap Player HLS] Recovering media error...");
-              hls.recoverMediaError();
-              break;
-            default:
-              hls.destroy();
-              setHasError(true);
-              setIsLoading(false);
-              break;
-          }
-        }
-      });
-
-      hlsRef.current = hls;
-    } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
-      // 2. Native HLS only when MSE is not available (Safari / iOS WebKit)
+    // 1. Native HLS for Safari macOS / iOS WebKit (0 bytes HLS.js transferred)
+    if (isHls && shouldUseNativeHls(video)) {
+      markPerformance("wm:manifest:start", videoId);
       video.src = mediaSrc;
-    } else {
-      video.src = mediaSrc;
+      return;
     }
-  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded]);
+
+    // 2. Dynamic HLS Light for MSE browsers (Chrome, Edge, Firefox, etc.)
+    if (isHls) {
+      try {
+        const HlsClass = await loadHlsEngine();
+        if (HlsClass && HlsClass.isSupported()) {
+          if (attachedSrcRef.current !== mediaSrc) return;
+
+          markPerformance("wm:manifest:start", videoId);
+
+          const hls = new HlsClass({
+            enableWorker: true,
+            lowLatencyMode: false,
+          });
+
+          hls.loadSource(mediaSrc);
+          hls.attachMedia(video);
+
+          hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
+            markPerformance("wm:manifest:parsed", videoId);
+            setIsLoading(false);
+            setHasError(false);
+            applyInitialMediaSettings();
+            triggerInitialPlaybackIfNeeded();
+          });
+
+          hls.on(HlsClass.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
+            if (data.fatal) {
+              console.error("[WatchMap Player HLS Fatal Error]", data);
+              switch (data.type) {
+                case HlsClass.ErrorTypes.NETWORK_ERROR:
+                  console.warn("[WatchMap Player HLS] Retrying network error...");
+                  hls.startLoad();
+                  break;
+                case HlsClass.ErrorTypes.MEDIA_ERROR:
+                  console.warn("[WatchMap Player HLS] Recovering media error...");
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  hls.destroy();
+                  setHasError(true);
+                  setIsLoading(false);
+                  break;
+              }
+            }
+          });
+
+          hlsRef.current = hls as unknown as Hls;
+          return;
+        }
+      } catch (err) {
+        console.warn("[WatchMap Player] Dynamic HLS load error, falling back to native:", err);
+      }
+    }
+
+    // 3. Fallback native
+    markPerformance("wm:manifest:start", videoId);
+    video.src = mediaSrc;
+  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId]);
 
   // Attach media source conditionally once per resolved media URL
   useEffect(() => {
@@ -527,6 +595,9 @@ export function WatchMapPlayer({
     const video = videoRef.current;
     if (!video) return;
 
+    markPerformance("wm:user-play", videoId);
+    userPlayClickTimestampRef.current = performance.now();
+
     setUserActivatedForeground(true);
 
     const targetVol = lastVolumeRef.current > 0 ? lastVolumeRef.current : defaultVolume;
@@ -565,6 +636,7 @@ export function WatchMapPlayer({
     defaultPlaybackRate,
     defaultVolume,
     activateSession,
+    videoId,
   ]);
 
   // Play / Pause toggle
@@ -576,6 +648,9 @@ export function WatchMapPlayer({
 
     const video = videoRef.current;
     if (!video) return;
+
+    markPerformance("wm:user-play", videoId);
+    userPlayClickTimestampRef.current = performance.now();
 
     // If currently playing muted due to browser autoplay fallback, clicking anywhere on the player immediately unmutes with audio
     if (isPlaying && (video.muted || isMuted)) {
@@ -613,6 +688,7 @@ export function WatchMapPlayer({
     defaultVolume,
     activateForegroundPlayback,
     activateSession,
+    videoId,
   ]);
 
   // Mute toggle
@@ -868,6 +944,7 @@ export function WatchMapPlayer({
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
+      markPerformance("wm:canplay", videoId);
       if (videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
         setDuration(videoRef.current.duration);
       }
@@ -878,6 +955,7 @@ export function WatchMapPlayer({
   };
 
   const handleCanPlay = () => {
+    markPerformance("wm:canplay", videoId);
     if (videoRef.current && videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
       setDuration((prev) => (prev === 0 ? videoRef.current!.duration : prev));
     }
@@ -993,6 +1071,7 @@ export function WatchMapPlayer({
           <img
             src={displayPreviewSrc}
             alt=""
+            fetchPriority="high"
             onError={() => {
               if (!previewError && candidateBgPreview) {
                 setPreviewError(true);
