@@ -36,9 +36,9 @@ export function VideoPlayerView({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[600px_minmax(0,1fr)] xl:grid-cols-[640px_minmax(0,1fr)] gap-6 lg:gap-8 items-start">
       {/* Left Column (Sticky Preview Canvas + Embed Code) */}
-      <div className="w-full space-y-4 lg:self-start">
-        {/* Preview Canvas (Sticky at top) */}
-        <div className="space-y-2 lg:sticky lg:top-20 z-20">
+      <div className="w-full lg:sticky lg:top-20 space-y-4 lg:self-start">
+        {/* Preview Canvas */}
+        <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <span className="size-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
