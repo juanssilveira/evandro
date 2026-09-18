@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { assertLocalDevPanelAccess } from "@/lib/dev/guard";
+import type { AdminEnvironment } from "@/lib/dev/env-config";
+import { getAdminDb } from "@/lib/dev/db";
+import { getAdminEnvironmentConfig } from "@/lib/dev/env-config";
 import {
   createDevUser,
   setDevUserPlan,
@@ -21,24 +24,46 @@ import {
   generateDevRedeemCode,
   deleteDevRedeemCode,
 } from "@/lib/dev/redeem";
-import { invalidateVideoInfraCache } from "@/lib/dev/video-infra";
+import {
+  invalidateVideoInfraCache,
+  getProviderConfigurationStatusForConfig,
+} from "@/lib/dev/video-infra";
+import { setDefaultVideoProviderSetting } from "@/lib/settings/app-settings";
+import { logAdminAction } from "@/lib/dev/audit";
 
 export type ActionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string };
 
+function parseAdminEnv(raw?: FormData | string | null): AdminEnvironment {
+  let val: string | null = null;
+  if (typeof raw === "string") {
+    val = raw;
+  } else if (raw instanceof FormData) {
+    val = String(raw.get("env") || "");
+  }
+  if (val === "production") {
+    return "production";
+  }
+  return "development";
+}
+
 /**
- * Server action to create a user in local dev.
+ * Server action to create a user in local dev admin panel.
  */
-export async function createDevUserAction(formData: FormData): Promise<ActionResult<{ id: string; email: string }>> {
+export async function createDevUserAction(
+  formData: FormData
+): Promise<ActionResult<{ id: string; email: string }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const name = String(formData.get("name") || "").trim();
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "");
 
   try {
-    const result = await createDevUser({ name, email, password });
+    const result = await createDevUser(env, { name, email, password });
+    revalidatePath(`/dev?env=${env}&tab=users`);
     revalidatePath("/dev");
     return {
       success: true,
@@ -56,9 +81,12 @@ export async function createDevUserAction(formData: FormData): Promise<ActionRes
 /**
  * Server action to set or remove a user's plan in local dev.
  */
-export async function updateDevUserPlanAction(formData: FormData): Promise<ActionResult<{ planCode: string; expiresAt: Date | null }>> {
+export async function updateDevUserPlanAction(
+  formData: FormData
+): Promise<ActionResult<{ planCode: string; expiresAt: Date | null }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const userId = String(formData.get("userId") || "").trim();
   const mode = String(formData.get("mode") || "") as SetPlanMode;
   const durationDaysRaw = formData.get("durationDays");
@@ -72,14 +100,15 @@ export async function updateDevUserPlanAction(formData: FormData): Promise<Actio
   const expirationDate = expirationDateRaw ? String(expirationDateRaw) : undefined;
 
   try {
-    const result = await setDevUserPlan({
+    const result = await setDevUserPlan(env, {
       userId,
       mode,
       durationDays,
       expirationDate,
     });
+    revalidatePath(`/dev?env=${env}&tab=users`);
+    revalidatePath(`/dev/users/${userId}?env=${env}`);
     revalidatePath("/dev");
-    revalidatePath(`/dev/users/${userId}`);
     return {
       success: true,
       data: {
@@ -96,9 +125,12 @@ export async function updateDevUserPlanAction(formData: FormData): Promise<Actio
 /**
  * Server action to disable an account.
  */
-export async function disableAccountAction(formData: FormData): Promise<ActionResult<{ accountId: string }>> {
+export async function disableAccountAction(
+  formData: FormData
+): Promise<ActionResult<{ accountId: string }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const accountId = String(formData.get("accountId") || "").trim();
   const reason = String(formData.get("reason") || "").trim();
 
@@ -107,7 +139,8 @@ export async function disableAccountAction(formData: FormData): Promise<ActionRe
   }
 
   try {
-    await disableDevAccount(accountId, reason);
+    await disableDevAccount(env, accountId, reason);
+    revalidatePath(`/dev?env=${env}&tab=users`);
     revalidatePath("/dev");
     return { success: true, data: { accountId } };
   } catch (err: unknown) {
@@ -119,9 +152,12 @@ export async function disableAccountAction(formData: FormData): Promise<ActionRe
 /**
  * Server action to re-enable a disabled account.
  */
-export async function enableAccountAction(formData: FormData): Promise<ActionResult<{ accountId: string }>> {
+export async function enableAccountAction(
+  formData: FormData
+): Promise<ActionResult<{ accountId: string }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const accountId = String(formData.get("accountId") || "").trim();
 
   if (!accountId) {
@@ -129,7 +165,8 @@ export async function enableAccountAction(formData: FormData): Promise<ActionRes
   }
 
   try {
-    await enableDevAccount(accountId);
+    await enableDevAccount(env, accountId);
+    revalidatePath(`/dev?env=${env}&tab=users`);
     revalidatePath("/dev");
     return { success: true, data: { accountId } };
   } catch (err: unknown) {
@@ -141,9 +178,12 @@ export async function enableAccountAction(formData: FormData): Promise<ActionRes
 /**
  * Server action to ban a user.
  */
-export async function banUserAction(formData: FormData): Promise<ActionResult<{ userId: string }>> {
+export async function banUserAction(
+  formData: FormData
+): Promise<ActionResult<{ userId: string }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const userId = String(formData.get("userId") || "").trim();
   const banReason = String(formData.get("banReason") || "").trim();
   const durationOption = (String(formData.get("durationOption") || "permanent")) as
@@ -162,15 +202,16 @@ export async function banUserAction(formData: FormData): Promise<ActionResult<{ 
   const customDays = customDaysRaw ? parseInt(String(customDaysRaw), 10) : undefined;
 
   try {
-    await banDevUser({
+    await banDevUser(env, {
       userId,
       banReason,
       durationOption,
       customDays,
       customExpiresAt: customExpiresAt || undefined,
     });
+    revalidatePath(`/dev?env=${env}&tab=users`);
+    revalidatePath(`/dev/users/${userId}?env=${env}`);
     revalidatePath("/dev");
-    revalidatePath(`/dev/users/${userId}`);
     return { success: true, data: { userId } };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro ao banir usuário.";
@@ -181,9 +222,12 @@ export async function banUserAction(formData: FormData): Promise<ActionResult<{ 
 /**
  * Server action to unban a user.
  */
-export async function unbanUserAction(formData: FormData): Promise<ActionResult<{ userId: string }>> {
+export async function unbanUserAction(
+  formData: FormData
+): Promise<ActionResult<{ userId: string }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const userId = String(formData.get("userId") || "").trim();
 
   if (!userId) {
@@ -191,9 +235,10 @@ export async function unbanUserAction(formData: FormData): Promise<ActionResult<
   }
 
   try {
-    await unbanDevUser(userId);
+    await unbanDevUser(env, userId);
+    revalidatePath(`/dev?env=${env}&tab=users`);
+    revalidatePath(`/dev/users/${userId}?env=${env}`);
     revalidatePath("/dev");
-    revalidatePath(`/dev/users/${userId}`);
     return { success: true, data: { userId } };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro ao remover banimento.";
@@ -204,9 +249,12 @@ export async function unbanUserAction(formData: FormData): Promise<ActionResult<
 /**
  * Server action to revoke all active sessions for a user.
  */
-export async function revokeUserSessionsAction(formData: FormData): Promise<ActionResult<{ userId: string }>> {
+export async function revokeUserSessionsAction(
+  formData: FormData
+): Promise<ActionResult<{ userId: string }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const userId = String(formData.get("userId") || "").trim();
 
   if (!userId) {
@@ -214,9 +262,10 @@ export async function revokeUserSessionsAction(formData: FormData): Promise<Acti
   }
 
   try {
-    await revokeDevUserSessions(userId);
+    await revokeDevUserSessions(env, userId);
+    revalidatePath(`/dev?env=${env}&tab=users`);
+    revalidatePath(`/dev/users/${userId}?env=${env}`);
     revalidatePath("/dev");
-    revalidatePath(`/dev/users/${userId}`);
     return { success: true, data: { userId } };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro ao revogar sessões.";
@@ -227,9 +276,12 @@ export async function revokeUserSessionsAction(formData: FormData): Promise<Acti
 /**
  * Server action to send a password reset email to a user.
  */
-export async function sendPasswordResetAction(formData: FormData): Promise<ActionResult<{ userId: string }>> {
+export async function sendPasswordResetAction(
+  formData: FormData
+): Promise<ActionResult<{ userId: string }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const userId = String(formData.get("userId") || "").trim();
 
   if (!userId) {
@@ -237,7 +289,7 @@ export async function sendPasswordResetAction(formData: FormData): Promise<Actio
   }
 
   try {
-    await requestDevPasswordReset(userId);
+    await requestDevPasswordReset(env, userId);
     return { success: true, data: { userId } };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro ao solicitar redefinição de senha.";
@@ -248,9 +300,12 @@ export async function sendPasswordResetAction(formData: FormData): Promise<Actio
 /**
  * Server action to delete an account (cleans Mux/Bunny assets and R2 previews before DB).
  */
-export async function deleteAccountAction(formData: FormData): Promise<ActionResult<DeleteAccountResult>> {
+export async function deleteAccountAction(
+  formData: FormData
+): Promise<ActionResult<DeleteAccountResult>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const accountId = String(formData.get("accountId") || "").trim();
   const confirmationName = String(formData.get("confirmationName") || "").trim();
 
@@ -259,10 +314,11 @@ export async function deleteAccountAction(formData: FormData): Promise<ActionRes
   }
 
   try {
-    const result = await deleteDevAccount(accountId, confirmationName);
+    const result = await deleteDevAccount(env, accountId, confirmationName);
     if (!result.success) {
       return { success: false, error: result.error || "Falha ao excluir conta." };
     }
+    revalidatePath(`/dev?env=${env}&tab=users`);
     revalidatePath("/dev");
     return { success: true, data: result };
   } catch (err: unknown) {
@@ -274,13 +330,16 @@ export async function deleteAccountAction(formData: FormData): Promise<ActionRes
 /**
  * Server action to generate a redeem code in local dev.
  */
-export async function createDevRedeemCodeAction(formData: FormData): Promise<ActionResult<{
+export async function createDevRedeemCodeAction(
+  formData: FormData
+): Promise<ActionResult<{
   code: string;
   durationDays: number;
   planCode: string;
 }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const durationDaysRaw = formData.get("durationDays");
   const planCode = String(formData.get("planCode") || "pro");
 
@@ -290,10 +349,11 @@ export async function createDevRedeemCodeAction(formData: FormData): Promise<Act
   }
 
   try {
-    const result = await generateDevRedeemCode({
+    const result = await generateDevRedeemCode(env, {
       durationDays,
       planCode,
     });
+    revalidatePath(`/dev?env=${env}&tab=redeem-codes`);
     revalidatePath("/dev");
     return {
       success: true,
@@ -312,16 +372,20 @@ export async function createDevRedeemCodeAction(formData: FormData): Promise<Act
 /**
  * Server action to delete a redeem code.
  */
-export async function deleteRedeemCodeAction(formData: FormData): Promise<ActionResult<{ codeId: string; wasUsed: boolean }>> {
+export async function deleteRedeemCodeAction(
+  formData: FormData
+): Promise<ActionResult<{ codeId: string; wasUsed: boolean }>> {
   await assertLocalDevPanelAccess();
 
+  const env = parseAdminEnv(formData);
   const codeId = String(formData.get("codeId") || "").trim();
   if (!codeId) {
     return { success: false, error: "Código não informado." };
   }
 
   try {
-    const result = await deleteDevRedeemCode(codeId);
+    const result = await deleteDevRedeemCode(env, codeId);
+    revalidatePath(`/dev?env=${env}&tab=redeem-codes`);
     revalidatePath("/dev");
     return {
       success: true,
@@ -337,44 +401,49 @@ export async function deleteRedeemCodeAction(formData: FormData): Promise<Action
 }
 
 /**
- * Server action to update the default video provider for new uploads in local dev.
+ * Server action to update the default video provider for new uploads in the selected environment.
  */
 export async function updateDefaultVideoProviderAction(
-  providerInput: string | FormData
+  providerInput: string | FormData,
+  envOverride?: AdminEnvironment
 ): Promise<ActionResult<{ provider: "mux" | "bunny" }>> {
   await assertLocalDevPanelAccess();
 
   let provider: string;
+  let env: AdminEnvironment;
+
   if (typeof providerInput === "string") {
     provider = providerInput.trim();
+    env = envOverride || "development";
   } else {
     provider = String(providerInput.get("provider") || "").trim();
+    env = parseAdminEnv(providerInput);
   }
 
   if (provider !== "mux" && provider !== "bunny") {
     return { success: false, error: "Provider de vídeo inválido. Escolha Mux ou Bunny." };
   }
 
-  const { getVideoProviderConfigurationStatus } = await import("@/lib/video-providers");
-  const { setDefaultVideoProviderSetting } = await import("@/lib/settings/app-settings");
-  const { logAdminAction } = await import("@/lib/dev/audit");
+  const adminDb = getAdminDb(env);
+  const config = getAdminEnvironmentConfig(env);
+  const status = getProviderConfigurationStatusForConfig(config);
 
-  const status = getVideoProviderConfigurationStatus();
   if (!status[provider].configured) {
     const providerLabel = provider === "mux" ? "Mux" : "Bunny Stream";
     return {
       success: false,
-      error: `O provider ${providerLabel} não possui configuração completa no ambiente local.`,
+      error: `O provider ${providerLabel} não possui configuração completa no ambiente selecionado.`,
     };
   }
 
   try {
-    await setDefaultVideoProviderSetting(provider);
-    await logAdminAction({
+    await setDefaultVideoProviderSetting(provider, adminDb);
+    await logAdminAction(env, {
       action: "default_provider_changed",
       metadata: { newProvider: provider },
     });
-    invalidateVideoInfraCache();
+    invalidateVideoInfraCache(env);
+    revalidatePath(`/dev?env=${env}&tab=video-infra`);
     revalidatePath("/dev");
     return {
       success: true,
@@ -387,12 +456,16 @@ export async function updateDefaultVideoProviderAction(
 }
 
 /**
- * Server action to invalidate and refresh provider observability stats.
+ * Server action to invalidate and refresh provider observability stats for the selected environment.
  */
-export async function refreshProviderStatsAction(): Promise<ActionResult<{ refreshedAt: Date }>> {
+export async function refreshProviderStatsAction(
+  envInput?: AdminEnvironment | FormData
+): Promise<ActionResult<{ refreshedAt: Date }>> {
   await assertLocalDevPanelAccess();
 
-  invalidateVideoInfraCache();
+  const env = parseAdminEnv(envInput);
+  invalidateVideoInfraCache(env);
+  revalidatePath(`/dev?env=${env}&tab=video-infra`);
   revalidatePath("/dev");
   return {
     success: true,

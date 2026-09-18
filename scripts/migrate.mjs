@@ -3,7 +3,8 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import { migrate } from "drizzle-orm/neon-serverless/migrator";
 import dotenv from "dotenv";
 
-dotenv.config({ path: ".env.local" });
+const envFile = process.env.ENV_FILE || ".env.local";
+dotenv.config({ path: envFile });
 dotenv.config();
 
 if (typeof globalThis.WebSocket !== "undefined") {

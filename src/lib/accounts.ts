@@ -8,9 +8,10 @@ export interface ProvisionUserInput {
 }
 
 export async function provisionInitialAccount(
-  userInput: ProvisionUserInput
+  userInput: ProvisionUserInput,
+  targetDb = db
 ): Promise<Account> {
-  return await db.transaction(async (tx) => {
+  return await targetDb.transaction(async (tx) => {
     // Check if membership already exists (idempotent / recovery protection)
     const [existingMembership] = await tx
       .select()

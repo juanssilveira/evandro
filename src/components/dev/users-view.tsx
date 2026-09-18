@@ -28,11 +28,14 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { createDevUserAction, updateDevUserPlanAction } from "@/app/actions/dev";
 
+import type { AdminEnvironment } from "@/lib/dev/env-config";
+
 interface UsersViewProps {
   users: DevUserRow[];
+  env: AdminEnvironment;
 }
 
-export function UsersView({ users }: UsersViewProps) {
+export function UsersView({ users, env }: UsersViewProps) {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -79,6 +82,7 @@ export function UsersView({ users }: UsersViewProps) {
     setCreatePending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("name", createName);
     formData.append("email", createEmail);
     formData.append("password", createPassword);
@@ -107,6 +111,7 @@ export function UsersView({ users }: UsersViewProps) {
     setPlanPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("userId", selectedUser.id);
     formData.append("mode", planMode);
 
@@ -135,7 +140,7 @@ export function UsersView({ users }: UsersViewProps) {
   };
 
   const handleRowClick = (userId: string) => {
-    router.push(`/dev/users/${userId}`);
+    router.push(`/dev/users/${userId}?env=${env}`);
   };
 
   return (

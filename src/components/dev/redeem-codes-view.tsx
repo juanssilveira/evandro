@@ -19,11 +19,14 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { createDevRedeemCodeAction, deleteRedeemCodeAction } from "@/app/actions/dev";
 
+import type { AdminEnvironment } from "@/lib/dev/env-config";
+
 interface RedeemCodesViewProps {
   codes: DevRedeemCodeRow[];
+  env: AdminEnvironment;
 }
 
-export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
+export function RedeemCodesView({ codes, env }: RedeemCodesViewProps) {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -48,6 +51,7 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
     setGeneratePending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("durationDays", durationDays);
     formData.append("planCode", planCode);
 
@@ -76,6 +80,7 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
     setDeletePending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("codeId", codeToDelete.id);
 
     try {

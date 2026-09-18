@@ -1,4 +1,3 @@
-import { db } from "@/db";
 import {
   user,
   accounts,
@@ -13,11 +12,13 @@ import {
   type Video,
 } from "@/db/schema";
 import { eq, and, sql, desc, or, isNull, gt, inArray, gte } from "drizzle-orm";
-import { auth } from "@/lib/auth";
 import { getCurrentPeriodKey, SLOT_OCCUPYING_STATUSES } from "@/lib/plans/access";
 import { PRO_PLAN, getPlanByCode } from "@/lib/plans/catalog";
 import { assertLocalDevPanelAccess } from "./guard";
 import { logAdminAction } from "./audit";
+import { getAdminDb } from "./db";
+import { getAdminAuth } from "./auth";
+import type { AdminEnvironment } from "./env-config";
 import { isEmailConfigured } from "@/lib/email";
 
 export interface DevUserRow {
@@ -119,13 +120,14 @@ export interface DevUserDetails {
   emailServiceAvailable: boolean;
 }
 
-export async function getDevUsersList(): Promise<DevUserRow[]> {
+export async function getDevUsersList(env: AdminEnvironment): Promise<DevUserRow[]> {
   await assertLocalDevPanelAccess();
 
+  const adminDb = getAdminDb(env);
   const now = new Date();
   const periodKey = getCurrentPeriodKey();
 
-  const usersData = await db
+  const usersData = await adminDb
     .select({
       id: user.id,
       name: user.name,
@@ -155,7 +157,7 @@ export async function getDevUsersList(): Promise<DevUserRow[]> {
   if (userIds.length === 0) return [];
 
   // Active subscriptions
-  const subs = await db
+  const subs = await adminDb
     .select()
     .from(subscriptions)
     .where(
@@ -181,7 +183,7 @@ export async function getDevUsersList(): Promise<DevUserRow[]> {
 
   const videoCountsMap = new Map<string, number>();
   if (accountIds.length > 0) {
-    const vCounts = await db
+    const vCounts = await adminDb
       .select({
         accountId: videos.accountId,
         count: sql<number>`count(*)::int`,
@@ -202,7 +204,7 @@ export async function getDevUsersList(): Promise<DevUserRow[]> {
 
   // Monthly usage
   const usageMap = new Map<string, number>();
-  const usages = await db
+  const usages = await adminDb
     .select({
       userId: monthlyUsage.userId,
       plays: monthlyUsage.plays,
@@ -251,15 +253,19 @@ export async function getDevUsersList(): Promise<DevUserRow[]> {
   return rows;
 }
 
-export async function getDevUserDetails(userId: string): Promise<DevUserDetails | null> {
+export async function getDevUserDetails(
+  env: AdminEnvironment,
+  userId: string
+): Promise<DevUserDetails | null> {
   await assertLocalDevPanelAccess();
 
+  const adminDb = getAdminDb(env);
   const now = new Date();
   const periodKey = getCurrentPeriodKey();
   const days30Start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   // 1. Fetch user
-  const [userData] = await db
+  const [userData] = await adminDb
     .select()
     .from(user)
     .where(eq(user.id, userId))
@@ -268,7 +274,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
   if (!userData) return null;
 
   // 2. Fetch primary account
-  const [memberRow] = await db
+  const [memberRow] = await adminDb
     .select({
       account: accounts,
       role: accountMembers.role,
@@ -282,7 +288,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
   const account = memberRow?.account || null;
 
   // 3. Subscriptions (all history, newest first)
-  const subscriptionHistory = await db
+  const subscriptionHistory = await adminDb
     .select()
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
@@ -306,7 +312,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
   };
 
   // 4. Monthly usage plays
-  const [usageRow] = await db
+  const [usageRow] = await adminDb
     .select({ plays: monthlyUsage.plays })
     .from(monthlyUsage)
     .where(
@@ -322,7 +328,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
   // 5. Account videos & plays per video
   let userVideos: Video[] = [];
   if (account) {
-    userVideos = await db
+    userVideos = await adminDb
       .select()
       .from(videos)
       .where(eq(videos.accountId, account.id))
@@ -333,7 +339,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
   const videoIds = userVideos.map((v) => v.id);
   const videoPlaysMap = new Map<string, number>();
   if (videoIds.length > 0) {
-    const playRows = await db
+    const playRows = await adminDb
       .select({
         videoId: playSessions.videoId,
         count: sql<number>`count(*)::int`,
@@ -390,7 +396,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
   }
 
   // 6. Redeem codes redeemed by this user
-  const usedRedeems = await db
+  const usedRedeems = await adminDb
     .select({
       id: redeemCodes.id,
       planCode: redeemCodes.planCode,
@@ -411,7 +417,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
     }));
 
   // 7. Active sessions in better-auth
-  const activeSessions = await db
+  const activeSessions = await adminDb
     .select()
     .from(session)
     .where(
@@ -432,7 +438,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
   }));
 
   // 8. 30-day analytics for user
-  const dailyPlaysRows = await db
+  const dailyPlaysRows = await adminDb
     .select({
       dayStr: sql<string>`to_char(date_trunc('day', ${playSessions.createdAt}), 'YYYY-MM-DD')`,
       count: sql<number>`count(*)::int`,
@@ -453,7 +459,7 @@ export async function getDevUserDetails(userId: string): Promise<DevUserDetails 
 
   const dailyUploadsMap = new Map<string, number>();
   if (account) {
-    const dailyUploadsRows = await db
+    const dailyUploadsRows = await adminDb
       .select({
         dayStr: sql<string>`to_char(date_trunc('day', ${videos.createdAt}), 'YYYY-MM-DD')`,
         count: sql<number>`count(*)::int`,
@@ -547,17 +553,16 @@ export interface SetUserPlanInput {
   expirationDate?: string;
 }
 
-export async function setDevUserPlan({
-  userId,
-  mode,
-  durationDays,
-  expirationDate,
-}: SetUserPlanInput) {
+export async function setDevUserPlan(
+  env: AdminEnvironment,
+  { userId, mode, durationDays, expirationDate }: SetUserPlanInput
+) {
   await assertLocalDevPanelAccess();
 
+  const adminDb = getAdminDb(env);
   const now = new Date();
 
-  const result = await db.transaction(async (tx) => {
+  const result = await adminDb.transaction(async (tx) => {
     // 1. Inactivate existing active subscriptions
     await tx
       .update(subscriptions)
@@ -630,7 +635,7 @@ export async function setDevUserPlan({
     throw new Error("Modo de plano inválido.");
   });
 
-  await logAdminAction({
+  await logAdminAction(env, {
     action: "plan_changed",
     targetUserId: userId,
     metadata: {
@@ -643,12 +648,18 @@ export async function setDevUserPlan({
   return result;
 }
 
-export async function createDevUser(data: {
-  name: string;
-  email: string;
-  password: string;
-}) {
+export async function createDevUser(
+  env: AdminEnvironment,
+  data: {
+    name: string;
+    email: string;
+    password: string;
+  }
+) {
   await assertLocalDevPanelAccess();
+
+  const adminDb = getAdminDb(env);
+  const adminAuth = getAdminAuth(env);
 
   const name = data.name.trim();
   const email = data.email.trim().toLowerCase();
@@ -664,7 +675,7 @@ export async function createDevUser(data: {
     throw new Error("A senha deve ter no mínimo 6 caracteres.");
   }
 
-  const [existingUser] = await db
+  const [existingUser] = await adminDb
     .select({ id: user.id })
     .from(user)
     .where(eq(user.email, email))
@@ -674,7 +685,7 @@ export async function createDevUser(data: {
     throw new Error("Já existe um usuário cadastrado com este e-mail.");
   }
 
-  const result = await auth.api.signUpEmail({
+  const result = await adminAuth.api.signUpEmail({
     body: {
       name,
       email,
@@ -683,7 +694,7 @@ export async function createDevUser(data: {
   });
 
   if (result?.user?.id) {
-    await logAdminAction({
+    await logAdminAction(env, {
       action: "user_created",
       targetUserId: result.user.id,
       metadata: { name, email },
@@ -701,9 +712,10 @@ export interface BanUserInput {
   customExpiresAt?: string;
 }
 
-export async function banDevUser(input: BanUserInput) {
+export async function banDevUser(env: AdminEnvironment, input: BanUserInput) {
   await assertLocalDevPanelAccess();
 
+  const adminDb = getAdminDb(env);
   const now = new Date();
   let banExpires: Date | null = null;
 
@@ -727,7 +739,7 @@ export async function banDevUser(input: BanUserInput) {
   const banReason = input.banReason?.trim() || "Violação dos termos de uso";
 
   // 1. Update user ban state in Better Auth schema
-  await db
+  await adminDb
     .update(user)
     .set({
       banned: true,
@@ -738,10 +750,10 @@ export async function banDevUser(input: BanUserInput) {
     .where(eq(user.id, input.userId));
 
   // 2. Revoke all active sessions immediately
-  await db.delete(session).where(eq(session.userId, input.userId));
+  await adminDb.delete(session).where(eq(session.userId, input.userId));
 
   // 3. Log audit event
-  await logAdminAction({
+  await logAdminAction(env, {
     action: "user_banned",
     targetUserId: input.userId,
     metadata: {
@@ -753,10 +765,12 @@ export async function banDevUser(input: BanUserInput) {
   return { success: true };
 }
 
-export async function unbanDevUser(userId: string) {
+export async function unbanDevUser(env: AdminEnvironment, userId: string) {
   await assertLocalDevPanelAccess();
 
-  await db
+  const adminDb = getAdminDb(env);
+
+  await adminDb
     .update(user)
     .set({
       banned: false,
@@ -766,7 +780,7 @@ export async function unbanDevUser(userId: string) {
     })
     .where(eq(user.id, userId));
 
-  await logAdminAction({
+  await logAdminAction(env, {
     action: "user_unbanned",
     targetUserId: userId,
   });
@@ -774,15 +788,17 @@ export async function unbanDevUser(userId: string) {
   return { success: true };
 }
 
-export async function revokeDevUserSessions(userId: string) {
+export async function revokeDevUserSessions(env: AdminEnvironment, userId: string) {
   await assertLocalDevPanelAccess();
 
-  const [countRes] = await db
+  const adminDb = getAdminDb(env);
+
+  const [countRes] = await adminDb
     .delete(session)
     .where(eq(session.userId, userId))
     .returning({ id: session.id });
 
-  await logAdminAction({
+  await logAdminAction(env, {
     action: "sessions_revoked",
     targetUserId: userId,
     metadata: { revokedCount: countRes ? 1 : 0 },
@@ -791,10 +807,13 @@ export async function revokeDevUserSessions(userId: string) {
   return { success: true };
 }
 
-export async function requestDevPasswordReset(userId: string) {
+export async function requestDevPasswordReset(env: AdminEnvironment, userId: string) {
   await assertLocalDevPanelAccess();
 
-  const [userData] = await db
+  const adminDb = getAdminDb(env);
+  const adminAuth = getAdminAuth(env);
+
+  const [userData] = await adminDb
     .select({ email: user.email, name: user.name })
     .from(user)
     .where(eq(user.id, userId))
@@ -808,14 +827,14 @@ export async function requestDevPasswordReset(userId: string) {
     throw new Error("Serviço de email não configurado.");
   }
 
-  // Call official Better Auth server endpoint for password reset
-  const res = await auth.api.requestPasswordReset({
+  // Call official Better Auth server endpoint for password reset on the admin auth instance
+  const res = await adminAuth.api.requestPasswordReset({
     body: {
       email: userData.email,
     },
   });
 
-  await logAdminAction({
+  await logAdminAction(env, {
     action: "password_reset_requested",
     targetUserId: userId,
     metadata: { email: userData.email },

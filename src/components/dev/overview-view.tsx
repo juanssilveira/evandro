@@ -26,13 +26,15 @@ import {
   Legend,
 } from "recharts";
 import type { PlatformOverviewAnalytics, AnalyticsRange } from "@/lib/dev/analytics";
+import type { AdminEnvironment } from "@/lib/dev/env-config";
 import { formatBytes, formatDuration, formatDate } from "@/lib/dev/formatters";
 
 interface OverviewViewProps {
   analytics: PlatformOverviewAnalytics;
+  env: AdminEnvironment;
 }
 
-export function OverviewView({ analytics }: OverviewViewProps) {
+export function OverviewView({ analytics, env }: OverviewViewProps) {
   const { range, rangeDays, kpis, consumption, dailyPlays, growthSeries } = analytics;
 
   const renderDelta = (deltaPercent: number | null, label = "vs período anterior") => {
@@ -90,7 +92,7 @@ export function OverviewView({ analytics }: OverviewViewProps) {
             return (
               <Link
                 key={r}
-                href={`/dev?tab=overview&range=${r}`}
+                href={`/dev?env=${env}&tab=overview&range=${r}`}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-2xs"
@@ -352,7 +354,7 @@ export function OverviewView({ analytics }: OverviewViewProps) {
             </p>
           </div>
           <Link
-            href="/dev?tab=video-infra"
+            href={`/dev?env=${env}&tab=video-infra`}
             className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary-hover font-medium"
           >
             <span>Ver Infra de Vídeo</span>

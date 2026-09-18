@@ -8,9 +8,9 @@ export const DEFAULT_VIDEO_PROVIDER_KEY = "default_video_provider";
 /**
  * Retrieves a generic setting value from the app_settings table.
  */
-export async function getAppSetting(key: string): Promise<string | null> {
+export async function getAppSetting(key: string, targetDb = db): Promise<string | null> {
   try {
-    const [row] = await db
+    const [row] = await targetDb
       .select({ value: appSettings.value })
       .from(appSettings)
       .where(eq(appSettings.key, key))
@@ -26,9 +26,9 @@ export async function getAppSetting(key: string): Promise<string | null> {
 /**
  * Upserts a generic setting value into the app_settings table.
  */
-export async function setAppSetting(key: string, value: string): Promise<void> {
+export async function setAppSetting(key: string, value: string, targetDb = db): Promise<void> {
   const now = new Date();
-  await db
+  await targetDb
     .insert(appSettings)
     .values({
       key,
@@ -49,8 +49,8 @@ export async function setAppSetting(key: string, value: string): Promise<void> {
  * Retrieves the currently configured default video provider for new uploads.
  * If not set or invalid, safely defaults to "mux" and warns if invalid.
  */
-export async function getDefaultVideoProviderSetting(): Promise<VideoProviderName> {
-  const rawValue = await getAppSetting(DEFAULT_VIDEO_PROVIDER_KEY);
+export async function getDefaultVideoProviderSetting(targetDb = db): Promise<VideoProviderName> {
+  const rawValue = await getAppSetting(DEFAULT_VIDEO_PROVIDER_KEY, targetDb);
 
   if (!rawValue) {
     return "mux";
@@ -72,11 +72,12 @@ export async function getDefaultVideoProviderSetting(): Promise<VideoProviderNam
  * Accepts only "mux" or "bunny".
  */
 export async function setDefaultVideoProviderSetting(
-  provider: VideoProviderName
+  provider: VideoProviderName,
+  targetDb = db
 ): Promise<void> {
   if (provider !== "mux" && provider !== "bunny") {
     throw new Error(`Invalid video provider: "${provider}". Expected "mux" or "bunny".`);
   }
 
-  await setAppSetting(DEFAULT_VIDEO_PROVIDER_KEY, provider);
+  await setAppSetting(DEFAULT_VIDEO_PROVIDER_KEY, provider, targetDb);
 }

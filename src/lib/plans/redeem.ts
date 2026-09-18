@@ -42,10 +42,13 @@ export interface CreateRedeemCodeResult {
   id: string;
 }
 
-export async function createRedeemCode({
-  durationDays,
-  planCode = "pro",
-}: CreateRedeemCodeInput): Promise<CreateRedeemCodeResult> {
+export async function createRedeemCode(
+  {
+    durationDays,
+    planCode = "pro",
+  }: CreateRedeemCodeInput,
+  targetDb = db
+): Promise<CreateRedeemCodeResult> {
   if (!Number.isInteger(durationDays) || durationDays <= 0) {
     throw new Error("A duração em dias deve ser um número inteiro positivo maior que 0.");
   }
@@ -58,7 +61,7 @@ export async function createRedeemCode({
   const rawCode = generateRedeemCodeString();
   const codeHash = hashRedeemCode(rawCode);
 
-  const [inserted] = await db
+  const [inserted] = await targetDb
     .insert(redeemCodes)
     .values({
       codeHash,

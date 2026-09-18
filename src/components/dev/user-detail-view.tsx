@@ -34,6 +34,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { DevUserDetails, SetPlanMode } from "@/lib/dev/users";
+import type { AdminEnvironment } from "@/lib/dev/env-config";
 import { formatBytes, formatDuration, formatDate } from "@/lib/dev/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,9 +61,10 @@ import {
 
 interface UserDetailViewProps {
   details: DevUserDetails;
+  env: AdminEnvironment;
 }
 
-export function UserDetailView({ details }: UserDetailViewProps) {
+export function UserDetailView({ details, env }: UserDetailViewProps) {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -125,6 +127,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
     setActionPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("userId", user.id);
     formData.append("mode", planMode);
 
@@ -159,6 +162,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
     setActionPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("accountId", account.id);
     formData.append("reason", disableReason);
 
@@ -184,6 +188,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
     setActionPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("accountId", account.id);
 
     try {
@@ -207,6 +212,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
     setActionPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("userId", user.id);
     formData.append("banReason", banReason);
     formData.append("durationOption", banDuration);
@@ -235,6 +241,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
     setActionPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("userId", user.id);
 
     try {
@@ -257,6 +264,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
     setActionPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("userId", user.id);
 
     try {
@@ -280,6 +288,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
     setActionPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("userId", user.id);
 
     try {
@@ -304,6 +313,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
     setActionPending(true);
 
     const formData = new FormData();
+    formData.append("env", env);
     formData.append("accountId", account.id);
     formData.append("confirmationName", confirmAccountName);
 
@@ -312,7 +322,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
       if (res.success) {
         toast(`Conta ${account.name} e todos os vídeos foram excluídos com sucesso.`, "success");
         setIsDeleteOpen(false);
-        router.push("/dev?tab=users");
+        router.push(`/dev?env=${env}&tab=users`);
         router.refresh();
       } else {
         toast(res.error, "error");
@@ -333,7 +343,7 @@ export function UserDetailView({ details }: UserDetailViewProps) {
       {/* Back Link */}
       <div>
         <Link
-          href="/dev?tab=users"
+          href={`/dev?env=${env}&tab=users`}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
         >
           <ArrowLeft className="size-3.5" />

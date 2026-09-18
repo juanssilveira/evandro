@@ -1,4 +1,5 @@
-import { db } from "@/db";
+import { getAdminDb } from "./db";
+import type { AdminEnvironment } from "./env-config";
 import { adminAuditLog, type AdminAuditLog } from "@/db/schema";
 import { desc, eq, and } from "drizzle-orm";
 
@@ -22,10 +23,14 @@ export interface LogAdminActionInput {
 }
 
 /**
- * Persists an administrative action to admin_audit_log.
+ * Persists an administrative action to admin_audit_log for the specific environment.
  * Strips sensitive tokens/keys from metadata.
  */
-export async function logAdminAction(input: LogAdminActionInput): Promise<AdminAuditLog> {
+export async function logAdminAction(
+  env: AdminEnvironment,
+  input: LogAdminActionInput
+): Promise<AdminAuditLog> {
+  const adminDb = getAdminDb(env);
   const safeMetadata = input.metadata ? { ...input.metadata } : {};
 
   // Defense-in-depth against accidental secret logging
@@ -36,7 +41,7 @@ export async function logAdminAction(input: LogAdminActionInput): Promise<AdminA
     }
   }
 
-  const [entry] = await db
+  const [entry] = await adminDb
     .insert(adminAuditLog)
     .values({
       action: input.action,
@@ -49,11 +54,15 @@ export async function logAdminAction(input: LogAdminActionInput): Promise<AdminA
   return entry;
 }
 
-export async function getRecentAdminAuditLogs(params?: {
-  targetUserId?: string;
-  targetAccountId?: string;
-  limit?: number;
-}): Promise<AdminAuditLog[]> {
+export async function getRecentAdminAuditLogs(
+  env: AdminEnvironment,
+  params?: {
+    targetUserId?: string;
+    targetAccountId?: string;
+    limit?: number;
+  }
+): Promise<AdminAuditLog[]> {
+  const adminDb = getAdminDb(env);
   const conditions = [];
 
   if (params?.targetUserId) {
@@ -63,7 +72,7 @@ export async function getRecentAdminAuditLogs(params?: {
     conditions.push(eq(adminAuditLog.targetAccountId, params.targetAccountId));
   }
 
-  const query = db
+  const query = adminDb
     .select()
     .from(adminAuditLog)
     .orderBy(desc(adminAuditLog.createdAt))

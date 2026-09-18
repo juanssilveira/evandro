@@ -1,4 +1,5 @@
-import { db } from "@/db";
+import { getAdminDb } from "./db";
+import type { AdminEnvironment } from "./env-config";
 import {
   user,
   accounts,
@@ -106,10 +107,12 @@ function generateDateKeys(startDate: Date, days: number): string[] {
  * Executes high-performance SQL aggregations to build the operational overview analytics.
  */
 export async function getDevPlatformOverviewAnalytics(
+  env: AdminEnvironment,
   rangeInput?: string
 ): Promise<PlatformOverviewAnalytics> {
   await assertLocalDevPanelAccess();
 
+  const adminDb = getAdminDb(env);
   const range = parseAnalyticsRange(rangeInput);
   const days = getRangeDays(range);
 
@@ -124,18 +127,18 @@ export async function getDevPlatformOverviewAnalytics(
   const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
 
   // 1. Total users and accounts
-  const [usersCountRes] = await db
+  const [usersCountRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(user);
   const totalUsers = usersCountRes?.count ?? 0;
 
-  const [accountsCountRes] = await db
+  const [accountsCountRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(accounts);
   const totalAccounts = accountsCountRes?.count ?? 0;
 
   // 2. Active plan users
-  const [activePlanRes] = await db
+  const [activePlanRes] = await adminDb
     .select({ count: sql<number>`count(distinct ${subscriptions.userId})::int` })
     .from(subscriptions)
     .where(
@@ -148,13 +151,13 @@ export async function getDevPlatformOverviewAnalytics(
   const noPlanUsers = Math.max(0, totalUsers - activePlanUsers);
 
   // 3. New users: current range vs previous range
-  const [newUsersCurrentRes] = await db
+  const [newUsersCurrentRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(user)
     .where(gte(user.createdAt, currentPeriodStart));
   const newUsersCurrent = newUsersCurrentRes?.count ?? 0;
 
-  const [newUsersPreviousRes] = await db
+  const [newUsersPreviousRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(user)
     .where(
@@ -166,13 +169,13 @@ export async function getDevPlatformOverviewAnalytics(
   const newUsersPrevious = newUsersPreviousRes?.count ?? 0;
 
   // 4. Video uploads: current range vs previous range
-  const [uploadsCurrentRes] = await db
+  const [uploadsCurrentRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(videos)
     .where(gte(videos.createdAt, currentPeriodStart));
   const uploadsCurrent = uploadsCurrentRes?.count ?? 0;
 
-  const [uploadsPreviousRes] = await db
+  const [uploadsPreviousRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(videos)
     .where(
@@ -184,13 +187,13 @@ export async function getDevPlatformOverviewAnalytics(
   const uploadsPrevious = uploadsPreviousRes?.count ?? 0;
 
   // 5. Plays in range & deltas from play_sessions
-  const [playsCurrentRes] = await db
+  const [playsCurrentRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(playSessions)
     .where(gte(playSessions.createdAt, currentPeriodStart));
   const playsCurrent = playsCurrentRes?.count ?? 0;
 
-  const [playsPreviousRes] = await db
+  const [playsPreviousRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(playSessions)
     .where(
@@ -202,14 +205,14 @@ export async function getDevPlatformOverviewAnalytics(
   const playsPrevious = playsPreviousRes?.count ?? 0;
 
   // 6. Plays today
-  const [playsTodayRes] = await db
+  const [playsTodayRes] = await adminDb
     .select({ count: sql<number>`count(*)::int` })
     .from(playSessions)
     .where(gte(playSessions.createdAt, todayStart));
   const playsToday = playsTodayRes?.count ?? 0;
 
   // 7. Overall video stats & provider breakdown
-  const videoAggs = await db
+  const videoAggs = await adminDb
     .select({
       provider: videos.provider,
       status: videos.status,
@@ -262,7 +265,7 @@ export async function getDevPlatformOverviewAnalytics(
   }
 
   // 8. Plays per provider (all-time or monthly from play_sessions joined with videos)
-  const playsByProviderRes = await db
+  const playsByProviderRes = await adminDb
     .select({
       provider: videos.provider,
       plays: sql<number>`count(*)::int`,
@@ -277,14 +280,14 @@ export async function getDevPlatformOverviewAnalytics(
   }
 
   // Total monthly plays across accounts
-  const [monthlyPlaysRes] = await db
+  const [monthlyPlaysRes] = await adminDb
     .select({ totalPlays: sql<number>`coalesce(sum(${monthlyUsage.plays}), 0)::int` })
     .from(monthlyUsage)
     .where(eq(monthlyUsage.periodKey, currentPeriodKey));
   const totalMonthlyPlays = monthlyPlaysRes?.totalPlays ?? 0;
 
   // 9. Daily Plays time series via PostgreSQL DATE_TRUNC
-  const dailyPlaysRows = await db
+  const dailyPlaysRows = await adminDb
     .select({
       dayStr: sql<string>`to_char(date_trunc('day', ${playSessions.createdAt}), 'YYYY-MM-DD')`,
       count: sql<number>`count(*)::int`,
@@ -300,7 +303,7 @@ export async function getDevPlatformOverviewAnalytics(
   }
 
   // 10. Growth series (new users & uploads by day)
-  const dailyUsersRows = await db
+  const dailyUsersRows = await adminDb
     .select({
       dayStr: sql<string>`to_char(date_trunc('day', ${user.createdAt}), 'YYYY-MM-DD')`,
       count: sql<number>`count(*)::int`,
@@ -314,7 +317,7 @@ export async function getDevPlatformOverviewAnalytics(
     dailyUsersMap.set(r.dayStr, Number(r.count || 0));
   }
 
-  const dailyUploadsRows = await db
+  const dailyUploadsRows = await adminDb
     .select({
       dayStr: sql<string>`to_char(date_trunc('day', ${videos.createdAt}), 'YYYY-MM-DD')`,
       count: sql<number>`count(*)::int`,

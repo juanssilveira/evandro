@@ -27,13 +27,15 @@ import {
   refreshProviderStatsAction,
 } from "@/app/actions/dev";
 import type { VideoInfraFullReport } from "@/lib/dev/video-infra";
+import type { AdminEnvironment } from "@/lib/dev/env-config";
 import { formatBytes, formatDuration, formatDate } from "@/lib/dev/formatters";
 
 interface VideoInfraViewProps {
   report: VideoInfraFullReport;
+  env: AdminEnvironment;
 }
 
-export function VideoInfraView({ report }: VideoInfraViewProps) {
+export function VideoInfraView({ report, env }: VideoInfraViewProps) {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -66,7 +68,7 @@ export function VideoInfraView({ report }: VideoInfraViewProps) {
     setIsPending(true);
 
     try {
-      const res = await updateDefaultVideoProviderAction(confirmProvider);
+      const res = await updateDefaultVideoProviderAction(confirmProvider, env);
       if (res.success) {
         toast(
           `Provider padrão alterado para ${providerNames[confirmProvider]}. Novos uploads usarão esta infraestrutura.`,
@@ -87,7 +89,7 @@ export function VideoInfraView({ report }: VideoInfraViewProps) {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const res = await refreshProviderStatsAction();
+      const res = await refreshProviderStatsAction(env);
       if (res.success) {
         toast("Métricas de infraestrutura atualizadas com sucesso.", "success");
         router.refresh();

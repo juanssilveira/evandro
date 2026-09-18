@@ -1,9 +1,10 @@
-import { db } from "@/db";
 import { redeemCodes, user } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { createRedeemCode, type CreateRedeemCodeResult } from "@/lib/plans/redeem";
 import { assertLocalDevPanelAccess } from "./guard";
 import { logAdminAction } from "./audit";
+import { getAdminDb } from "./db";
+import type { AdminEnvironment } from "./env-config";
 
 export interface DevRedeemCodeRow {
   id: string;
@@ -18,10 +19,14 @@ export interface DevRedeemCodeRow {
   } | null;
 }
 
-export async function getDevRedeemCodesList(): Promise<DevRedeemCodeRow[]> {
+export async function getDevRedeemCodesList(
+  env: AdminEnvironment
+): Promise<DevRedeemCodeRow[]> {
   await assertLocalDevPanelAccess();
 
-  const rows = await db
+  const adminDb = getAdminDb(env);
+
+  const rows = await adminDb
     .select({
       id: redeemCodes.id,
       planCode: redeemCodes.planCode,
@@ -52,15 +57,19 @@ export async function getDevRedeemCodesList(): Promise<DevRedeemCodeRow[]> {
   }));
 }
 
-export async function generateDevRedeemCode(input: {
-  durationDays: number;
-  planCode?: string;
-}): Promise<CreateRedeemCodeResult> {
+export async function generateDevRedeemCode(
+  env: AdminEnvironment,
+  input: {
+    durationDays: number;
+    planCode?: string;
+  }
+): Promise<CreateRedeemCodeResult> {
   await assertLocalDevPanelAccess();
 
-  const result = await createRedeemCode(input);
+  const adminDb = getAdminDb(env);
+  const result = await createRedeemCode(input, adminDb);
 
-  await logAdminAction({
+  await logAdminAction(env, {
     action: "redeem_created",
     metadata: {
       durationDays: result.durationDays,
@@ -71,14 +80,19 @@ export async function generateDevRedeemCode(input: {
   return result;
 }
 
-export async function deleteDevRedeemCode(codeId: string): Promise<{
+export async function deleteDevRedeemCode(
+  env: AdminEnvironment,
+  codeId: string
+): Promise<{
   success: boolean;
   wasUsed: boolean;
   usedByUserId: string | null;
 }> {
   await assertLocalDevPanelAccess();
 
-  const [code] = await db
+  const adminDb = getAdminDb(env);
+
+  const [code] = await adminDb
     .select()
     .from(redeemCodes)
     .where(eq(redeemCodes.id, codeId))
@@ -92,9 +106,9 @@ export async function deleteDevRedeemCode(codeId: string): Promise<{
   const usedByUserId = code.usedByUserId;
 
   // Delete redeem code record (does NOT affect granted subscription if already used)
-  await db.delete(redeemCodes).where(eq(redeemCodes.id, codeId));
+  await adminDb.delete(redeemCodes).where(eq(redeemCodes.id, codeId));
 
-  await logAdminAction({
+  await logAdminAction(env, {
     action: "redeem_deleted",
     targetUserId: usedByUserId,
     metadata: {

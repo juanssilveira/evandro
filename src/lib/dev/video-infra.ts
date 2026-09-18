@@ -1,10 +1,10 @@
-import { db } from "@/db";
 import { videos, playSessions, type VideoStatus } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { getMuxClient } from "@/lib/mux";
-import { getBunnyConfig } from "@/lib/bunny-stream";
-import { getVideoProviderConfigurationStatus, type VideoProvidersConfigurationStatus } from "@/lib/video-providers";
+import Mux from "@mux/mux-node";
+import type { VideoProvidersConfigurationStatus } from "@/lib/video-providers";
 import { assertLocalDevPanelAccess } from "./guard";
+import { getAdminDb } from "./db";
+import { getAdminEnvironmentConfig, type AdminEnvironment, type AdminInfraConfig } from "./env-config";
 
 export interface ProviderLocalStats {
   videoCount: number;
@@ -55,27 +55,67 @@ export interface VideoInfraFullReport {
   cachedAt: Date;
 }
 
-// In-memory short TTL cache (90 seconds)
-let cachedReport: VideoInfraFullReport | null = null;
-let cacheTimestamp = 0;
+// In-memory short TTL cache (90 seconds) separated by environment
+const cachedReports: Record<AdminEnvironment, { report: VideoInfraFullReport; timestamp: number } | null> = {
+  development: null,
+  production: null,
+};
 const CACHE_TTL_MS = 90 * 1000;
 
-export function invalidateVideoInfraCache() {
-  cachedReport = null;
-  cacheTimestamp = 0;
+export function invalidateVideoInfraCache(env?: AdminEnvironment) {
+  if (env) {
+    cachedReports[env] = null;
+  } else {
+    cachedReports.development = null;
+    cachedReports.production = null;
+  }
 }
 
-export async function fetchMuxExternalStats(): Promise<MuxExternalStats> {
-  const config = getVideoProviderConfigurationStatus();
-  if (!config.mux.configured) {
+export function getProviderConfigurationStatusForConfig(
+  config: AdminInfraConfig
+): VideoProvidersConfigurationStatus {
+  const isMuxConfigured = Boolean(
+    config.MUX_TOKEN_ID &&
+    config.MUX_TOKEN_ID.trim().length > 0 &&
+    config.MUX_TOKEN_SECRET &&
+    config.MUX_TOKEN_SECRET.trim().length > 0
+  );
+
+  const isBunnyConfigured = Boolean(
+    config.BUNNY_STREAM_LIBRARY_ID &&
+    config.BUNNY_STREAM_LIBRARY_ID.trim().length > 0 &&
+    config.BUNNY_STREAM_API_KEY &&
+    config.BUNNY_STREAM_API_KEY.trim().length > 0 &&
+    config.BUNNY_STREAM_CDN_HOSTNAME &&
+    config.BUNNY_STREAM_CDN_HOSTNAME.trim().length > 0
+  );
+
+  return {
+    mux: {
+      configured: isMuxConfigured,
+    },
+    bunny: {
+      configured: isBunnyConfigured,
+    },
+  };
+}
+
+export async function fetchMuxExternalStats(
+  config: AdminInfraConfig
+): Promise<MuxExternalStats> {
+  const status = getProviderConfigurationStatusForConfig(config);
+  if (!status.mux.configured || !config.MUX_TOKEN_ID || !config.MUX_TOKEN_SECRET) {
     return {
       available: false,
-      error: "Credenciais do Mux incompletas no ambiente local.",
+      error: "Credenciais do Mux incompletas no ambiente selecionado.",
     };
   }
 
   try {
-    const mux = getMuxClient();
+    const mux = new Mux({
+      tokenId: config.MUX_TOKEN_ID,
+      tokenSecret: config.MUX_TOKEN_SECRET,
+    });
 
     // 1. List assets (up to 100) to calculate assets count, duration & resolution tiers
     const assetsPage = await mux.video.assets.list({ limit: 100 });
@@ -133,16 +173,18 @@ export async function fetchMuxExternalStats(): Promise<MuxExternalStats> {
   }
 }
 
-export async function fetchBunnyExternalStats(): Promise<BunnyExternalStats> {
-  const config = getVideoProviderConfigurationStatus();
-  if (!config.bunny.configured) {
+export async function fetchBunnyExternalStats(
+  config: AdminInfraConfig
+): Promise<BunnyExternalStats> {
+  const status = getProviderConfigurationStatusForConfig(config);
+  if (!status.bunny.configured || !config.BUNNY_STREAM_LIBRARY_ID) {
     return {
       available: false,
-      error: "Credenciais do Bunny Stream incompletas no ambiente local.",
+      error: "Credenciais do Bunny Stream incompletas no ambiente selecionado.",
     };
   }
 
-  const accountApiKey = process.env.BUNNY_ACCOUNT_API_KEY;
+  const accountApiKey = config.BUNNY_ACCOUNT_API_KEY;
   if (!accountApiKey || accountApiKey.trim().length === 0) {
     return {
       available: false,
@@ -152,7 +194,7 @@ export async function fetchBunnyExternalStats(): Promise<BunnyExternalStats> {
   }
 
   try {
-    const { libraryId } = getBunnyConfig();
+    const libraryId = config.BUNNY_STREAM_LIBRARY_ID;
     const response = await fetch(`https://api.bunny.net/videolibrary/${libraryId}`, {
       method: "GET",
       headers: {
@@ -194,20 +236,27 @@ export async function fetchBunnyExternalStats(): Promise<BunnyExternalStats> {
   }
 }
 
-export async function getVideoInfraFullReport(forceRefresh = false): Promise<VideoInfraFullReport> {
+export async function getVideoInfraFullReport(
+  env: AdminEnvironment,
+  forceRefresh = false
+): Promise<VideoInfraFullReport> {
   await assertLocalDevPanelAccess();
 
   const now = Date.now();
-  if (!forceRefresh && cachedReport && now - cacheTimestamp < CACHE_TTL_MS) {
-    return cachedReport;
+  const cached = cachedReports[env];
+  if (!forceRefresh && cached && now - cached.timestamp < CACHE_TTL_MS) {
+    return cached.report;
   }
 
-  const { getDefaultVideoProviderSetting } = await import("@/lib/settings/app-settings");
-  const currentProvider = await getDefaultVideoProviderSetting();
-  const configStatus = getVideoProviderConfigurationStatus();
+  const adminDb = getAdminDb(env);
+  const config = getAdminEnvironmentConfig(env);
 
-  // 1. Local WatchMap DB aggregation by provider
-  const videoAggs = await db
+  const { getDefaultVideoProviderSetting } = await import("@/lib/settings/app-settings");
+  const currentProvider = await getDefaultVideoProviderSetting(adminDb);
+  const configStatus = getProviderConfigurationStatusForConfig(config);
+
+  // 1. Local WatchMap DB aggregation by provider for the selected environment
+  const videoAggs = await adminDb
     .select({
       provider: videos.provider,
       status: videos.status,
@@ -244,7 +293,7 @@ export async function getVideoInfraFullReport(forceRefresh = false): Promise<Vid
   }
 
   // Plays per provider from play_sessions
-  const playsByProv = await db
+  const playsByProv = await adminDb
     .select({
       provider: videos.provider,
       plays: sql<number>`count(*)::int`,
@@ -272,10 +321,10 @@ export async function getVideoInfraFullReport(forceRefresh = false): Promise<Vid
   const muxPercent = totalVids > 0 ? Math.round((localStats.mux.videoCount / totalVids) * 100) : 0;
   const bunnyPercent = totalVids > 0 ? 100 - muxPercent : 0;
 
-  // 2. Fetch external stats concurrently (isolated so one failure does not break the other)
+  // 2. Fetch external stats concurrently
   const [muxExternal, bunnyExternal] = await Promise.all([
-    fetchMuxExternalStats(),
-    fetchBunnyExternalStats(),
+    fetchMuxExternalStats(config),
+    fetchBunnyExternalStats(config),
   ]);
 
   const report: VideoInfraFullReport = {
@@ -297,8 +346,7 @@ export async function getVideoInfraFullReport(forceRefresh = false): Promise<Vid
     cachedAt: new Date(),
   };
 
-  cachedReport = report;
-  cacheTimestamp = now;
+  cachedReports[env] = { report, timestamp: now };
 
   return report;
 }
