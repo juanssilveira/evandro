@@ -34,7 +34,14 @@ import { calculateFakeProgress } from "@/lib/player/fake-progress-engine";
 import type Hls from "hls.js";
 import { shouldUseNativeHls, loadHlsEngine } from "./embed/hls-engine";
 import {
+  createStartupHlsConfig,
+  saveBandwidthEstimate,
+  getInitialBandwidthEstimate,
+} from "./embed/startup-abr";
+import { MediaLoadingStateManager } from "./embed/media-loading-state";
+import {
   markPerformance,
+  markPerformanceOnce,
   measurePerformance,
   onFirstVideoFrame,
   logPerformanceDebugReport,
@@ -166,13 +173,23 @@ export function WatchMapPlayer({
   const isControlsHidden = effectiveConfig.controls.hidden;
   const fullscreenConfig = effectiveConfig.controls.fullscreen;
 
-  // User explicit foreground activation state
+  // State Machine Manager for Media Loading & UI Spinner
+  const [isLoading, setIsLoading] = useState(false);
+  const [mediaStateManager] = useState(
+    () =>
+      new MediaLoadingStateManager((snapshot) => {
+        setIsLoading(snapshot.showSpinner);
+      })
+  );
+
+  // User explicit foreground activation & First Frame boundary state
   const [prevSrc, setPrevSrc] = useState(src);
   const playbackKey = `${effectiveConfig.playback?.backgroundAutoplay ? 1 : 0}`;
   const [prevPlaybackKey, setPrevPlaybackKey] = useState(playbackKey);
   const [userActivatedForeground, setUserActivatedForeground] = useState(false);
   const pendingForegroundActivationRef = useRef(false);
   const [hasStartedPlayingForeground, setHasStartedPlayingForeground] = useState(false);
+  const [hasFirstFrameRendered, setHasFirstFrameRendered] = useState(false);
   const [isTransitioningPreviewOut, setIsTransitioningPreviewOut] = useState(false);
   const [previewError, setPreviewError] = useState(false);
   const [isEnded, setIsEnded] = useState(false);
@@ -181,6 +198,7 @@ export function WatchMapPlayer({
     setPrevSrc(src);
     setUserActivatedForeground(false);
     setHasStartedPlayingForeground(false);
+    setHasFirstFrameRendered(false);
     setPreviewError(false);
     setIsEnded(false);
   }
@@ -189,16 +207,21 @@ export function WatchMapPlayer({
     setPrevPlaybackKey(playbackKey);
     setUserActivatedForeground(false);
     setHasStartedPlayingForeground(false);
+    setHasFirstFrameRendered(false);
     setPreviewError(false);
     setIsEnded(false);
   }
+
+  useEffect(() => {
+    mediaStateManager.reset();
+  }, [src, mediaStateManager]);
 
   // Dynamic mode resolution based on config and user interaction
   const isBackgroundAutoplay = Boolean(
     effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground
   );
 
-  // Derive highest-quality available preview (prefer animated preview if background autoplay is active, prefer static poster in normal mode)
+  // Derive highest-quality available preview
   const candidateBgPreview = previewError ? null : backgroundPreviewUrl;
   const displayPreviewSrc = isBackgroundAutoplay
     ? candidateBgPreview || posterUrl || null
@@ -206,12 +229,12 @@ export function WatchMapPlayer({
 
   const playbackMode: PlaybackMode = isBackgroundAutoplay ? "background_autoplay" : "foreground";
 
-  // Immediate media attachment: Video is ALWAYS attached and buffered immediately upon access
+  // Immediate media attachment: Video is ALWAYS attached and prebuffered immediately
   const isMediaAttached = Boolean(resolvedSrc);
 
-  // Derived Preview / Poster Layer renders until real foreground playback begins
+  // Derived Preview / Poster Layer renders until REAL first video frame renders (zero black flash)
   const isPreviewVisible = Boolean(
-    displayPreviewSrc && !hasStartedPlayingForeground
+    displayPreviewSrc && !hasFirstFrameRendered
   );
 
   const initialVolume = effectiveConfig.playback?.defaultVolume ?? 1;
@@ -228,7 +251,6 @@ export function WatchMapPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // UI state
-  const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -241,7 +263,6 @@ export function WatchMapPlayer({
   const defaultPlaybackRate = effectiveConfig.playback?.defaultPlaybackRate ?? 1;
   const defaultVolume = effectiveConfig.playback?.defaultVolume ?? 1;
 
-  // Reset initial playback resolution on src or playback config change
   const configRef = useRef(effectiveConfig);
   const modeRef = useRef(playbackMode);
   const attachedSrcRef = useRef<string | null>(null);
@@ -326,38 +347,67 @@ export function WatchMapPlayer({
 
     const cleanup = onFirstVideoFrame(video, (frameTime) => {
       markPerformance("wm:first-frame", videoId);
+      mediaStateManager.onFirstFrame();
 
+      // Real first frame boundary reached: smoothly fade out poster preview
+      if (displayPreviewSrc) {
+        setIsTransitioningPreviewOut(true);
+        setTimeout(() => {
+          setHasFirstFrameRendered(true);
+          setIsTransitioningPreviewOut(false);
+        }, 180);
+      } else {
+        setHasFirstFrameRendered(true);
+      }
+
+      let clickToFrame: number | undefined;
       if (userPlayClickTimestampRef.current != null) {
         markPerformance("wm:user-play-first-frame", videoId);
-        const clickToFrame = Math.round(frameTime - userPlayClickTimestampRef.current);
-        if (effectiveDebug) {
-          logPerformanceDebugReport(videoId, {
-            clickToFrameDurationMs: clickToFrame,
-          });
-        }
+        clickToFrame = Math.round(frameTime - userPlayClickTimestampRef.current);
         userPlayClickTimestampRef.current = null;
       }
 
       if (effectiveDebug) {
         const bootstrapDur = measurePerformance("wm:bootstrap", "wm:bootstrap:start", "wm:bootstrap:end", videoId);
         const coreReadyDur = measurePerformance("wm:core:ready", "wm:core:start", "wm:core:ready", videoId);
+        const hlsReadyDur = measurePerformance("wm:hls-engine", "wm:hls-engine:start", "wm:hls-engine:ready");
         const manifestDur = measurePerformance("wm:manifest", "wm:manifest:start", "wm:manifest:parsed", videoId);
+        const firstFragDur =
+          measurePerformance("wm:first-frag", "wm:first-frag:start", "wm:first-frag:buffered", videoId) ??
+          measurePerformance("wm:first-frag", "wm:first-frag:start", "wm:first-frag:loaded", videoId);
         const canPlayDur = measurePerformance("wm:canplay", "wm:media:attach", "wm:canplay", videoId);
         const firstFrameDur = measurePerformance("wm:first-frame", "wm:media:attach", "wm:first-frame", videoId);
+
+        const bwEstimate = hlsRef.current?.bandwidthEstimate
+          ? `${(hlsRef.current.bandwidthEstimate / 1_000_000).toFixed(2)} Mbps`
+          : undefined;
+        const currentLevelIndex = hlsRef.current?.currentLevel ?? hlsRef.current?.firstLevel;
+        const currentLevel =
+          currentLevelIndex != null && hlsRef.current?.levels
+            ? hlsRef.current.levels[currentLevelIndex]
+            : undefined;
+        const startupLevel = currentLevel?.height ? `${currentLevel.height}p` : undefined;
+        const startupBitrate = currentLevel?.bitrate ? `${Math.round(currentLevel.bitrate / 1000)} kbps` : undefined;
 
         logPerformanceDebugReport(videoId, {
           videoId,
           bootstrapDurationMs: bootstrapDur ?? undefined,
           coreReadyDurationMs: coreReadyDur ?? undefined,
+          hlsEngineReadyDurationMs: hlsReadyDur ?? undefined,
           manifestDurationMs: manifestDur ?? undefined,
+          firstFragDurationMs: firstFragDur ?? undefined,
           canPlayDurationMs: canPlayDur ?? undefined,
           firstFrameDurationMs: firstFrameDur ?? undefined,
+          clickToFrameDurationMs: clickToFrame,
+          startupLevel,
+          startupBitrate,
+          bandwidthEstimate: bwEstimate,
         });
       }
     });
 
     return cleanup;
-  }, [videoId, effectiveDebug]);
+  }, [videoId, effectiveDebug, displayPreviewSrc, mediaStateManager]);
 
   // Media source attachment (Native Safari HLS bypass + Dynamic HLS Light for MSE)
   const attachMediaSource = useCallback(async (mediaSrc: string) => {
@@ -370,7 +420,7 @@ export function WatchMapPlayer({
 
     attachedSrcRef.current = mediaSrc;
     setHasError(false);
-    setIsLoading(true);
+    mediaStateManager.onMediaAttach();
     markPerformance("wm:media:attach", videoId);
 
     if (hlsRef.current) {
@@ -396,20 +446,55 @@ export function WatchMapPlayer({
 
           markPerformance("wm:manifest:start", videoId);
 
-          const hls = new HlsClass({
-            enableWorker: true,
-            lowLatencyMode: false,
-          });
+          const hlsOptions = createStartupHlsConfig(mediaSrc);
+          const hls = new HlsClass(hlsOptions);
 
           hls.loadSource(mediaSrc);
           hls.attachMedia(video);
 
-          hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
+          hls.on(HlsClass.Events.MANIFEST_PARSED, (_event, data) => {
             markPerformance("wm:manifest:parsed", videoId);
-            setIsLoading(false);
+            mediaStateManager.onManifestParsed();
             setHasError(false);
             applyInitialMediaSettings();
             triggerInitialPlaybackIfNeeded();
+
+            if (effectiveDebug) {
+              const firstLevel = data.levels?.[data.firstLevel ?? 0];
+              const startupLevel = firstLevel?.height ? `${firstLevel.height}p` : "auto";
+              const seedKbps = Math.round(getInitialBandwidthEstimate(mediaSrc) / 1000);
+              console.log(`[WatchMap HLS] Manifest Parsed | Startup: ${startupLevel} | Seed: ${seedKbps} kbps`);
+            }
+          });
+
+          hls.on(HlsClass.Events.FRAG_LOADING, () => {
+            markPerformanceOnce("wm:first-frag:start", videoId);
+          });
+
+          hls.on(HlsClass.Events.FRAG_LOADED, () => {
+            markPerformanceOnce("wm:first-frag:loaded", videoId);
+            if (hls.bandwidthEstimate && hls.bandwidthEstimate > 0) {
+              saveBandwidthEstimate(mediaSrc, hls.bandwidthEstimate);
+            }
+          });
+
+          hls.on(HlsClass.Events.FRAG_BUFFERED, () => {
+            markPerformanceOnce("wm:first-frag:buffered", videoId);
+          });
+
+          hls.on(HlsClass.Events.LEVEL_SWITCHED, (_event, data) => {
+            if (effectiveDebug && hls.levels) {
+              const levelObj = hls.levels[data.level];
+              if (levelObj) {
+                const res = levelObj.height ? `${levelObj.height}p` : `Level ${data.level}`;
+                const br = Math.round(levelObj.bitrate / 1000);
+                const est = Math.round(hls.bandwidthEstimate / 1000);
+                console.log(`[WatchMap HLS] Level Switched: ${res} (${br} kbps) | Bandwidth Est: ${est} kbps`);
+              }
+            }
+            if (hls.bandwidthEstimate && hls.bandwidthEstimate > 0) {
+              saveBandwidthEstimate(mediaSrc, hls.bandwidthEstimate);
+            }
           });
 
           hls.on(HlsClass.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
@@ -427,7 +512,7 @@ export function WatchMapPlayer({
                 default:
                   hls.destroy();
                   setHasError(true);
-                  setIsLoading(false);
+                  mediaStateManager.onError();
                   break;
               }
             }
@@ -444,7 +529,7 @@ export function WatchMapPlayer({
     // 3. Fallback native
     markPerformance("wm:manifest:start", videoId);
     video.src = mediaSrc;
-  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId]);
+  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId, effectiveDebug, mediaStateManager]);
 
   // Attach media source conditionally once per resolved media URL
   useEffect(() => {
@@ -495,7 +580,6 @@ export function WatchMapPlayer({
         if (video.duration && Number.isFinite(video.duration)) {
           setDuration(video.duration);
         }
-        setIsLoading(false);
       }
       triggerInitialPlaybackIfNeeded();
     }
@@ -506,8 +590,9 @@ export function WatchMapPlayer({
       playbackControllerRef.current = null;
       unsubscribe?.();
       runtime.destroy();
+      mediaStateManager.dispose();
     };
-  }, [videoId, effectiveDebug, onEvent, onRuntimeReady, isMediaAttached, triggerInitialPlaybackIfNeeded]);
+  }, [videoId, effectiveDebug, onEvent, onRuntimeReady, isMediaAttached, triggerInitialPlaybackIfNeeded, mediaStateManager]);
 
   // 60fps smooth linear progress animation loop
   useEffect(() => {
@@ -597,6 +682,7 @@ export function WatchMapPlayer({
 
     markPerformance("wm:user-play", videoId);
     userPlayClickTimestampRef.current = performance.now();
+    mediaStateManager.onPlayRequested();
 
     setUserActivatedForeground(true);
 
@@ -637,6 +723,7 @@ export function WatchMapPlayer({
     defaultVolume,
     activateSession,
     videoId,
+    mediaStateManager,
   ]);
 
   // Play / Pause toggle
@@ -669,12 +756,16 @@ export function WatchMapPlayer({
 
     if (playbackControllerRef.current) {
       activateSession();
+      if (video.paused || video.ended) {
+        mediaStateManager.onPlayRequested();
+      }
       playbackControllerRef.current.handleUserPlayToggle(lastVolumeRef.current);
       return;
     }
 
     if (video.paused || video.ended) {
       activateSession();
+      mediaStateManager.onPlayRequested();
       video.play().catch(() => {});
     } else {
       video.pause();
@@ -689,6 +780,7 @@ export function WatchMapPlayer({
     activateForegroundPlayback,
     activateSession,
     videoId,
+    mediaStateManager,
   ]);
 
   // Mute toggle
@@ -948,7 +1040,7 @@ export function WatchMapPlayer({
       if (videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
         setDuration(videoRef.current.duration);
       }
-      setIsLoading(false);
+      mediaStateManager.onCanPlay();
       applyInitialMediaSettings();
       triggerInitialPlaybackIfNeeded();
     }
@@ -959,34 +1051,28 @@ export function WatchMapPlayer({
     if (videoRef.current && videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
       setDuration((prev) => (prev === 0 ? videoRef.current!.duration : prev));
     }
-    setIsLoading(false);
+    mediaStateManager.onCanPlay();
     triggerInitialPlaybackIfNeeded();
   };
 
   const handleWaiting = () => {
-    setIsLoading(true);
+    mediaStateManager.onWaiting();
   };
 
   const handlePlaying = () => {
-    setIsLoading(false);
+    mediaStateManager.onPlaying();
     setIsPlaying(true);
     setIsEnded(false);
     setHasStartedPlayingForeground(true);
-
-    // Fade out preview layer seamlessly once real video frames are rendering
-    if (displayPreviewSrc) {
-      setIsTransitioningPreviewOut(true);
-      setTimeout(() => {
-        setIsTransitioningPreviewOut(false);
-      }, 200);
-    }
   };
 
   const handlePause = () => {
+    mediaStateManager.onPause();
     setIsPlaying(false);
   };
 
   const handleEnded = () => {
+    mediaStateManager.onEnded();
     setIsPlaying(false);
     setIsEnded(true);
     setControlsVisible(true);
@@ -1002,13 +1088,12 @@ export function WatchMapPlayer({
     if (video?.error && src) {
       console.error("[WatchMap Player Native Video Error]", video.error);
       setHasError(true);
-      setIsLoading(false);
+      mediaStateManager.onError();
     }
   };
 
   const handleLoadStart = () => {
     if (src && isMediaAttached) {
-      setIsLoading(true);
       setHasError(false);
     }
   };
@@ -1082,7 +1167,7 @@ export function WatchMapPlayer({
         </div>
       )}
 
-      {/* Native Video Element (Real Mux HLS Playback) */}
+      {/* Native Video Element (Real Mux / Bunny HLS Playback) */}
       <video
         ref={videoRef}
         poster={posterUrl || undefined}
@@ -1106,7 +1191,7 @@ export function WatchMapPlayer({
         className="w-full h-full object-contain cursor-pointer"
       />
 
-      {/* Loading Buffering Indicator */}
+      {/* Loading Buffering Indicator (Delayed trigger via MediaLoadingStateManager) */}
       {isLoading && !hasError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 bg-black/20">
           <div className="flex size-14 items-center justify-center rounded-full bg-black/60 backdrop-blur-md shadow-lg">

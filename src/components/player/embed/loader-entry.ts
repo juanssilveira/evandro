@@ -3,13 +3,18 @@
  * Ultra-fast bootstrap coordinator, custom element registry, and parallel asset loader.
  */
 
+import { shouldUseNativeHls } from "./hls-capabilities";
+
 declare const __WATCHMAP_API_BASE__: string;
 declare const __WATCHMAP_CORE_FILENAME__: string;
+declare const __WATCHMAP_HLS_FILENAME__: string;
 
 const API_BASE: string =
   typeof __WATCHMAP_API_BASE__ !== "undefined" ? __WATCHMAP_API_BASE__ : "";
 const CORE_FILENAME: string =
   typeof __WATCHMAP_CORE_FILENAME__ !== "undefined" ? __WATCHMAP_CORE_FILENAME__ : "assets/player-core.js";
+const HLS_FILENAME: string =
+  typeof __WATCHMAP_HLS_FILENAME__ !== "undefined" ? __WATCHMAP_HLS_FILENAME__ : "";
 
 // 1. Mark loader execution start immediately
 if (typeof performance !== "undefined" && performance.mark) {
@@ -54,9 +59,11 @@ export interface WatchMapCoreModule {
 
 export interface WatchMapBootstrapRegistry {
   map: Record<string, Promise<BootstrapVideoData>>;
+  resolved: Record<string, BootstrapVideoData>;
   fetch: (apiBase: string, videoId: string) => Promise<BootstrapVideoData>;
   preconnect: (url: string) => void;
   preloadVisual: (url: string) => void;
+  preloadHls: () => void;
   corePromise: Promise<WatchMapCoreModule> | null;
 }
 
@@ -121,6 +128,35 @@ function getEmbedBaseUrl(): string {
   return (API_BASE || "").replace(/\/$/, "") + "/embed/v1/";
 }
 
+/**
+ * Early preloads HLS.js chunk via modulepreload in MSE browsers (non-Safari).
+ * Safari / Apple WebKit natively bypasses HLS.js to save bandwidth and memory.
+ */
+function preloadHlsEngine(): void {
+  if (typeof document === "undefined" || !HLS_FILENAME) return;
+  if (shouldUseNativeHls()) return;
+
+  try {
+    const embedBase = getEmbedBaseUrl();
+    const hlsUrl = new URL(HLS_FILENAME, embedBase).href;
+
+    if (
+      document.querySelector(`link[rel="modulepreload"][href="${hlsUrl}"]`) ||
+      document.querySelector(`link[rel="preload"][href="${hlsUrl}"]`)
+    ) {
+      return;
+    }
+
+    const link = document.createElement("link");
+    link.rel = "modulepreload";
+    link.href = hlsUrl;
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  } catch {
+    // ignore
+  }
+}
+
 function startEarlyBootstrap(apiBase: string, videoId: string): Promise<BootstrapVideoData> {
   const base = (apiBase || "").replace(/\/$/, "");
   const cacheKey = `${base}:${videoId}`;
@@ -167,6 +203,11 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
       return res.json() as Promise<BootstrapVideoData>;
     })
     .then((json) => {
+      // Store resolved data immediately for synchronous hydration in Core
+      if (win?.__WATCHMAP_BOOTSTRAP__) {
+        win.__WATCHMAP_BOOTSTRAP__.resolved[cacheKey] = json;
+      }
+
       // Warm provider CDN connection dynamically
       const playbackUrl = json.playback?.url || json.playbackUrl;
       if (playbackUrl) {
@@ -246,21 +287,24 @@ function loadPlayerCore(): Promise<WatchMapCoreModule> {
   return promise;
 }
 
-// Initialize global bootstrap registry
+// Initialize global bootstrap registry with resolved storage
 if (win && !win.__WATCHMAP_BOOTSTRAP__) {
   win.__WATCHMAP_BOOTSTRAP__ = {
     map: {},
+    resolved: {},
     fetch: startEarlyBootstrap,
     preconnect: preconnectOrigin,
     preloadVisual: preloadVisualAsset,
+    preloadHls: preloadHlsEngine,
     corePromise: null,
   };
 }
 
-// 2. Preconnect API Base
+// 2. Preconnect API Base & Early Warm HLS Chunk in parallel
 if (API_BASE) {
   preconnectOrigin(API_BASE);
 }
+preloadHlsEngine();
 
 // 3. Define Custom Element `<watchmap-player>`
 export class WatchMapPlayerElement extends HTMLElement {
@@ -271,6 +315,7 @@ export class WatchMapPlayerElement extends HTMLElement {
   private _mountHandle: { unmount: () => void; update: (videoId: string, apiBase: string) => void } | null = null;
   private _mountContainer: HTMLDivElement | null = null;
   private _shadowRoot: ShadowRoot | null = null;
+  private _shellElement: HTMLDivElement | null = null;
   private _isMounted = false;
 
   constructor() {
@@ -290,10 +335,20 @@ export class WatchMapPlayerElement extends HTMLElement {
     const videoId = this.getAttribute("video-id") || "";
     if (videoId) {
       // Kick off early bootstrap in parallel immediately
-      startEarlyBootstrap(API_BASE, videoId);
+      const bootstrapPromise = startEarlyBootstrap(API_BASE, videoId);
+
+      // Render lightweight visual shell in Shadow DOM if bootstrap resolves before Core mounts
+      bootstrapPromise
+        .then((data) => {
+          if (!this._isMounted && this._shadowRoot && !this._shellElement) {
+            this.renderVisualShell(data);
+          }
+        })
+        .catch(() => {});
     }
 
-    // Kick off core bundle download in parallel immediately
+    // Kick off core bundle download and HLS engine preload in parallel immediately
+    preloadHlsEngine();
     loadPlayerCore().catch(() => {});
 
     this.mountCore();
@@ -303,6 +358,10 @@ export class WatchMapPlayerElement extends HTMLElement {
     if (this._mountHandle) {
       this._mountHandle.unmount();
       this._mountHandle = null;
+    }
+    if (this._shellElement) {
+      this._shellElement.remove();
+      this._shellElement = null;
     }
     this._isMounted = false;
   }
@@ -325,6 +384,32 @@ export class WatchMapPlayerElement extends HTMLElement {
     }
   }
 
+  private renderVisualShell(data: BootstrapVideoData): void {
+    if (this._isMounted || !this._shadowRoot || this._shellElement) return;
+
+    const isBg = Boolean(data.config?.playback?.backgroundAutoplay);
+    const previewSrc = isBg
+      ? data.backgroundPreviewUrl || data.posterUrl
+      : data.posterUrl || data.backgroundPreviewUrl;
+
+    const shell = document.createElement("div");
+    shell.setAttribute("data-wm-shell", "true");
+    shell.style.cssText =
+      "position:absolute;inset:0;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:12px;z-index:0;pointer-events:none;";
+
+    if (previewSrc) {
+      const img = document.createElement("img");
+      img.src = previewSrc;
+      img.alt = "";
+      img.style.cssText = "width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;";
+      shell.appendChild(img);
+    }
+
+    this._shellElement = shell;
+    // Prepend shell behind the mount container so Core takes over smoothly
+    this._shadowRoot.insertBefore(shell, this._mountContainer);
+  }
+
   private async mountCore(): Promise<void> {
     if (this._isMounted || !this._mountContainer || !this._shadowRoot) return;
 
@@ -343,6 +428,16 @@ export class WatchMapPlayerElement extends HTMLElement {
           API_BASE
         );
         this._isMounted = true;
+
+        // Clean up visual shell once React has mounted
+        if (this._shellElement) {
+          const shell = this._shellElement;
+          this._shellElement = null;
+          // Short timeout to guarantee zero black flash while React finishes first paint
+          setTimeout(() => {
+            shell.remove();
+          }, 100);
+        }
       }
     } catch (err) {
       console.error("[WatchMap Element] Error mounting player core:", err);
@@ -366,6 +461,7 @@ if (typeof document !== "undefined") {
   });
 
   if (existingElements.length > 0) {
+    preloadHlsEngine();
     loadPlayerCore().catch(() => {});
   }
 }

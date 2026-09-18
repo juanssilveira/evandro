@@ -125,13 +125,22 @@ const coreBuildResult = await esbuild.build({
   plugins: [pathAliasPlugin],
 });
 
-// Find the main player-core output file name
+// Find the main player-core output file name and HLS chunk
 let coreOutputRelativePath = "";
-for (const outPath of Object.keys(coreBuildResult.metafile.outputs)) {
+let hlsOutputRelativePath = "";
+
+for (const [outPath, meta] of Object.entries(coreBuildResult.metafile.outputs)) {
   const base = path.basename(outPath);
   if (base.startsWith("player-core-") && base.endsWith(".js")) {
     coreOutputRelativePath = `assets/${base}`;
-    break;
+  } else if (base.endsWith(".js")) {
+    // Check if this chunk contains HLS.js source
+    const isHls = Object.keys(meta.inputs || {}).some(
+      (inputPath) => inputPath.includes("hls.js") || inputPath.includes("hls")
+    );
+    if (isHls) {
+      hlsOutputRelativePath = `assets/${base}`;
+    }
   }
 }
 
@@ -139,7 +148,13 @@ if (!coreOutputRelativePath) {
   throw new Error("[Build Embed] Could not find player-core output file in build metafile.");
 }
 
-console.log(`[Build Embed] 3/4 Bundling Standalone Tiny Loader (API Base: ${apiBaseUrl}, Core: ${coreOutputRelativePath})...`);
+if (!hlsOutputRelativePath) {
+  throw new Error("[Build Embed] Could not find HLS chunk in build metafile.");
+}
+
+console.log(`[Build Embed] HLS Early Warm: ENABLED (${hlsOutputRelativePath})`);
+
+console.log(`[Build Embed] 3/4 Bundling Standalone Tiny Loader (API Base: ${apiBaseUrl}, Core: ${coreOutputRelativePath}, HLS: ${hlsOutputRelativePath})...`);
 
 const loaderEntryFile = path.join(
   rootDir,
@@ -168,6 +183,7 @@ await esbuild.build({
     "process.env.NODE_ENV": '"production"',
     "__WATCHMAP_API_BASE__": JSON.stringify(apiBaseUrl),
     "__WATCHMAP_CORE_FILENAME__": JSON.stringify(coreOutputRelativePath),
+    "__WATCHMAP_HLS_FILENAME__": JSON.stringify(hlsOutputRelativePath),
   },
   plugins: [pathAliasPlugin],
 });
@@ -186,6 +202,7 @@ console.log("            WATCHMAP PLAYER EMBED BUILD REPORT          ");
 console.log("========================================================");
 console.log(`- Tiny Loader: ${loaderOutputFile}`);
 console.log(`  Size: ${loaderStats.size.toLocaleString()} bytes (${loaderSizeKb} KB) / Budget: <= ${loaderBudgetKb} KB [${loaderStats.size <= loaderBudgetKb * 1024 ? "PASS" : "FAIL"}]`);
+console.log(`  HLS Early Warm: ENABLED -> ${hlsOutputRelativePath}`);
 
 let totalAssetsSize = loaderStats.size;
 
@@ -195,7 +212,12 @@ for (const [outPath, meta] of Object.entries(coreBuildResult.metafile.outputs)) 
     const assetSize = meta.bytes;
     totalAssetsSize += assetSize;
     const assetSizeKb = (assetSize / 1024).toFixed(2);
-    console.log(`  * ${path.basename(outPath)}: ${assetSize.toLocaleString()} bytes (${assetSizeKb} KB)`);
+    const label = outPath.includes("player-core")
+      ? " [Player Core]"
+      : Object.keys(meta.inputs || {}).some((i) => i.includes("hls"))
+      ? " [HLS Engine]"
+      : "";
+    console.log(`  * ${path.basename(outPath)}${label}: ${assetSize.toLocaleString()} bytes (${assetSizeKb} KB)`);
   }
 }
 

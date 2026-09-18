@@ -9,9 +9,14 @@ export type PerformanceMarkName =
   | "wm:bootstrap:end"
   | "wm:core:start"
   | "wm:core:ready"
+  | "wm:hls-engine:start"
+  | "wm:hls-engine:ready"
   | "wm:media:attach"
   | "wm:manifest:start"
   | "wm:manifest:parsed"
+  | "wm:first-frag:start"
+  | "wm:first-frag:loaded"
+  | "wm:first-frag:buffered"
   | "wm:canplay"
   | "wm:first-frame"
   | "wm:user-play"
@@ -21,13 +26,19 @@ export interface PerformanceTimingsSummary {
   videoId?: string;
   bootstrapDurationMs?: number;
   coreReadyDurationMs?: number;
+  hlsEngineReadyDurationMs?: number;
   manifestDurationMs?: number;
+  firstFragDurationMs?: number;
   canPlayDurationMs?: number;
   firstFrameDurationMs?: number;
   clickToFrameDurationMs?: number;
+  startupLevel?: string | number;
+  startupBitrate?: number | string;
+  bandwidthEstimate?: number | string;
 }
 
 const recordedTimings = new Map<string, number>();
+const singleFireMarks = new Set<string>();
 
 export function markPerformance(name: PerformanceMarkName, videoId?: string): void {
   if (typeof performance === "undefined" || !performance.mark) return;
@@ -37,6 +48,29 @@ export function markPerformance(name: PerformanceMarkName, videoId?: string): vo
     recordedTimings.set(tag, performance.now());
   } catch {
     // Ignore any quota or unsupported mark errors
+  }
+}
+
+/**
+ * Fires a performance mark exactly once per videoId / lifecycle.
+ */
+export function markPerformanceOnce(name: PerformanceMarkName, videoId?: string): boolean {
+  const tag = videoId ? `${name}:${videoId}` : name;
+  if (singleFireMarks.has(tag)) return false;
+  singleFireMarks.add(tag);
+  markPerformance(name, videoId);
+  return true;
+}
+
+export function resetPerformanceMarks(videoId?: string): void {
+  if (videoId) {
+    for (const key of singleFireMarks) {
+      if (key.endsWith(`:${videoId}`)) {
+        singleFireMarks.delete(key);
+      }
+    }
+  } else {
+    singleFireMarks.clear();
   }
 }
 
@@ -120,21 +154,27 @@ export function onFirstVideoFrame(
 export function logPerformanceDebugReport(videoId: string, timings: PerformanceTimingsSummary): void {
   if (typeof window === "undefined") return;
 
-  const report = [
+  const lines: string[] = [
     `%c[WatchMap Performance] Video: ${videoId}`,
     "color: #7C3AED; font-weight: bold; font-size: 12px;",
     "\n",
-    timings.bootstrapDurationMs != null ? `Bootstrap: ${timings.bootstrapDurationMs}ms\n` : "",
-    timings.coreReadyDurationMs != null ? `Core Ready: ${timings.coreReadyDurationMs}ms\n` : "",
-    timings.manifestDurationMs != null ? `Manifest: ${timings.manifestDurationMs}ms\n` : "",
-    timings.canPlayDurationMs != null ? `CanPlay: ${timings.canPlayDurationMs}ms\n` : "",
-    timings.firstFrameDurationMs != null ? `First Frame: ${timings.firstFrameDurationMs}ms\n` : "",
-    timings.clickToFrameDurationMs != null ? `Click → Frame: ${timings.clickToFrameDurationMs}ms` : "",
-  ].join("");
+  ];
 
-  console.log(report);
+  if (timings.bootstrapDurationMs != null) lines.push(`Bootstrap: ${timings.bootstrapDurationMs}ms\n`);
+  if (timings.coreReadyDurationMs != null) lines.push(`Core Ready: ${timings.coreReadyDurationMs}ms\n`);
+  if (timings.hlsEngineReadyDurationMs != null) lines.push(`HLS Engine Ready: ${timings.hlsEngineReadyDurationMs}ms\n`);
+  if (timings.manifestDurationMs != null) lines.push(`Manifest: ${timings.manifestDurationMs}ms\n`);
+  if (timings.firstFragDurationMs != null) lines.push(`First Fragment: ${timings.firstFragDurationMs}ms\n`);
+  if (timings.canPlayDurationMs != null) lines.push(`CanPlay: ${timings.canPlayDurationMs}ms\n`);
+  if (timings.firstFrameDurationMs != null) lines.push(`First Frame: ${timings.firstFrameDurationMs}ms\n`);
+  if (timings.clickToFrameDurationMs != null) lines.push(`Click → Frame: ${timings.clickToFrameDurationMs}ms\n`);
+  if (timings.startupLevel != null) lines.push(`Startup Level: ${timings.startupLevel}\n`);
+  if (timings.startupBitrate != null) lines.push(`Startup Bitrate: ${timings.startupBitrate}\n`);
+  if (timings.bandwidthEstimate != null) lines.push(`Bandwidth Estimate: ${timings.bandwidthEstimate}\n`);
 
-  // Dispatch custom performance event for telemetry hooks
+  console.log(lines.join(""));
+
+  // Dispatch custom performance event for telemetry / developer testing hooks
   try {
     window.dispatchEvent(
       new CustomEvent("watchmap:performance", {

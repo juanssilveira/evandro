@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { WatchMapPlayer } from "../watchmap-player";
-import { Loader2, AlertCircle, RotateCcw } from "lucide-react";
+import { AlertCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type PlayerConfig, DEFAULT_PLAYER_CONFIG, parsePlayerConfig } from "@/types/player-config";
 import { markPerformance } from "./performance-timing";
@@ -33,6 +33,7 @@ interface EmbedState {
 interface BootstrapResponsePayload {
   videoId?: string;
   title?: string;
+  duration?: number | null;
   playbackUrl?: string | null;
   playback?: {
     type?: string;
@@ -53,19 +54,68 @@ declare global {
   interface Window {
     __WATCHMAP_BOOTSTRAP__?: {
       map: Record<string, Promise<BootstrapResponsePayload>>;
+      resolved: Record<string, BootstrapResponsePayload>;
       fetch: (apiBase: string, videoId: string) => Promise<BootstrapResponsePayload>;
       preconnect?: (url: string) => void;
       preloadVisual?: (url: string) => void;
+      preloadHls?: () => void;
     };
   }
 }
 
+function parsePayloadToEmbedData(
+  json: BootstrapResponsePayload,
+  videoId: string
+): EmbedVideoData {
+  const playbackUrl = json.playback?.url || json.playbackUrl || null;
+  const parsedConfig = json.config
+    ? parsePlayerConfig(json.config)
+    : DEFAULT_PLAYER_CONFIG;
+
+  return {
+    videoId: json.videoId || videoId,
+    title: json.title || "",
+    playbackUrl,
+    posterUrl: json.posterUrl || null,
+    backgroundPreviewUrl: json.backgroundPreviewUrl || null,
+    config: parsedConfig,
+  };
+}
+
 export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
-  const [state, setState] = useState<EmbedState>(() => ({
-    status: videoId ? "loading" : "not_found",
-    data: null,
-    errorMessage: videoId ? null : "Identificador de vídeo não fornecido.",
-  }));
+  const base = (apiBase || "").replace(/\/$/, "");
+  const cacheKey = `${base}:${videoId}`;
+
+  // Synchronous hydration: check if Tiny Loader already resolved bootstrap before Core mounted
+  const [state, setState] = useState<EmbedState>(() => {
+    if (!videoId) {
+      return {
+        status: "not_found",
+        data: null,
+        errorMessage: "Identificador de vídeo não fornecido.",
+      };
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      window.__WATCHMAP_BOOTSTRAP__?.resolved &&
+      cacheKey in window.__WATCHMAP_BOOTSTRAP__.resolved
+    ) {
+      const resolvedData = window.__WATCHMAP_BOOTSTRAP__.resolved[cacheKey];
+      return {
+        status: "ready",
+        data: parsePayloadToEmbedData(resolvedData, videoId),
+        errorMessage: null,
+      };
+    }
+
+    return {
+      status: "loading",
+      data: null,
+      errorMessage: null,
+    };
+  });
+
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
@@ -75,15 +125,18 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
     markPerformance("wm:core:ready", videoId);
 
+    // If state was already synchronously hydrated from resolved bootstrap cache on first render
+    if (state.status === "ready" && retryCount === 0) {
+      return;
+    }
+
     const controller = new AbortController();
-    const base = (apiBase || "").replace(/\/$/, "");
-    const cacheKey = `${base}:${videoId}`;
 
     async function executeBootstrap() {
       try {
         let jsonPromise: Promise<BootstrapResponsePayload>;
 
-        // Consume already-started bootstrap promise from tiny loader if present
+        // Consume in-flight bootstrap promise from tiny loader if present
         if (
           typeof window !== "undefined" &&
           window.__WATCHMAP_BOOTSTRAP__?.map &&
@@ -125,6 +178,10 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
 
         const json = await jsonPromise;
         markPerformance("wm:bootstrap:end", videoId);
+
+        if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__) {
+          window.__WATCHMAP_BOOTSTRAP__.resolved[cacheKey] = json;
+        }
 
         // Preconnect provider origin dynamically once playbackUrl is resolved
         const playbackUrl = json.playback?.url || json.playbackUrl || null;
@@ -198,13 +255,12 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
     return () => {
       controller.abort();
     };
-  }, [videoId, apiBase, retryCount]);
+  }, [videoId, base, cacheKey, retryCount, state.status]);
 
   const handleRetry = () => {
-    const base = (apiBase || "").replace(/\/$/, "");
-    const cacheKey = `${base}:${videoId}`;
-    if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__?.map) {
+    if (typeof window !== "undefined" && window.__WATCHMAP_BOOTSTRAP__) {
       delete window.__WATCHMAP_BOOTSTRAP__.map[cacheKey];
+      delete window.__WATCHMAP_BOOTSTRAP__.resolved[cacheKey];
     }
     setState({
       status: "loading",
@@ -224,6 +280,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
       ? "aspect-square"
       : "aspect-video";
 
+  // Initial technical loading placeholder without spinner (shell/poster will show beneath)
   if (status === "loading") {
     return (
       <div
@@ -231,11 +288,7 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
           "relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center border border-white/10 shadow-2xl mx-auto",
           aspectClass
         )}
-      >
-        <div className="flex size-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-md shadow-lg border border-white/10">
-          <Loader2 className="size-6 animate-spin text-[#7C3AED]" />
-        </div>
-      </div>
+      />
     );
   }
 
