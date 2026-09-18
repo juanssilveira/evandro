@@ -20,7 +20,6 @@ import {
   MousePointerClick,
   Keyboard,
   Sparkles,
-  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -33,7 +32,7 @@ import {
   PLAYER_ACCENT_PRESETS,
 } from "@/types/player-config";
 
-export type VideoSettingsTabId = "appearance" | "playback" | "controls" | "progress";
+export type VideoSettingsTabId = "appearance" | "playback" | "controls";
 
 export interface VideoSettingsTab {
   id: VideoSettingsTabId;
@@ -57,9 +56,9 @@ export const SETTINGS_TABS: readonly VideoSettingsTab[] = [
     id: "playback",
     label: "Reprodução",
     icon: PlayCircle,
-    title: "Reprodução",
-    badge: "Modos Exclusivos",
-    description: "Configure o início automático e comportamento de áudio do player.",
+    title: "Reprodução & Progresso",
+    badge: "Comportamento",
+    description: "Configure o início automático, velocidade, volume e a barra de progresso inteligente.",
   },
   {
     id: "controls",
@@ -68,14 +67,6 @@ export const SETTINGS_TABS: readonly VideoSettingsTab[] = [
     title: "Controles",
     badge: "Interface & Ações",
     description: "Configure a visibilidade da barra de controles e as opções de tela cheia.",
-  },
-  {
-    id: "progress",
-    label: "Progresso",
-    icon: Activity,
-    title: "Barra de progresso",
-    badge: "Timeline",
-    description: "Configure o comportamento visual da timeline e o motor de progresso inteligente.",
   },
 ] as const;
 
@@ -300,11 +291,11 @@ export function VideoSettings({
   return (
     <Card className="border-border bg-card shadow-xs rounded-xl overflow-hidden min-w-0">
       {/* Category Tabs Header Bar */}
-      <div className="border-b border-border/80 bg-muted/40 p-2 sm:p-2.5">
+      <div className="border-b border-border/70 bg-muted/25 p-1.5 sm:p-2">
         <div
           role="tablist"
           aria-label="Categorias de configuração"
-          className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {SETTINGS_TABS.map((tab) => {
             const isSelected = activeTab === tab.id;
@@ -322,10 +313,10 @@ export function VideoSettings({
                 onClick={() => handleTabSelect(tab.id)}
                 onKeyDown={(e) => handleTabKeyDown(e, tab.id)}
                 className={cn(
-                  "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer select-none shrink-0",
+                  "flex items-center gap-2 px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer select-none shrink-0",
                   isSelected
-                    ? "bg-card text-foreground font-semibold shadow-xs border border-border"
-                    : "text-muted-foreground hover:text-foreground hover:bg-card/50 border border-transparent"
+                    ? "bg-card text-foreground font-semibold shadow-xs border border-border/80"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card/40 border border-transparent"
                 )}
               >
                 <Icon
@@ -342,10 +333,10 @@ export function VideoSettings({
       </div>
 
       {/* Active Category Subheader */}
-      <div className="px-4 py-3.5 sm:px-5 sm:py-4 border-b border-border/40 bg-card">
+      <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-border/40 bg-card">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="size-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+            <div className="size-7 rounded-md bg-muted text-foreground flex items-center justify-center shrink-0 border border-border/80">
               <CategoryIcon className="size-3.5" />
             </div>
             <div className="min-w-0">
@@ -398,15 +389,15 @@ export function VideoSettings({
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-lg border transition-all text-left cursor-pointer",
                     currentAspectRatio === "16:9"
-                      ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                      : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                      ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20 shadow-xs"
+                      : "border-border/60 bg-card hover:bg-muted/40 hover:border-border/80"
                   )}
                 >
                   <div
                     className={cn(
                       "w-10 h-6 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                       currentAspectRatio === "16:9"
-                        ? "border-primary bg-primary/10 text-primary"
+                        ? "border-primary/30 bg-primary/10 text-primary"
                         : "border-border bg-zinc-800 text-zinc-400"
                     )}
                   >
@@ -442,15 +433,15 @@ export function VideoSettings({
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-lg border transition-all text-left cursor-pointer",
                     currentAspectRatio === "9:16"
-                      ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                      : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                      ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20 shadow-xs"
+                      : "border-border/60 bg-card hover:bg-muted/40 hover:border-border/80"
                   )}
                 >
                   <div
                     className={cn(
                       "w-6 h-10 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                       currentAspectRatio === "9:16"
-                        ? "border-primary bg-primary/10 text-primary"
+                        ? "border-primary/30 bg-primary/10 text-primary"
                         : "border-border bg-zinc-800 text-zinc-400"
                     )}
                   >
@@ -486,15 +477,15 @@ export function VideoSettings({
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-lg border transition-all text-left cursor-pointer",
                     currentAspectRatio === "1:1"
-                      ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                      : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                      ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20 shadow-xs"
+                      : "border-border/60 bg-card hover:bg-muted/40 hover:border-border/80"
                   )}
                 >
                   <div
                     className={cn(
                       "size-8 rounded border flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                       currentAspectRatio === "1:1"
-                        ? "border-primary bg-primary/10 text-primary"
+                        ? "border-primary/30 bg-primary/10 text-primary"
                         : "border-border bg-zinc-800 text-zinc-400"
                     )}
                   >
@@ -540,7 +531,7 @@ export function VideoSettings({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-0.5">
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 pt-0.5">
                 {playerAccentColors.map((colorKey) => {
                   const preset = PLAYER_ACCENT_PRESETS[colorKey];
                   const isSelected = currentAccent === colorKey;
@@ -552,24 +543,45 @@ export function VideoSettings({
                       disabled={isPending}
                       onClick={() => handleAccentColorSelect(colorKey)}
                       className={cn(
-                        "flex flex-col items-center justify-center gap-2 py-2.5 px-2 rounded-lg border transition-all text-center cursor-pointer",
+                        "group relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1.5 rounded-lg border transition-all text-center cursor-pointer select-none",
                         isSelected
-                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                          : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                          ? "border-border-strong bg-card shadow-xs ring-1 ring-border"
+                          : "border-border/60 bg-card/60 hover:bg-muted/50 hover:border-border"
                       )}
                     >
-                      <div
-                        className="size-4.5 rounded-full shadow-inner ring-2 ring-white/10 shrink-0 flex items-center justify-center"
-                        style={{ backgroundColor: preset.tokens.base }}
-                      >
-                        {isSelected && (
-                          <Check className="size-2.5 text-white stroke-[3]" />
-                        )}
+                      {/* Color Swatch Circle */}
+                      <div className="relative flex items-center justify-center shrink-0">
+                        <div
+                          className={cn(
+                            "size-5.5 rounded-full shrink-0 flex items-center justify-center transition-transform group-hover:scale-105",
+                            colorKey === "white"
+                              ? "border border-zinc-300 dark:border-zinc-700 shadow-2xs"
+                              : "border border-black/10 dark:border-white/10 shadow-inner",
+                            isSelected && "ring-2 ring-offset-2 ring-offset-background",
+                            isSelected && colorKey === "white" && "ring-zinc-400 dark:ring-zinc-500",
+                            isSelected && colorKey !== "white" && "ring-current"
+                          )}
+                          style={{
+                            backgroundColor: preset.tokens.base,
+                            color: preset.tokens.base,
+                          }}
+                        >
+                          {isSelected && (
+                            <Check
+                              className={cn(
+                                "size-3 stroke-[3]",
+                                colorKey === "white" ? "text-zinc-900" : "text-white"
+                              )}
+                            />
+                          )}
+                        </div>
                       </div>
+
+                      {/* Label */}
                       <span
                         className={cn(
-                          "text-[11px] font-medium whitespace-nowrap truncate max-w-full px-1",
-                          isSelected ? "text-foreground font-semibold" : "text-muted-foreground"
+                          "text-[11px] leading-tight truncate max-w-full px-0.5 transition-colors",
+                          isSelected ? "text-foreground font-semibold" : "text-muted-foreground font-normal"
                         )}
                       >
                         {preset.name}
@@ -698,14 +710,14 @@ export function VideoSettings({
                       className={cn(
                         "flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border transition-all text-center cursor-pointer",
                         isSelected
-                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                          : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                          ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20 shadow-xs"
+                          : "border-border/60 bg-card hover:bg-muted/40 hover:border-border/80"
                       )}
                     >
                       <span
                         className={cn(
                           "text-xs font-mono font-medium",
-                          isSelected ? "text-foreground font-bold text-primary" : "text-muted-foreground"
+                          isSelected ? "text-foreground font-semibold text-primary" : "text-muted-foreground"
                         )}
                       >
                         {rate}x
@@ -810,6 +822,195 @@ export function VideoSettings({
                     className="flex-1 accent-primary h-1.5 bg-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50"
                   />
                   <span className="text-[11px] font-mono text-muted-foreground w-8">100%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-section Divider: Barra de Progresso */}
+            <div className="pt-2">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-px flex-1 bg-border/60" />
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 flex items-center gap-1.5">
+                  <Sparkles className="size-3 text-muted-foreground" />
+                  Barra de progresso inteligente
+                </span>
+                <div className="h-px flex-1 bg-border/60" />
+              </div>
+            </div>
+
+            {/* Block 1: Barra de progresso inteligente */}
+            <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-2.5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0">
+                    <Sparkles className="size-4 text-primary" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Label
+                        htmlFor={`fake-progress-switch-${videoId}`}
+                        className="text-xs font-semibold text-foreground cursor-pointer"
+                      >
+                        Barra de progresso inteligente
+                      </Label>
+                      <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                        Automático
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isPending && pendingField === "fakeProgress" && (
+                    <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                  )}
+                  <Switch
+                    id={`fake-progress-switch-${videoId}`}
+                    checked={isFakeProgressEnabled}
+                    disabled={isPending}
+                    onCheckedChange={(checked) =>
+                      handleConfigUpdate(
+                        {
+                          progress: {
+                            fake: {
+                              enabled: checked,
+                            },
+                          },
+                        },
+                        "fakeProgress"
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Nosso motor calcula automaticamente uma curva de progresso adaptada à duração do vídeo, acelerando o avanço visual no início e suavizando ao longo da reprodução.
+              </p>
+            </div>
+
+            {/* Recommendation Banner: Clean experience with fake bar */}
+            {isFakeProgressEnabled && !(config.controls?.hidden ?? false) && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Para uma experiência mais limpa com a Barra de progresso inteligente, recomendamos desativar os controles do player.
+                </p>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() =>
+                    handleConfigUpdate(
+                      {
+                        controls: {
+                          hidden: true,
+                        },
+                      },
+                      "controlsHidden"
+                    )
+                  }
+                  className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-pressed transition-colors shrink-0 shadow-xs cursor-pointer"
+                >
+                  Desativar controles
+                </button>
+              </div>
+            )}
+
+            {/* Block 2: Altura da barra */}
+            <div
+              className={cn(
+                "rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3 transition-opacity",
+                !isFakeProgressEnabled && "opacity-50 pointer-events-none select-none"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label
+                    htmlFor={`progress-height-range-${videoId}`}
+                    className={cn(
+                      "text-xs font-semibold text-foreground",
+                      isFakeProgressEnabled && "cursor-pointer"
+                    )}
+                  >
+                    Altura da barra
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Define a espessura visual da barra inteligente na borda inferior do player.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isPending && pendingField === "fakeHeight" && (
+                    <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                  )}
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-muted text-foreground border border-border/70">
+                    {currentFakeHeight} px
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-mono text-muted-foreground w-6 text-right">2px</span>
+                  <input
+                    id={`progress-height-range-${videoId}`}
+                    type="range"
+                    min={2}
+                    max={10}
+                    step={1}
+                    value={currentFakeHeight}
+                    disabled={isPending || !isFakeProgressEnabled}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!isNaN(val) && val >= 2 && val <= 10) {
+                        handleConfigUpdate(
+                          {
+                            progress: {
+                              fake: {
+                                height: val,
+                              },
+                            },
+                          },
+                          "fakeHeight"
+                        );
+                      }
+                    }}
+                    className={cn(
+                      "flex-1 h-2 bg-muted rounded-lg appearance-none accent-primary focus:outline-none focus:ring-2 focus:ring-primary/20",
+                      isFakeProgressEnabled ? "cursor-pointer" : "cursor-not-allowed"
+                    )}
+                  />
+                  <span className="text-[11px] font-mono text-muted-foreground w-7">10px</span>
+                </div>
+
+                {/* Quick presets */}
+                <div className="grid grid-cols-5 gap-1.5 pt-1">
+                  {[2, 4, 6, 8, 10].map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      disabled={isPending || !isFakeProgressEnabled}
+                      onClick={() => {
+                        if (currentFakeHeight === h) return;
+                        handleConfigUpdate(
+                          {
+                            progress: {
+                              fake: {
+                                height: h,
+                              },
+                            },
+                          },
+                          "fakeHeight"
+                        );
+                      }}
+                      className={cn(
+                        "py-1 px-1 text-[11px] font-mono rounded-md border transition-all text-center",
+                        isFakeProgressEnabled ? "cursor-pointer" : "cursor-not-allowed",
+                        currentFakeHeight === h
+                          ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20 text-foreground font-semibold shadow-2xs"
+                          : "border-border/60 bg-card hover:bg-muted/40 text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {h}px{h === 4 ? " (padrão)" : ""}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1036,188 +1237,6 @@ export function VideoSettings({
             {error && (
               <p className="text-xs text-destructive font-medium pt-1">{error}</p>
             )}
-          </>
-        )}
-
-        {/* Tab 4: Progresso */}
-        {activeTab === "progress" && (
-          <>
-            {/* Block 1: Barra de progresso inteligente */}
-            <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-2.5">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0">
-                    <Sparkles className="size-4 text-primary" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <Label
-                        htmlFor={`fake-progress-switch-${videoId}`}
-                        className="text-xs font-semibold text-foreground cursor-pointer"
-                      >
-                        Barra de progresso inteligente
-                      </Label>
-                      <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                        Automático
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {isPending && pendingField === "fakeProgress" && (
-                    <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                  )}
-                  <Switch
-                    id={`fake-progress-switch-${videoId}`}
-                    checked={isFakeProgressEnabled}
-                    disabled={isPending}
-                    onCheckedChange={(checked) =>
-                      handleConfigUpdate(
-                        {
-                          progress: {
-                            fake: {
-                              enabled: checked,
-                            },
-                          },
-                        },
-                        "fakeProgress"
-                      )
-                    }
-                  />
-                </div>
-              </div>
-
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Nosso motor calcula automaticamente uma curva de progresso adaptada à duração do vídeo, acelerando o avanço visual no início e suavizando ao longo da reprodução.
-              </p>
-            </div>
-
-            {/* Recommendation Banner: Clean experience with fake bar */}
-            {isFakeProgressEnabled && !(config.controls?.hidden ?? false) && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Para uma experiência mais limpa com a Barra de progresso inteligente, recomendamos desativar os controles do player.
-                </p>
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() =>
-                    handleConfigUpdate(
-                      {
-                        controls: {
-                          hidden: true,
-                        },
-                      },
-                      "controlsHidden"
-                    )
-                  }
-                  className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-pressed transition-colors shrink-0 shadow-xs cursor-pointer"
-                >
-                  Desativar controles
-                </button>
-              </div>
-            )}
-
-            {/* Block 2: Altura da barra */}
-            <div
-              className={cn(
-                "rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3 transition-opacity",
-                !isFakeProgressEnabled && "opacity-50 pointer-events-none select-none"
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label
-                    htmlFor={`progress-height-range-${videoId}`}
-                    className={cn(
-                      "text-xs font-semibold text-foreground",
-                      isFakeProgressEnabled && "cursor-pointer"
-                    )}
-                  >
-                    Altura da barra
-                  </Label>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Define a espessura visual da barra inteligente na borda inferior do player.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {isPending && pendingField === "fakeHeight" && (
-                    <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                  )}
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-muted text-foreground border border-border/70">
-                    {currentFakeHeight} px
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2 pt-1">
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] font-mono text-muted-foreground w-6 text-right">2px</span>
-                  <input
-                    id={`progress-height-range-${videoId}`}
-                    type="range"
-                    min={2}
-                    max={10}
-                    step={1}
-                    value={currentFakeHeight}
-                    disabled={isPending || !isFakeProgressEnabled}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      if (!isNaN(val) && val >= 2 && val <= 10) {
-                        handleConfigUpdate(
-                          {
-                            progress: {
-                              fake: {
-                                height: val,
-                              },
-                            },
-                          },
-                          "fakeHeight"
-                        );
-                      }
-                    }}
-                    className={cn(
-                      "flex-1 h-2 bg-muted rounded-lg appearance-none accent-primary focus:outline-none focus:ring-2 focus:ring-primary/20",
-                      isFakeProgressEnabled ? "cursor-pointer" : "cursor-not-allowed"
-                    )}
-                  />
-                  <span className="text-[11px] font-mono text-muted-foreground w-7">10px</span>
-                </div>
-
-                {/* Quick presets */}
-                <div className="grid grid-cols-5 gap-1.5 pt-1">
-                  {[2, 4, 6, 8, 10].map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      disabled={isPending || !isFakeProgressEnabled}
-                      onClick={() => {
-                        if (currentFakeHeight === h) return;
-                        handleConfigUpdate(
-                          {
-                            progress: {
-                              fake: {
-                                height: h,
-                              },
-                            },
-                          },
-                          "fakeHeight"
-                        );
-                      }}
-                      className={cn(
-                        "py-1 px-1 text-[11px] font-mono rounded-md border transition-all text-center",
-                        isFakeProgressEnabled ? "cursor-pointer" : "cursor-not-allowed",
-                        currentFakeHeight === h
-                          ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
-                          : "border-border/70 bg-card hover:bg-muted/40 text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {h}px{h === 4 ? " (padrão)" : ""}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
           </>
         )}
       </div>

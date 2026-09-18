@@ -1049,26 +1049,29 @@ export function WatchMapPlayer({
                 e.stopPropagation();
                 activateForegroundPlayback();
               }}
-              style={{ backgroundColor: "var(--player-accent)" }}
+              style={{
+                backgroundColor: "var(--player-accent)",
+                color: "var(--player-accent-foreground)",
+              }}
               className={cn(
                 "relative flex flex-col items-center justify-center text-center",
-                "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl text-white",
+                "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
                 "shadow-2xl backdrop-blur-md transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]",
-                "border border-white/20 select-none cursor-pointer max-w-full"
+                "border border-current/20 select-none cursor-pointer max-w-full"
               )}
             >
               {/* Icon */}
-              <div className="flex items-center justify-center size-7 @min-[400px]:size-8 rounded-full bg-white/15 mb-1.5 shrink-0">
-                <Volume2 className="size-4 @min-[400px]:size-4.5 fill-white text-white shrink-0" />
+              <div className="flex items-center justify-center size-7 @min-[400px]:size-8 rounded-full bg-current/15 mb-1.5 shrink-0">
+                <Volume2 className="size-4 @min-[400px]:size-4.5 fill-current shrink-0" />
               </div>
 
               {/* Subtitle / Context */}
-              <span className="text-[10px] @min-[360px]:text-[11px] @min-[420px]:text-xs font-medium text-white/80 leading-tight">
+              <span className="text-[10px] @min-[360px]:text-[11px] @min-[420px]:text-xs font-medium opacity-80 leading-tight">
                 Seu vídeo já começou
               </span>
 
               {/* Main Action Text */}
-              <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug mt-0.5 max-w-[220px] @min-[360px]:max-w-[260px] @min-[420px]:max-w-none">
+              <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold leading-snug mt-0.5 max-w-[220px] @min-[360px]:max-w-[260px] @min-[420px]:max-w-none">
                 Clique para ativar o som
               </span>
             </button>
@@ -1102,10 +1105,13 @@ export function WatchMapPlayer({
           className="absolute inset-0 flex items-center justify-center z-10 cursor-pointer bg-black/20 transition-opacity"
         >
           <div
-            style={{ backgroundColor: "var(--player-accent)" }}
-            className="flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full text-white shadow-xl transition-transform hover:scale-105"
+            style={{
+              backgroundColor: "var(--player-accent)",
+              color: "var(--player-accent-foreground)",
+            }}
+            className="flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105"
           >
-            <Play className="size-7 @min-[480px]:size-8 ml-1 fill-white" />
+            <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
           </div>
         </div>
       )}

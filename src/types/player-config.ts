@@ -6,6 +6,9 @@ export const playerAccentColors = [
   "emerald",
   "orange",
   "rose",
+  "black",
+  "white",
+  "gray",
 ] as const;
 
 export type PlayerAccentColor = (typeof playerAccentColors)[number];
@@ -71,6 +74,36 @@ export const PLAYER_ACCENT_PRESETS: Record<PlayerAccentColor, PlayerAccentPreset
       hover: "#BE123C",
       active: "#9F1239",
       soft: "rgba(225, 29, 72, 0.15)",
+      foreground: "#FFFFFF",
+    },
+  },
+  black: {
+    name: "Preto",
+    tokens: {
+      base: "#18181B",
+      hover: "#27272A",
+      active: "#09090B",
+      soft: "rgba(24, 24, 27, 0.15)",
+      foreground: "#FFFFFF",
+    },
+  },
+  white: {
+    name: "Branco",
+    tokens: {
+      base: "#FFFFFF",
+      hover: "#F4F4F5",
+      active: "#E4E4E7",
+      soft: "rgba(255, 255, 255, 0.2)",
+      foreground: "#09090B",
+    },
+  },
+  gray: {
+    name: "Cinza",
+    tokens: {
+      base: "#71717A",
+      hover: "#52525B",
+      active: "#3F3F46",
+      soft: "rgba(113, 113, 122, 0.15)",
       foreground: "#FFFFFF",
     },
   },

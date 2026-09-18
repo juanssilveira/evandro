@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { playerAccentColors } from "@/types/player-config";
 
 export const createUploadSchema = z.object({
   title: z
@@ -28,7 +29,7 @@ export const updatePlayerConfigActionSchema = z.object({
   config: z.object({
     appearance: z
       .object({
-        accentColor: z.enum(["purple", "blue", "emerald", "orange", "rose"]).optional(),
+        accentColor: z.enum(playerAccentColors).optional(),
         aspectRatio: z.enum(["16:9", "9:16", "1:1"]).optional(),
         showTitle: z.boolean().optional(),
       })
