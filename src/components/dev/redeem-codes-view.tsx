@@ -341,22 +341,24 @@ export function RedeemCodesView({ codes }: RedeemCodesViewProps) {
               <Trash2 className="size-4 text-destructive" />
               <span>Excluir Código de Resgate?</span>
             </DialogTitle>
-            <DialogDescription className="pt-2 text-left space-y-2">
-              {codeToDelete?.usedAt ? (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-300 space-y-1">
-                  <div className="flex items-center gap-1.5 font-semibold">
-                    <ShieldAlert className="size-4 shrink-0" />
-                    <span>Este código já foi utilizado</span>
-                  </div>
-                  <p>
-                    Excluir este registro <strong>NÃO</strong> remove ou altera o plano concedido ao usuário ({codeToDelete.usedByUser?.email || "usuário"}).
-                  </p>
-                </div>
-              ) : (
-                <span>Este código ainda não foi utilizado e será permanentemente invalidado.</span>
-              )}
+            <DialogDescription>
+              {codeToDelete?.usedAt
+                ? "Confirme se deseja remover este registro do sistema."
+                : "Este código ainda não foi utilizado e será permanentemente invalidado."}
             </DialogDescription>
           </DialogHeader>
+
+          {codeToDelete?.usedAt && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-300 space-y-1 my-3 text-left">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <ShieldAlert className="size-4 shrink-0" />
+                <span>Este código já foi utilizado</span>
+              </div>
+              <p>
+                Excluir este registro <strong>NÃO</strong> remove ou altera o plano concedido ao usuário ({codeToDelete.usedByUser?.email || "usuário"}).
+              </p>
+            </div>
+          )}
 
           <DialogFooter className="mt-4 gap-2 sm:gap-0">
             <Button
