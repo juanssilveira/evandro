@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { playerAccentColors } from "@/types/player-config";
+import { playerAccentColors, fakeProgressBarColors } from "@/types/player-config";
 
 export const createUploadSchema = z.object({
   title: z
@@ -32,6 +32,7 @@ export const updatePlayerConfigActionSchema = z.object({
         accentColor: z.enum(playerAccentColors).optional(),
         aspectRatio: z.enum(["16:9", "9:16", "1:1"]).optional(),
         showTitle: z.boolean().optional(),
+        borderRadius: z.number().min(0).max(32).optional(),
       })
       .optional(),
     playback: z
@@ -61,6 +62,7 @@ export const updatePlayerConfigActionSchema = z.object({
           .object({
             enabled: z.boolean().optional(),
             height: z.number().min(2).max(10).optional(),
+            color: z.enum(fakeProgressBarColors).optional(),
           })
           .optional(),
       })

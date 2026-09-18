@@ -106,6 +106,7 @@ export function WatchMapPlayer({
       ...config,
       appearance: {
         ...config.appearance,
+        borderRadius: config.appearance?.borderRadius ?? 12,
       },
       playback: {
         ...config.playback,
@@ -126,6 +127,7 @@ export function WatchMapPlayer({
         fake: {
           enabled: config.progress?.fake?.enabled ?? false,
           height: config.progress?.fake?.height ?? 4,
+          color: config.progress?.fake?.color ?? "accent",
         },
       },
       development: {
@@ -165,12 +167,14 @@ export function WatchMapPlayer({
   const [hasStartedPlayingForeground, setHasStartedPlayingForeground] = useState(false);
   const [isTransitioningPreviewOut, setIsTransitioningPreviewOut] = useState(false);
   const [previewError, setPreviewError] = useState(false);
+  const [isEnded, setIsEnded] = useState(false);
 
   if (src !== prevSrc) {
     setPrevSrc(src);
     setUserActivatedForeground(false);
     setHasStartedPlayingForeground(false);
     setPreviewError(false);
+    setIsEnded(false);
   }
 
   if (playbackKey !== prevPlaybackKey) {
@@ -178,6 +182,7 @@ export function WatchMapPlayer({
     setUserActivatedForeground(false);
     setHasStartedPlayingForeground(false);
     setPreviewError(false);
+    setIsEnded(false);
   }
 
   // Dynamic mode resolution based on config and user interaction
@@ -887,6 +892,7 @@ export function WatchMapPlayer({
   const handlePlaying = () => {
     setIsLoading(false);
     setIsPlaying(true);
+    setIsEnded(false);
     setHasStartedPlayingForeground(true);
 
     // Fade out preview layer seamlessly once real video frames are rendering
@@ -904,6 +910,7 @@ export function WatchMapPlayer({
 
   const handleEnded = () => {
     setIsPlaying(false);
+    setIsEnded(true);
     setControlsVisible(true);
   };
 
@@ -942,6 +949,11 @@ export function WatchMapPlayer({
       : 0;
   const fakeProgressPercent = fakeProgress * 100;
   const fakeBarHeight = Math.max(2, Math.min(10, effectiveConfig.progress?.fake?.height ?? 4));
+  const fakeColorSetting = effectiveConfig.progress?.fake?.color ?? "accent";
+  const fakeBarColor =
+    fakeColorSetting !== "accent" && PLAYER_ACCENT_PRESETS[fakeColorSetting]
+      ? PLAYER_ACCENT_PRESETS[fakeColorSetting].tokens.base
+      : "var(--player-accent, #7C3AED)";
 
   const aspectRatio = effectiveConfig.appearance?.aspectRatio ?? "16:9";
   const aspectClass =
@@ -956,15 +968,16 @@ export function WatchMapPlayer({
       ref={containerRef}
       style={{
         ...accentStyle,
+        borderRadius: isFullscreen ? 0 : `${effectiveConfig.appearance?.borderRadius ?? 12}px`,
         containerType: "inline-size",
       }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleContainerDoubleClick}
       className={cn(
-        "@container relative w-full rounded-xl overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl mx-auto",
+        "@container relative w-full overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl mx-auto",
         aspectClass,
-        isFullscreen && "rounded-none border-none max-h-screen max-w-none aspect-auto h-full",
+        isFullscreen && "border-none max-h-screen max-w-none aspect-auto h-full",
         className
       )}
     >
@@ -1060,64 +1073,100 @@ export function WatchMapPlayer({
           className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
         >
           <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
-            {/* Subtle External Pulse Ring (Expands & Fades Out - Derived luminous accent) */}
-            <div
-              aria-hidden="true"
-              className="wm-pulse-ring pointer-events-none absolute -inset-1 rounded-2xl"
-              style={{
-                boxShadow: "0 0 0 3px color-mix(in srgb, var(--player-accent) 25%, white 75%)",
-                animation: "wm-pulse-ring 2s cubic-bezier(0.2, 0, 0.4, 1) infinite",
-              }}
-            />
-
-            {/* Main CTA Button */}
+            {/* Main CTA Card */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 activateForegroundPlayback();
               }}
-              style={{
-                backgroundColor: "var(--player-accent)",
-                color: "var(--player-accent-foreground)",
-              }}
               className={cn(
                 "relative flex flex-col items-center justify-center text-center",
                 "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
-                "shadow-2xl backdrop-blur-md transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]",
-                "border border-current/20 select-none cursor-pointer max-w-full"
+                "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
+                "border border-white/15 select-none cursor-pointer max-w-full",
+                "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
               )}
             >
-              {/* Icon */}
-              <div className="flex items-center justify-center size-7 @min-[400px]:size-8 rounded-full bg-current/15 mb-1.5 shrink-0">
-                <Volume2 className="size-4 @min-[400px]:size-4.5 fill-current shrink-0" />
+              {/* Icon Circle with concentric animated sound waves */}
+              <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
+                {/* Concentric sound waves */}
+                <span
+                  aria-hidden="true"
+                  className="wm-sound-wave-1 absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    backgroundColor: "var(--player-accent)",
+                  }}
+                />
+                <span
+                  aria-hidden="true"
+                  className="wm-sound-wave-2 absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    backgroundColor: "var(--player-accent)",
+                  }}
+                />
+                <span
+                  aria-hidden="true"
+                  className="wm-sound-wave-3 absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    backgroundColor: "var(--player-accent)",
+                  }}
+                />
+
+                {/* Center Audio Icon Badge */}
+                <div
+                  className="relative z-1 flex items-center justify-center size-9 @min-[400px]:size-10 rounded-full shadow-lg"
+                  style={{
+                    backgroundColor: "var(--player-accent)",
+                    color: "var(--player-accent-foreground)",
+                  }}
+                >
+                  <VolumeX className="size-4.5 @min-[400px]:size-5 fill-current shrink-0" />
+                </div>
               </div>
 
               {/* Subtitle / Context */}
-              <span className="text-[10px] @min-[360px]:text-[11px] @min-[420px]:text-xs font-medium opacity-80 leading-tight">
+              <span className="text-[10.5px] @min-[360px]:text-[11px] @min-[420px]:text-xs font-medium text-zinc-300 leading-tight">
                 Seu vídeo já começou
               </span>
 
               {/* Main Action Text */}
-              <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold leading-snug mt-0.5 max-w-[220px] @min-[360px]:max-w-[260px] @min-[420px]:max-w-none">
+              <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug mt-0.5 max-w-[220px] @min-[360px]:max-w-[260px] @min-[420px]:max-w-none">
                 Clique para ativar o som
               </span>
             </button>
           </div>
 
           <style>{`
-            @keyframes wm-pulse-ring {
+            @keyframes wm-sound-wave {
               0% {
-                transform: scale(0.96);
-                opacity: 0.85;
+                transform: scale(0.85);
+                opacity: 0.6;
               }
-              65%, 100% {
-                transform: scale(1.08, 1.15);
+              50% {
+                opacity: 0.25;
+              }
+              100% {
+                transform: scale(1.9);
                 opacity: 0;
               }
             }
+            .wm-sound-wave-1 {
+              animation: wm-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+              animation-delay: 0s;
+            }
+            .wm-sound-wave-2 {
+              animation: wm-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+              animation-delay: 0.7s;
+            }
+            .wm-sound-wave-3 {
+              animation: wm-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+              animation-delay: 1.4s;
+            }
             @media (prefers-reduced-motion: reduce) {
-              .wm-pulse-ring {
+              .wm-sound-wave-1,
+              .wm-sound-wave-2,
+              .wm-sound-wave-3 {
                 display: none !important;
                 animation: none !important;
               }
@@ -1126,11 +1175,11 @@ export function WatchMapPlayer({
         </div>
       )}
 
-      {/* Big Play Button Overlay on Pause */}
-      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && (
+      {/* Big Play Button Overlay on Initial Start (Before first play) */}
+      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !hasStartedPlayingForeground && (
         <div
           onClick={togglePlay}
-          className="absolute inset-0 flex items-center justify-center z-10 cursor-pointer bg-black/20 transition-opacity"
+          className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer bg-black/20 transition-opacity"
         >
           <div
             style={{
@@ -1141,6 +1190,87 @@ export function WatchMapPlayer({
           >
             <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
           </div>
+        </div>
+      )}
+
+      {/* "Continue assistindo" CTA Overlay on Pause (After video has already started and is not ended) */}
+      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && hasStartedPlayingForeground && !isEnded && (
+        <div
+          onClick={togglePlay}
+          style={{
+            background: "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
+          }}
+          className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/pauseoverlay"
+        >
+          <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlay();
+              }}
+              className={cn(
+                "relative flex flex-col items-center justify-center text-center",
+                "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
+                "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
+                "border border-white/15 select-none cursor-pointer max-w-full",
+                "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
+              )}
+            >
+              {/* Play Icon with subtle breathing halo */}
+              <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
+                <span
+                  aria-hidden="true"
+                  className="wm-play-halo absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    backgroundColor: "var(--player-accent)",
+                  }}
+                />
+
+                <div
+                  className="relative z-1 flex items-center justify-center size-9 @min-[400px]:size-10 rounded-full shadow-lg"
+                  style={{
+                    backgroundColor: "var(--player-accent)",
+                    color: "var(--player-accent-foreground)",
+                  }}
+                >
+                  <Play className="size-4.5 @min-[400px]:size-5 ml-0.5 fill-current shrink-0" />
+                </div>
+              </div>
+
+              {/* Main Text */}
+              <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug">
+                Continue assistindo
+              </span>
+
+              {/* Microcopy */}
+              <span className="text-[10px] @min-[360px]:text-[10.5px] @min-[420px]:text-[11px] font-medium text-zinc-300 leading-tight mt-0.5">
+                Clique para continuar
+              </span>
+            </button>
+          </div>
+
+          <style>{`
+            @keyframes wm-play-halo {
+              0%, 100% {
+                transform: scale(0.95);
+                opacity: 0.45;
+              }
+              50% {
+                transform: scale(1.3);
+                opacity: 0;
+              }
+            }
+            .wm-play-halo {
+              animation: wm-play-halo 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .wm-play-halo {
+                display: none !important;
+                animation: none !important;
+              }
+            }
+          `}</style>
         </div>
       )}
 
@@ -1175,7 +1305,7 @@ export function WatchMapPlayer({
             className="h-full rounded-r-full"
             style={{
               width: `${fakeProgressPercent}%`,
-              backgroundColor: "var(--player-accent, #7C3AED)",
+              backgroundColor: fakeBarColor,
               transition: isPlaying ? "none" : "width 0.15s ease-out",
             }}
           />

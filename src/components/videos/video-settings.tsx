@@ -28,6 +28,7 @@ import {
   type PlayerConfigPatch,
   type PlayerAccentColor,
   type PlayerAspectRatio,
+  type FakeProgressBarColor,
   playerAccentColors,
   playerPlaybackRates,
   PLAYER_ACCENT_PRESETS,
@@ -280,13 +281,49 @@ export function VideoSettings({
     );
   };
 
+  const handleBorderRadiusChange = (radius: number) => {
+    handleConfigUpdate(
+      {
+        appearance: {
+          borderRadius: radius,
+        },
+      },
+      "borderRadius"
+    );
+  };
+
+  const handleFakeColorSelect = (color: FakeProgressBarColor) => {
+    if (config.progress?.fake?.color === color) return;
+
+    handleConfigUpdate(
+      {
+        progress: {
+          fake: {
+            color,
+          },
+        },
+      },
+      "fakeColor"
+    );
+  };
+
   const currentAccent = config.appearance?.accentColor ?? "purple";
   const currentAspectRatio = config.appearance?.aspectRatio ?? "16:9";
+  const currentBorderRadius = config.appearance?.borderRadius ?? 12;
   const currentPlaybackRate = config.playback?.defaultPlaybackRate ?? 1;
   const currentVolume = config.playback?.defaultVolume ?? 1;
   const isFullscreenEnabled = config.controls?.fullscreen?.enabled ?? true;
   const currentFakeHeight = config.progress?.fake?.height ?? 4;
+  const currentFakeColor: FakeProgressBarColor = config.progress?.fake?.color ?? "accent";
   const isFakeProgressEnabled = config.progress?.fake?.enabled ?? false;
+
+  const [prevConfigRadius, setPrevConfigRadius] = useState(currentBorderRadius);
+  const [localRadius, setLocalRadius] = useState(currentBorderRadius);
+
+  if (currentBorderRadius !== prevConfigRadius) {
+    setPrevConfigRadius(currentBorderRadius);
+    setLocalRadius(currentBorderRadius);
+  }
 
   const [prevConfigVolume, setPrevConfigVolume] = useState(currentVolume);
   const [localVolume, setLocalVolume] = useState(currentVolume);
@@ -618,6 +655,95 @@ export function VideoSettings({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Border Radius Section */}
+            <div className="rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label
+                    htmlFor={`border-radius-range-${videoId}`}
+                    className="text-xs font-semibold text-foreground cursor-pointer"
+                  >
+                    Arredondamento do player
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Define o arredondamento dos cantos do vídeo.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isPending && pendingField === "borderRadius" && (
+                    <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                  )}
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-muted text-foreground border border-border/70">
+                    {localRadius} px
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-mono text-muted-foreground w-6 text-right">0px</span>
+                  <input
+                    id={`border-radius-range-${videoId}`}
+                    type="range"
+                    min={0}
+                    max={32}
+                    step={2}
+                    value={localRadius}
+                    disabled={isPending}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!isNaN(val) && val >= 0 && val <= 32) {
+                        setLocalRadius(val);
+                        onConfigChange({
+                          ...config,
+                          appearance: {
+                            ...config.appearance,
+                            borderRadius: val,
+                          },
+                        });
+                      }
+                    }}
+                    onPointerUp={(e) => {
+                      const val = Number((e.target as HTMLInputElement).value);
+                      handleBorderRadiusChange(val);
+                    }}
+                    onKeyUp={(e) => {
+                      if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") {
+                        const val = Number((e.target as HTMLInputElement).value);
+                        handleBorderRadiusChange(val);
+                      }
+                    }}
+                    className="flex-1 accent-primary h-1.5 bg-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+                  />
+                  <span className="text-[11px] font-mono text-muted-foreground w-8">32px</span>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="grid grid-cols-6 gap-1.5 pt-1">
+                  {[0, 8, 12, 16, 24, 32].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        if (currentBorderRadius === r) return;
+                        setLocalRadius(r);
+                        handleBorderRadiusChange(r);
+                      }}
+                      className={cn(
+                        "py-1 px-1 text-[11px] font-mono rounded-md border transition-all text-center cursor-pointer",
+                        currentBorderRadius === r
+                          ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20 text-foreground font-semibold shadow-2xs"
+                          : "border-border/60 bg-card hover:bg-muted/40 text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {r}px{r === 12 ? " (padrão)" : ""}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1041,6 +1167,142 @@ export function VideoSettings({
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* Block 3: Cor da barra */}
+            <div
+              className={cn(
+                "rounded-lg border border-border/80 bg-muted/20 pt-3 px-3.5 pb-3.5 sm:pt-3 sm:px-4 sm:pb-4 space-y-3 transition-opacity",
+                !isFakeProgressEnabled && "opacity-50 pointer-events-none select-none"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-semibold text-foreground">
+                    Cor da barra
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Personalize a tonalidade da barra de progresso inteligente de forma independente.
+                  </p>
+                </div>
+                {isPending && pendingField === "fakeColor" && (
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground shrink-0" />
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-9 gap-2 pt-0.5">
+                {/* Option 1: Cor principal (accent) */}
+                {(() => {
+                  const isSelected = currentFakeColor === "accent";
+                  const primaryPreset = PLAYER_ACCENT_PRESETS[currentAccent];
+
+                  return (
+                    <button
+                      type="button"
+                      disabled={isPending || !isFakeProgressEnabled}
+                      onClick={() => handleFakeColorSelect("accent")}
+                      className={cn(
+                        "group relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-lg border transition-all text-center cursor-pointer select-none",
+                        isSelected
+                          ? "border-border-strong bg-card shadow-xs ring-1 ring-border"
+                          : "border-border/60 bg-card/60 hover:bg-muted/50 hover:border-border"
+                      )}
+                    >
+                      <div className="relative flex items-center justify-center shrink-0">
+                        <div
+                          className={cn(
+                            "size-5.5 rounded-full shrink-0 flex items-center justify-center transition-transform group-hover:scale-105",
+                            currentAccent === "white"
+                              ? "border border-zinc-300 dark:border-zinc-700 shadow-2xs"
+                              : "border border-black/10 dark:border-white/10 shadow-inner",
+                            isSelected && "ring-2 ring-offset-2 ring-offset-background",
+                            isSelected && currentAccent === "white" && "ring-zinc-400 dark:ring-zinc-500",
+                            isSelected && currentAccent !== "white" && "ring-current"
+                          )}
+                          style={{
+                            backgroundColor: primaryPreset.tokens.base,
+                            color: primaryPreset.tokens.base,
+                          }}
+                        >
+                          {isSelected && (
+                            <Check
+                              className={cn(
+                                "size-3 stroke-[3]",
+                                currentAccent === "white" ? "text-zinc-900" : "text-white"
+                              )}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          "text-[10.5px] leading-tight truncate max-w-full px-0.5 transition-colors",
+                          isSelected ? "text-foreground font-semibold" : "text-muted-foreground font-normal"
+                        )}
+                        title="Cor principal"
+                      >
+                        Principal
+                      </span>
+                    </button>
+                  );
+                })()}
+
+                {/* Other preset colors */}
+                {playerAccentColors.map((colorKey) => {
+                  const preset = PLAYER_ACCENT_PRESETS[colorKey];
+                  const isSelected = currentFakeColor === colorKey;
+
+                  return (
+                    <button
+                      key={colorKey}
+                      type="button"
+                      disabled={isPending || !isFakeProgressEnabled}
+                      onClick={() => handleFakeColorSelect(colorKey)}
+                      className={cn(
+                        "group relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-lg border transition-all text-center cursor-pointer select-none",
+                        isSelected
+                          ? "border-border-strong bg-card shadow-xs ring-1 ring-border"
+                          : "border-border/60 bg-card/60 hover:bg-muted/50 hover:border-border"
+                      )}
+                    >
+                      <div className="relative flex items-center justify-center shrink-0">
+                        <div
+                          className={cn(
+                            "size-5.5 rounded-full shrink-0 flex items-center justify-center transition-transform group-hover:scale-105",
+                            colorKey === "white"
+                              ? "border border-zinc-300 dark:border-zinc-700 shadow-2xs"
+                              : "border border-black/10 dark:border-white/10 shadow-inner",
+                            isSelected && "ring-2 ring-offset-2 ring-offset-background",
+                            isSelected && colorKey === "white" && "ring-zinc-400 dark:ring-zinc-500",
+                            isSelected && colorKey !== "white" && "ring-current"
+                          )}
+                          style={{
+                            backgroundColor: preset.tokens.base,
+                            color: preset.tokens.base,
+                          }}
+                        >
+                          {isSelected && (
+                            <Check
+                              className={cn(
+                                "size-3 stroke-[3]",
+                                colorKey === "white" ? "text-zinc-900" : "text-white"
+                              )}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          "text-[10.5px] leading-tight truncate max-w-full px-0.5 transition-colors",
+                          isSelected ? "text-foreground font-semibold" : "text-muted-foreground font-normal"
+                        )}
+                      >
+                        {preset.name}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </>

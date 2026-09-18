@@ -109,6 +109,20 @@ export const PLAYER_ACCENT_PRESETS: Record<PlayerAccentColor, PlayerAccentPreset
   },
 };
 
+export const fakeProgressBarColors = [
+  "accent",
+  "purple",
+  "blue",
+  "emerald",
+  "orange",
+  "rose",
+  "black",
+  "white",
+  "gray",
+] as const;
+
+export type FakeProgressBarColor = (typeof fakeProgressBarColors)[number];
+
 export const playerAspectRatios = ["16:9", "9:16", "1:1"] as const;
 export type PlayerAspectRatio = (typeof playerAspectRatios)[number];
 
@@ -123,11 +137,13 @@ export const playerConfigSchema = z.object({
       accentColor: z.enum(playerAccentColors).default("purple"),
       aspectRatio: z.enum(playerAspectRatios).default("16:9"),
       showTitle: z.boolean().default(true),
+      borderRadius: z.number().min(0).max(32).default(12),
     })
     .default({
       accentColor: "purple",
       aspectRatio: "16:9",
       showTitle: true,
+      borderRadius: 12,
     }),
 
   playback: z
@@ -177,16 +193,19 @@ export const playerConfigSchema = z.object({
         .object({
           enabled: z.boolean().default(false),
           height: z.number().min(2).max(10).default(4),
+          color: z.enum(fakeProgressBarColors).default("accent"),
         })
         .default({
           enabled: false,
           height: 4,
+          color: "accent",
         }),
     })
     .default({
       fake: {
         enabled: false,
         height: 4,
+        color: "accent",
       },
     }),
 
@@ -214,6 +233,7 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
     accentColor: "purple",
     aspectRatio: "16:9",
     showTitle: true,
+    borderRadius: 12,
   },
 
   playback: {
@@ -237,6 +257,7 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
     fake: {
       enabled: false,
       height: 4,
+      color: "accent",
     },
   },
 
