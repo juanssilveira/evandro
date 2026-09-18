@@ -1,10 +1,10 @@
 import type { VideoProviderName } from "./types";
+import { getDefaultVideoProviderSetting } from "@/lib/settings/app-settings";
 
 /**
- * Returns the default video provider for NEW uploads.
- * In this spec (040), the default continues to be "mux".
- * Future specs will allow configuring this through the admin /dev panel.
+ * Returns the default video provider for NEW uploads from persistent configuration.
+ * Safe fallback to "mux" if setting is absent or corrupted.
  */
-export function getDefaultVideoProviderName(): VideoProviderName {
-  return "mux";
+export async function getDefaultVideoProviderName(): Promise<VideoProviderName> {
+  return getDefaultVideoProviderSetting();
 }

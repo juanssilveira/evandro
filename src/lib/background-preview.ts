@@ -88,10 +88,13 @@ export async function generateAndStoreBackgroundPreview(
 
     let format = "webp";
     let contentType = "image/webp";
+    const baseUrl = (process.env.BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 
     let response = await fetch(previewSourceUrl, {
       headers: {
         Accept: "image/webp,image/*,*/*",
+        Referer: `${baseUrl}/`,
+        Origin: baseUrl,
       },
     });
 
@@ -107,7 +110,12 @@ export async function generateAndStoreBackgroundPreview(
             : 10;
         const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
         const gifUrl = `https://image.mux.com/${playbackId}/animated.gif?start=0&end=${previewEnd}&width=640&fps=12`;
-        response = await fetch(gifUrl);
+        response = await fetch(gifUrl, {
+          headers: {
+            Referer: `${baseUrl}/`,
+            Origin: baseUrl,
+          },
+        });
         if (response.ok) {
           format = "gif";
           contentType = "image/gif";

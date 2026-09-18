@@ -85,7 +85,7 @@ export async function createVideoUploadSession(
 }> {
   const videoId = crypto.randomUUID();
   const publicId = crypto.randomUUID();
-  const providerName = getDefaultVideoProviderName();
+  const providerName = await getDefaultVideoProviderName();
 
   // 1. Concurrency-safe atomic slot reservation inside PostgreSQL transaction
   await db.transaction(async (tx) => {

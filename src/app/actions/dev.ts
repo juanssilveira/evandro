@@ -118,3 +118,52 @@ export async function createDevRedeemCodeAction(formData: FormData): Promise<Act
     return { success: false, error: message };
   }
 }
+
+/**
+ * Server action to update the default video provider for new uploads in local dev.
+ */
+export async function updateDefaultVideoProviderAction(
+  providerInput: string | FormData
+): Promise<ActionResult<{ provider: "mux" | "bunny" }>> {
+  // 1. Fail-closed security guard check
+  await assertLocalDevPanelAccess();
+
+  let provider: string;
+  if (typeof providerInput === "string") {
+    provider = providerInput.trim();
+  } else {
+    provider = String(providerInput.get("provider") || "").trim();
+  }
+
+  // 2. Validate provider value
+  if (provider !== "mux" && provider !== "bunny") {
+    return { success: false, error: "Provider de vídeo inválido. Escolha Mux ou Bunny." };
+  }
+
+  // 3. Confirm that provider is configured
+  const { getVideoProviderConfigurationStatus } = await import("@/lib/video-providers");
+  const { setDefaultVideoProviderSetting } = await import("@/lib/settings/app-settings");
+
+  const status = getVideoProviderConfigurationStatus();
+  if (!status[provider].configured) {
+    const providerLabel = provider === "mux" ? "Mux" : "Bunny Stream";
+    return {
+      success: false,
+      error: `O provider ${providerLabel} não possui configuração completa no ambiente local.`,
+    };
+  }
+
+  // 4. Persist default_video_provider (NEVER updates videos rows)
+  try {
+    await setDefaultVideoProviderSetting(provider);
+    // 5. Revalidate /dev
+    revalidatePath("/dev");
+    return {
+      success: true,
+      data: { provider },
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Erro ao atualizar provider padrão.";
+    return { success: false, error: message };
+  }
+}

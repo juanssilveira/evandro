@@ -4,4 +4,5 @@ export * from "./folders";
 export * from "./videos";
 export * from "./player-settings";
 export * from "./plans";
+export * from "./app-settings";
 

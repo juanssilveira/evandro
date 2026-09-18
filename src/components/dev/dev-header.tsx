@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ShieldAlert, Users, KeyRound, LayoutDashboard } from "lucide-react";
+import { ShieldAlert, Users, KeyRound, LayoutDashboard, Film } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 
 
@@ -28,6 +28,12 @@ export function DevHeader() {
       label: "Redeem Codes",
       href: "/dev?tab=redeem-codes",
       icon: KeyRound,
+    },
+    {
+      id: "video-infra",
+      label: "Infra de Vídeo",
+      href: "/dev?tab=video-infra",
+      icon: Film,
     },
   ];
 
