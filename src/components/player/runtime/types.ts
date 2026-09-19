@@ -22,7 +22,7 @@ export type PlayerEventType =
 
 export type PlaybackMode = "foreground" | "background_autoplay";
 
-export type PlaybackInitiator = "autoplay" | "user";
+export type PlaybackInitiator = "autoplay" | "user" | "system";
 
 export type FullscreenInitiator =
   | "button"

@@ -11,6 +11,7 @@ export type PlaybackInitiator = "user" | "autoplay" | "system";
 export type StartupVisualState = "available" | "loading" | "visible" | "pending_release" | "released";
 export type StartupVisualType = "preview" | "thumbnail" | "none";
 export type ResumeState = "none" | "preparing" | "ready" | "resolved";
+export type ResumeDecision = "none" | "continue" | "restart";
 
 export interface EngineSourceOptions {
   videoId: string;
@@ -25,6 +26,22 @@ export interface EngineSourceOptions {
   defaultPlaybackRate?: number;
   apiBase?: string;
 }
+
+export interface EngineQualitySample {
+  source: "hlsjs" | "native" | "direct";
+  level?: number | null;
+  width?: number | null;
+  height?: number | null;
+  bitrate?: number | null;
+  bandwidthEstimateBps?: number | null;
+}
+
+export type EngineTelemetrySignal =
+  | { type: "QUALITY_SAMPLE"; sample: EngineQualitySample }
+  | { type: "BANDWIDTH_ESTIMATE"; bandwidthEstimateBps: number }
+  | { type: "ERROR"; errorType: string; message: string };
+
+export type EngineTelemetryListener = (signal: EngineTelemetrySignal) => void;
 
 export interface PlayerEngineState {
   videoId: string;
@@ -47,6 +64,7 @@ export interface PlayerEngineState {
   errorMessage: string | null;
   startupVisualState: StartupVisualState;
   resumeState: ResumeState;
+  resumeDecision: ResumeDecision;
   requestedResumeTime: number | null;
   resolvedResumeTime: number | null;
 }
@@ -80,5 +98,6 @@ export interface IPlayerEngine {
   setStartupVisualElement(element: HTMLElement | null): void;
   onFirstFrame(listener: EngineFirstFrameListener): () => void;
   subscribe(listener: EngineStateListener): () => void;
+  subscribeTelemetry(listener: EngineTelemetryListener): () => void;
   destroy(): void;
 }

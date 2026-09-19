@@ -40,6 +40,7 @@ import {
   saveResume,
   clearSavedResume,
 } from "@/lib/player/resume-storage";
+import { EvandroTracker } from "./tracker";
 import type { ResumeState } from "./engine/types";
 
 export interface EvandroPlayerProps {
@@ -419,19 +420,36 @@ export function EvandroPlayer({
     };
   }, [activeEngine, isDraggingSeek, mediaStateManager]);
 
-  // Initialize PlayerRuntime lifecycle (strictly as Observer)
+  // Initialize PlayerRuntime and EvandroTracker lifecycle (strictly as Observers)
   useEffect(() => {
     const video = activeEngine?.video || mediaElement || internalVideoRef.current;
     const container = containerRef.current;
-    if (!video) return;
+    if (!video || !activeEngine) return;
+
+    const initialMode =
+      activeEngine.state.experience === "background_autoplay"
+        ? "background_autoplay"
+        : "foreground";
+    const initialInitiator = activeEngine.state.playbackInitiator || "user";
 
     const runtime = new PlayerRuntime(video, {
       videoId,
       debug: effectiveDebug,
       containerElement: container,
+      initialPlaybackMode: initialMode,
+      initialPlaybackInitiator: initialInitiator,
     });
 
     runtimeRef.current = runtime;
+
+    const unsubEngineState = activeEngine.subscribe((engineState) => {
+      const mode =
+        engineState.experience === "background_autoplay"
+          ? "background_autoplay"
+          : "foreground";
+      const initiator = engineState.playbackInitiator || "user";
+      runtime.setPlaybackContext(mode, initiator);
+    });
 
     let unsubscribe: (() => void) | undefined;
     if (onEvent) {
@@ -440,12 +458,34 @@ export function EvandroPlayer({
 
     onRuntimeReady?.(runtime);
 
+    const tracker = new EvandroTracker({
+      videoId,
+      sessionId: getPlaySessionId(),
+      apiBase,
+      debug: effectiveDebug,
+      isEditor: Boolean(isEditor),
+      runtime,
+      engine: activeEngine,
+    });
+
     return () => {
+      tracker.destroy();
+      unsubEngineState();
       runtimeRef.current = null;
       unsubscribe?.();
       runtime.destroy();
     };
-  }, [activeEngine, mediaElement, videoId, effectiveDebug, onEvent, onRuntimeReady]);
+  }, [
+    activeEngine,
+    mediaElement,
+    videoId,
+    effectiveDebug,
+    onEvent,
+    onRuntimeReady,
+    apiBase,
+    isEditor,
+    getPlaySessionId,
+  ]);
 
   // 60fps smooth progress update loop while playing
   useEffect(() => {
