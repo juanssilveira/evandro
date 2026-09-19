@@ -436,7 +436,7 @@ export function EvandroPlayer({
         setIsTransitioningPreviewOut(true);
         setTimeout(() => {
           setIsTransitioningPreviewOut(false);
-        }, 140);
+        }, 70);
       }
 
       let clickToFrame: number | undefined;
@@ -861,7 +861,7 @@ export function EvandroPlayer({
         setIsTransitioningPreviewOut(true);
         setTimeout(() => {
           setIsTransitioningPreviewOut(false);
-        }, 140);
+        }, 70);
       }
     }
 
@@ -1347,7 +1347,7 @@ export function EvandroPlayer({
         <div
           aria-hidden="true"
           className={cn(
-            "absolute inset-0 z-5 pointer-events-none overflow-hidden transition-opacity duration-140 ease-out",
+            "absolute inset-0 z-5 pointer-events-none overflow-hidden transition-opacity duration-[70ms] ease-out",
             isTransitioningPreviewOut ? "opacity-0" : "opacity-100"
           )}
         >
@@ -1389,7 +1389,7 @@ export function EvandroPlayer({
           onEnded={handleEnded}
           onError={handleError}
           className={cn(
-            "w-full h-full object-contain cursor-pointer transition-opacity duration-140 ease-out",
+            "w-full h-full object-contain cursor-pointer transition-opacity duration-[70ms] ease-out",
             hasRevealedVideo ? "opacity-100" : "opacity-0"
           )}
         />

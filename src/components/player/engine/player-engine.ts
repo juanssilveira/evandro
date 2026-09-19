@@ -384,7 +384,7 @@ export class PlayerEngine implements IPlayerEngine {
   private revealVideo(): void {
     if (this._hasRevealedVideo) return;
     this._hasRevealedVideo = true;
-    this._video.style.transition = "opacity 140ms ease-out";
+    this._video.style.transition = "opacity 70ms ease-out";
     this._video.style.opacity = "1";
   }
 
@@ -394,7 +394,7 @@ export class PlayerEngine implements IPlayerEngine {
     markPerformanceOnce("ep:startup-visual:release", videoId);
 
     const el = this._startupVisualElement;
-    el.style.transition = "opacity 140ms ease-out";
+    el.style.transition = "opacity 70ms ease-out";
     el.style.opacity = "0";
 
     setTimeout(() => {
@@ -402,7 +402,7 @@ export class PlayerEngine implements IPlayerEngine {
         el.innerHTML = "";
         el.style.display = "none";
       }
-    }, 150);
+    }, 75);
   }
 
   private async attachMedia(mediaSrc: string, isBg: boolean, gen: number): Promise<void> {

@@ -441,7 +441,7 @@ export class EvandroPlayerElement extends HTMLElement {
       const startupVisual = document.createElement("div");
       startupVisual.setAttribute("data-evandro-player-startup-visual", "true");
       startupVisual.style.cssText =
-        "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:inherit;transition:opacity 150ms ease-out;";
+        "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:inherit;transition:opacity 75ms ease-out;";
 
       // 4. UI Root for React Core mounting
       const uiRoot = document.createElement("div");
