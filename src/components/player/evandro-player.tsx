@@ -882,29 +882,90 @@ export function EvandroPlayer({
     [fullscreenConfig]
   );
 
-  const handleContainerDoubleClick = (e: React.MouseEvent) => {
-    if (!fullscreenConfig.enabled || !fullscreenConfig.doubleClick) return;
-    if (isResumeActive || isResumePreparing) return;
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const target = e.target as HTMLElement | null;
-    if (!target) return;
+  const handleContainerClick = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
 
-    if (
-      target.closest("button") ||
-      target.closest("input") ||
-      target.closest("select") ||
-      target.closest("[role='button']") ||
-      target.closest("[role='slider']") ||
-      target.closest("[data-no-fullscreen]") ||
-      target.closest(".group\\/track") ||
-      target.closest(".group\\/volume") ||
-      target.closest(".group\\/resumeoverlay")
-    ) {
-      return;
-    }
+      if (
+        target.closest("button") ||
+        target.closest("input") ||
+        target.closest("select") ||
+        target.closest("[role='button']") ||
+        target.closest("[role='slider']") ||
+        target.closest("[data-no-fullscreen]") ||
+        target.closest(".group\\/track") ||
+        target.closest(".group\\/volume") ||
+        target.closest(".group\\/resumeoverlay")
+      ) {
+        return;
+      }
 
-    toggleFullscreen("double_click");
-  };
+      if (isResumeActive || isResumePreparing) return;
+
+      if (fullscreenConfig.enabled && fullscreenConfig.doubleClick) {
+        if (clickTimeoutRef.current) {
+          clearTimeout(clickTimeoutRef.current);
+          clickTimeoutRef.current = null;
+          return;
+        }
+        clickTimeoutRef.current = setTimeout(() => {
+          clickTimeoutRef.current = null;
+          togglePlay();
+          showControlsTemporarily();
+        }, 220);
+      } else {
+        togglePlay();
+        showControlsTemporarily();
+      }
+    },
+    [
+      fullscreenConfig,
+      isResumeActive,
+      isResumePreparing,
+      togglePlay,
+      showControlsTemporarily,
+    ]
+  );
+
+  const handleContainerDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+
+      if (!fullscreenConfig.enabled || !fullscreenConfig.doubleClick) return;
+      if (isResumeActive || isResumePreparing) return;
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      if (
+        target.closest("button") ||
+        target.closest("input") ||
+        target.closest("select") ||
+        target.closest("[role='button']") ||
+        target.closest("[role='slider']") ||
+        target.closest("[data-no-fullscreen]") ||
+        target.closest(".group\\/track") ||
+        target.closest(".group\\/volume") ||
+        target.closest(".group\\/resumeoverlay")
+      ) {
+        return;
+      }
+
+      toggleFullscreen("double_click");
+    },
+    [
+      fullscreenConfig,
+      isResumeActive,
+      isResumePreparing,
+      toggleFullscreen,
+    ]
+  );
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -1014,6 +1075,15 @@ export function EvandroPlayer({
       ? "aspect-square"
       : "aspect-video";
 
+  // Cleanup click timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div
       ref={containerRef}
@@ -1022,11 +1092,12 @@ export function EvandroPlayer({
         borderRadius: isFullscreen ? 0 : `${effectiveConfig.appearance?.borderRadius ?? 12}px`,
         containerType: "inline-size",
       }}
+      onClick={handleContainerClick}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleContainerDoubleClick}
       className={cn(
-        "@container relative w-full overflow-hidden select-none group font-sans flex items-center justify-center mx-auto",
+        "@container relative w-full overflow-hidden select-none group font-sans flex items-center justify-center mx-auto cursor-pointer",
         !isEmbedded && "bg-black border border-border/40 shadow-2xl",
         !isEmbedded && aspectClass,
         isEmbedded ? "h-full" : aspectClass,
