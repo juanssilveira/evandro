@@ -12,7 +12,6 @@ import {
   Maximize,
   Minimize,
   RotateCcw,
-  Loader2,
   AlertCircle,
   Gauge,
   Check,
@@ -990,12 +989,14 @@ export function EvandroPlayer({
 
   // Fake progress bar calculation
   const isFakeProgressEnabled = Boolean(effectiveConfig.progress?.fake?.enabled);
+  const effectiveCurrentTime = isResumeActive
+    ? (resolvedResumeTime ?? requestedResumeTime ?? currentTime)
+    : currentTime;
   const fakeProgress =
     isFakeProgressEnabled &&
     playbackMode !== "background_autoplay" &&
-    !isResumeActive &&
     !isResumePreparing
-      ? calculateFakeProgress({ currentTime, duration })
+      ? calculateFakeProgress({ currentTime: effectiveCurrentTime, duration })
       : 0;
   const fakeProgressPercent = fakeProgress * 100;
   const fakeBarHeight = Math.max(2, Math.min(10, effectiveConfig.progress?.fake?.height ?? 4));
@@ -1048,55 +1049,50 @@ export function EvandroPlayer({
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
+            position: "absolute",
+            inset: 0,
+            zIndex: 10,
+            pointerEvents: "none",
           }}
-          className="absolute inset-0 z-5 pointer-events-none overflow-hidden flex items-center justify-center bg-black"
         />
       )}
 
-      {/* Standalone / Editor Native Video Element managed by PlayerEngine */}
+      {/* Internal Video element for Editor / Standalone Mode */}
       {!isEmbedded && (
         <video
           ref={internalVideoRef}
           playsInline
+          webkit-playsinline="true"
+          x5-playsinline="true"
           preload="auto"
-          controls={false}
-          onClick={togglePlay}
-          className={cn(
-            "w-full h-full object-contain cursor-pointer transition-opacity duration-[70ms] ease-out",
-            hasFirstFrame ? "opacity-100" : "opacity-0"
-          )}
+          className="w-full h-full object-contain pointer-events-none"
         />
       )}
 
-      {/* Central Tap / Click-to-Toggle-Play Backdrop */}
-      {playbackMode !== "background_autoplay" &&
+      {/* Startup Buffer Black Blocker */}
+      {!hasFirstFrame && !initialVisual?.url && (
+        <div className="absolute inset-0 bg-black z-5 pointer-events-none" />
+      )}
+
+      {/* Buffering Spinner */}
+      {isLoading &&
         !hasError &&
         !isResumeActive &&
-        !isResumePreparing && (
-          <div
-            aria-hidden="true"
-            onClick={togglePlay}
-            className="absolute inset-0 z-1 cursor-pointer"
-          />
-        )}
-
-      {/* Loading Buffering Indicator */}
-      {isLoading && !hasError && !isResumeActive && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 bg-black/20">
-          <div className="flex size-14 items-center justify-center rounded-full bg-black/60 backdrop-blur-md shadow-lg">
-            <Loader2 className="size-8 animate-spin" style={{ color: "var(--player-accent)" }} />
+        !isResumePreparing &&
+        playbackMode !== "background_autoplay" && (
+          <div className="absolute inset-0 flex items-center justify-center z-15 pointer-events-none">
+            <div className="size-10 @min-[400px]:size-12 rounded-full border-3 border-white/20 border-t-white animate-spin drop-shadow-md" />
           </div>
-        </div>
-      )}
+        )}
 
       {/* Error Overlay */}
       {hasError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-center p-6 z-30 space-y-3">
-          <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/85 p-4 text-center select-none">
+          <div className="size-12 rounded-full bg-red-500/10 flex items-center justify-center mb-3 text-red-400">
             <AlertCircle className="size-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-semibold text-white text-base">
+            <h3 className="text-sm font-semibold text-white">
               Não foi possível reproduzir o vídeo
             </h3>
             <p className="text-xs text-zinc-400 max-w-sm">
@@ -1124,37 +1120,26 @@ export function EvandroPlayer({
           onDoubleClick={(e) => e.stopPropagation()}
           style={{
             background:
-              "linear-gradient(180deg, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0.45) 50%, rgba(0, 0, 0, 0.7) 100%)",
+              "linear-gradient(180deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.6) 100%)",
           }}
-          className="absolute inset-0 flex items-center justify-center z-25 p-3.5 @min-[400px]:p-5 group/resumeoverlay"
+          className="absolute inset-0 flex items-center justify-center z-24 p-3.5 @min-[400px]:p-5 group/resumeoverlay"
         >
           <div
             className={cn(
               "relative flex flex-col items-center justify-center text-center",
-              "px-5 py-4 @min-[400px]:px-7 @min-[400px]:py-5.5 rounded-2xl",
-              "bg-zinc-950/90 text-white backdrop-blur-md shadow-2xl",
-              "border border-white/15 select-none max-w-[calc(100%-24px)] @min-[400px]:max-w-[420px] w-full"
+              "p-5 @min-[400px]:p-6 rounded-2xl",
+              "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
+              "border border-white/15 select-none",
+              "w-full max-w-[calc(100%-28px)] @min-[360px]:max-w-[320px] @min-[440px]:max-w-[360px]"
             )}
           >
             {/* Title */}
-            <h3 className="text-sm @min-[380px]:text-base @min-[480px]:text-lg font-semibold text-white leading-tight">
-              Continuar assistindo?
+            <h3 className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug tracking-tight text-center">
+              Você já começou a assistir este vídeo
             </h3>
 
-            {/* Subtitle with stopped position */}
-            <p className="text-[11px] @min-[380px]:text-xs text-zinc-300 font-medium mt-1 leading-relaxed">
-              Você parou em{" "}
-              <span className="font-mono font-semibold text-white">
-                {formatTime(
-                  resolvedResumeTime ??
-                    requestedResumeTime ??
-                    currentTime
-                )}
-              </span>
-            </p>
-
             {/* Action Buttons */}
-            <div className="flex flex-col @min-[380px]:flex-row items-stretch @min-[380px]:items-center justify-center gap-2 @min-[380px]:gap-2.5 mt-4 w-full">
+            <div className="flex flex-col gap-2 @min-[400px]:gap-2.5 mt-3.5 @min-[400px]:mt-4.5 w-full">
               {/* Primary Action: Continuar assistindo */}
               <button
                 type="button"
@@ -1163,9 +1148,9 @@ export function EvandroPlayer({
                   backgroundColor: "var(--player-accent)",
                   color: "var(--player-accent-foreground)",
                 }}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-xs @min-[400px]:text-sm shadow-lg hover:brightness-110 active:brightness-95 transition-all cursor-pointer select-none"
+                className="w-full inline-flex items-center justify-center gap-2 h-10 @min-[400px]:h-11 px-4 rounded-xl font-semibold text-xs @min-[400px]:text-sm shadow-lg shadow-black/25 hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer select-none"
               >
-                <Play className="size-3.5 @min-[400px]:size-4 fill-current shrink-0 ml-0.5" />
+                <Play className="size-4 fill-current shrink-0 ml-0.5" />
                 <span>Continuar assistindo</span>
               </button>
 
@@ -1173,9 +1158,9 @@ export function EvandroPlayer({
               <button
                 type="button"
                 onClick={handleRestartFromBeginning}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-xs @min-[400px]:text-sm bg-white/10 hover:bg-white/20 active:bg-white/15 text-white border border-white/15 transition-all cursor-pointer select-none"
+                className="w-full inline-flex items-center justify-center gap-2 h-9 @min-[400px]:h-9.5 px-4 rounded-xl font-medium text-xs @min-[400px]:text-[13px] bg-white/8 hover:bg-white/15 active:bg-white/10 text-white/80 hover:text-white border border-white/10 hover:border-white/20 active:scale-[0.98] transition-all cursor-pointer select-none"
               >
-                <RotateCcw className="size-3.5 @min-[400px]:size-4 shrink-0" />
+                <RotateCcw className="size-3.5 @min-[400px]:size-4 shrink-0 text-white/70" />
                 <span>Assistir do início</span>
               </button>
             </div>
@@ -1442,10 +1427,10 @@ export function EvandroPlayer({
         )}
 
       {/* Standalone Fake Progress Bar */}
-      {isFakeProgressEnabled && !isResumeActive && !isResumePreparing && (
+      {isFakeProgressEnabled && !isResumePreparing && (
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 bottom-0 z-15 pointer-events-none overflow-hidden select-none"
+          className="absolute inset-x-0 bottom-0 z-26 pointer-events-none overflow-hidden select-none"
           style={{
             height: `${fakeBarHeight}px`,
             backgroundColor: "rgba(255, 255, 255, 0.2)",
