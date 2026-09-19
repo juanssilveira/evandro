@@ -171,9 +171,9 @@ export class MuxVideoProvider implements VideoProviderAdapter {
       Number.isFinite(video.duration) &&
       video.duration > 0
         ? video.duration
-        : 10;
-    const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
-    return `https://image.mux.com/${playbackId}/animated.webp?start=0&end=${previewEnd}&width=640&fps=12`;
+        : 6;
+    const previewEnd = Math.max(1, Math.min(6, Math.floor(rawDuration)));
+    return `https://image.mux.com/${playbackId}/animated.webp?start=0&end=${previewEnd}&width=480&fps=8`;
   }
 
   async deleteVideo(video: Video): Promise<void> {

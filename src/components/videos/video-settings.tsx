@@ -170,6 +170,10 @@ export function VideoSettings({
       appearance: {
         ...config.appearance,
         ...(patch.appearance || {}),
+        thumbnail: {
+          ...config.appearance?.thumbnail,
+          ...(patch.appearance?.thumbnail || {}),
+        },
       },
       playback: {
         ...config.playback,
@@ -744,6 +748,43 @@ export function VideoSettings({
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* Show Thumbnail Toggle */}
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 py-3 px-3.5 sm:py-3 sm:px-4">
+              <div className="space-y-1">
+                <Label
+                  htmlFor={`show-thumbnail-switch-${videoId}`}
+                  className="text-xs font-semibold text-foreground cursor-pointer block"
+                >
+                  Exibir thumbnail
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Mostra a imagem de capa enquanto o vídeo aguarda o play.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {isPending && pendingField === "thumbnailEnabled" && (
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                )}
+                <Switch
+                  id={`show-thumbnail-switch-${videoId}`}
+                  checked={config.appearance?.thumbnail?.enabled ?? true}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    handleConfigUpdate(
+                      {
+                        appearance: {
+                          thumbnail: {
+                            enabled: checked,
+                          },
+                        },
+                      },
+                      "thumbnailEnabled"
+                    )
+                  }
+                />
               </div>
             </div>
 

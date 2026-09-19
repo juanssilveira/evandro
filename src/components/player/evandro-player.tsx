@@ -47,6 +47,8 @@ import {
   logPerformanceDebugReport,
 } from "./embed/performance-timing";
 
+import type { PlayerEngine } from "./engine/player-engine";
+
 export interface EvandroPlayerProps {
   src?: string;
   videoId?: string;
@@ -59,6 +61,8 @@ export interface EvandroPlayerProps {
   apiBase?: string;
   config?: PlayerConfig;
   debugEnabled?: boolean;
+  mediaElement?: HTMLVideoElement;
+  engine?: PlayerEngine;
   onEvent?: PlayerEventListener;
   onRuntimeReady?: (runtime: PlayerRuntime) => void;
 }
@@ -88,11 +92,21 @@ export function EvandroPlayer({
   apiBase,
   config = DEFAULT_PLAYER_CONFIG,
   debugEnabled,
+  mediaElement,
+  engine,
   onEvent,
   onRuntimeReady,
 }: EvandroPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const internalVideoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(mediaElement || null);
+
+  useEffect(() => {
+    if (mediaElement) {
+      videoRef.current = mediaElement;
+    }
+  }, [mediaElement]);
+
   const progressTrackRef = useRef<HTMLDivElement>(null);
   const volumeTrackRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<PlayerRuntime | null>(null);
@@ -221,11 +235,14 @@ export function EvandroPlayer({
     effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground
   );
 
-  // Derive highest-quality available preview
+  // Strict Startup Visual Policy (for editor / standalone fallback)
+  const isThumbEnabled = effectiveConfig.appearance?.thumbnail?.enabled ?? true;
   const candidateBgPreview = previewError ? null : backgroundPreviewUrl;
   const displayPreviewSrc = isBackgroundAutoplay
-    ? candidateBgPreview || posterUrl || null
-    : posterUrl || candidateBgPreview || null;
+    ? candidateBgPreview
+    : isThumbEnabled
+    ? posterUrl || null
+    : null;
 
   const playbackMode: PlaybackMode = isBackgroundAutoplay ? "background_autoplay" : "foreground";
 
@@ -234,7 +251,7 @@ export function EvandroPlayer({
 
   // Derived Preview / Poster Layer renders until REAL first video frame renders (zero black flash)
   const isPreviewVisible = Boolean(
-    displayPreviewSrc && !hasFirstFrameRendered
+    !mediaElement && displayPreviewSrc && !hasFirstFrameRendered
   );
 
   const initialVolume = effectiveConfig.playback?.defaultVolume ?? 1;
@@ -411,6 +428,7 @@ export function EvandroPlayer({
 
   // Media source attachment (Native Safari HLS bypass + Dynamic HLS Light for MSE)
   const attachMediaSource = useCallback(async (mediaSrc: string) => {
+    if (engine) return;
     const video = videoRef.current;
     if (!video || !mediaSrc) return;
 
@@ -529,10 +547,11 @@ export function EvandroPlayer({
     // 3. Fallback native
     markPerformance("ep:manifest:start", videoId);
     video.src = mediaSrc;
-  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId, effectiveDebug, mediaStateManager]);
+  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId, effectiveDebug, mediaStateManager, engine]);
 
-  // Attach media source conditionally once per resolved media URL
+  // Attach media source conditionally once per resolved media URL (only when not managed by external engine)
   useEffect(() => {
+    if (engine) return;
     if (isMediaAttached && resolvedSrc) {
       attachMediaSource(resolvedSrc);
     }
@@ -544,7 +563,76 @@ export function EvandroPlayer({
       }
       attachedSrcRef.current = null;
     };
-  }, [resolvedSrc, isMediaAttached, attachMediaSource]);
+  }, [resolvedSrc, isMediaAttached, attachMediaSource, engine]);
+
+  // Subscribe to external engine state if provided
+  useEffect(() => {
+    if (!engine) return;
+    const unsubscribe = engine.subscribe((s) => {
+      setIsPlaying(s.isPlaying);
+      setVolume(s.volume);
+      setIsMuted(s.isMuted);
+      setPlaybackRate(s.playbackRate);
+      if (s.hasFirstFrame) {
+        setHasFirstFrameRendered(true);
+      }
+      if (s.hasError) {
+        setHasError(true);
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [engine]);
+
+  // Sync native media element events when passed from embed stage
+  useEffect(() => {
+    if (!mediaElement) return;
+    const v = mediaElement;
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onEnded = () => setIsEnded(true);
+    const onPlaying = () => {
+      setIsPlaying(true);
+      setHasStartedPlayingForeground(true);
+    };
+    const onTime = () => {
+      if (!isDraggingSeek) setCurrentTime(v.currentTime);
+    };
+    const onDuration = () => {
+      if (Number.isFinite(v.duration)) setDuration(v.duration);
+    };
+    const onVol = () => {
+      setVolume(v.volume);
+      setIsMuted(v.muted || v.volume === 0);
+    };
+
+    v.addEventListener("play", onPlay);
+    v.addEventListener("pause", onPause);
+    v.addEventListener("ended", onEnded);
+    v.addEventListener("playing", onPlaying);
+    v.addEventListener("timeupdate", onTime);
+    v.addEventListener("durationchange", onDuration);
+    v.addEventListener("volumechange", onVol);
+
+    queueMicrotask(() => {
+      if (v.readyState >= 1 && Number.isFinite(v.duration)) {
+        setDuration(v.duration);
+      }
+      setCurrentTime(v.currentTime);
+      setIsPlaying(!v.paused);
+    });
+
+    return () => {
+      v.removeEventListener("play", onPlay);
+      v.removeEventListener("pause", onPause);
+      v.removeEventListener("ended", onEnded);
+      v.removeEventListener("playing", onPlaying);
+      v.removeEventListener("timeupdate", onTime);
+      v.removeEventListener("durationchange", onDuration);
+      v.removeEventListener("volumechange", onVol);
+    };
+  }, [mediaElement, isDraggingSeek]);
 
   // Initialize PlayerRuntime and PlaybackController lifecycle once per videoId / debug flag
   useEffect(() => {
@@ -698,7 +786,9 @@ export function EvandroPlayer({
 
     activateSession();
 
-    if (playbackControllerRef.current) {
+    if (engine) {
+      await engine.startForeground(targetVol);
+    } else if (playbackControllerRef.current) {
       await playbackControllerRef.current.startForegroundPlayback(targetVol);
     } else {
       video.loop = false;
@@ -724,6 +814,7 @@ export function EvandroPlayer({
     activateSession,
     videoId,
     mediaStateManager,
+    engine,
   ]);
 
   // Play / Pause toggle
@@ -1126,6 +1217,8 @@ export function EvandroPlayer({
       ? "aspect-square"
       : "aspect-video";
 
+  const isEmbedded = Boolean(mediaElement);
+
   return (
     <div
       ref={containerRef}
@@ -1138,14 +1231,16 @@ export function EvandroPlayer({
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleContainerDoubleClick}
       className={cn(
-        "@container relative w-full overflow-hidden bg-black select-none group font-sans flex items-center justify-center border border-border/40 shadow-2xl mx-auto",
-        aspectClass,
+        "@container relative w-full overflow-hidden select-none group font-sans flex items-center justify-center mx-auto",
+        !isEmbedded && "bg-black border border-border/40 shadow-2xl",
+        !isEmbedded && aspectClass,
+        isEmbedded ? "h-full" : aspectClass,
         isFullscreen && "border-none max-h-screen max-w-none aspect-auto h-full",
         className
       )}
     >
-      {/* Derived Lightweight Background Preview / Poster Layer (R2 / Mux Animated WebP / GIF / Poster) */}
-      {isPreviewVisible && displayPreviewSrc && (
+      {/* Derived Lightweight Background Preview / Poster Layer (Only in standalone / editor fallback mode) */}
+      {!isEmbedded && isPreviewVisible && displayPreviewSrc && (
         <div
           aria-hidden="true"
           className={cn(
@@ -1167,29 +1262,30 @@ export function EvandroPlayer({
         </div>
       )}
 
-      {/* Native Video Element (Real Mux / Bunny HLS Playback) */}
-      <video
-        ref={videoRef}
-        poster={posterUrl || undefined}
-        playsInline
-        preload="auto"
-        autoPlay={isBackgroundAutoplay}
-        muted={isBackgroundAutoplay}
-        controls={false}
-        onClick={togglePlay}
-        onLoadStart={handleLoadStart}
-        onCanPlay={handleCanPlay}
-        onDurationChange={handleDurationChange}
-        onTimeUpdate={handleTimeUpdate}
-        onVolumeChange={handleVolumeSync}
-        onLoadedMetadata={handleLoadedMetadata}
-        onWaiting={handleWaiting}
-        onPlaying={handlePlaying}
-        onPause={handlePause}
-        onEnded={handleEnded}
-        onError={handleError}
-        className="w-full h-full object-contain cursor-pointer"
-      />
+      {/* Native Video Element (Only rendered when not using pre-existing mediaElement from Stage) */}
+      {!isEmbedded && (
+        <video
+          ref={internalVideoRef}
+          playsInline
+          preload="auto"
+          autoPlay={isBackgroundAutoplay}
+          muted={isBackgroundAutoplay}
+          controls={false}
+          onClick={togglePlay}
+          onLoadStart={handleLoadStart}
+          onCanPlay={handleCanPlay}
+          onDurationChange={handleDurationChange}
+          onTimeUpdate={handleTimeUpdate}
+          onVolumeChange={handleVolumeSync}
+          onLoadedMetadata={handleLoadedMetadata}
+          onWaiting={handleWaiting}
+          onPlaying={handlePlaying}
+          onPause={handlePause}
+          onEnded={handleEnded}
+          onError={handleError}
+          className="w-full h-full object-contain cursor-pointer"
+        />
+      )}
 
       {/* Loading Buffering Indicator (Delayed trigger via MediaLoadingStateManager) */}
       {isLoading && !hasError && (

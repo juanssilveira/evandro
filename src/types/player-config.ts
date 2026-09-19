@@ -138,12 +138,22 @@ export const playerConfigSchema = z.object({
       aspectRatio: z.enum(playerAspectRatios).default("16:9"),
       showTitle: z.boolean().default(true),
       borderRadius: z.number().min(0).max(32).default(12),
+      thumbnail: z
+        .object({
+          enabled: z.boolean().default(true),
+        })
+        .default({
+          enabled: true,
+        }),
     })
     .default({
       accentColor: "purple",
       aspectRatio: "16:9",
       showTitle: true,
       borderRadius: 12,
+      thumbnail: {
+        enabled: true,
+      },
     }),
 
   playback: z
@@ -234,6 +244,9 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
     aspectRatio: "16:9",
     showTitle: true,
     borderRadius: 12,
+    thumbnail: {
+      enabled: true,
+    },
   },
 
   playback: {

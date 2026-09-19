@@ -7,8 +7,14 @@ export type PerformanceMarkName =
   | "ep:loader:start"
   | "ep:bootstrap:start"
   | "ep:bootstrap:end"
+  | "ep:engine:start"
+  | "ep:engine:ready"
   | "ep:core:start"
   | "ep:core:ready"
+  | "ep:visual:preview:start"
+  | "ep:visual:preview:ready"
+  | "ep:visual:thumbnail:start"
+  | "ep:visual:thumbnail:ready"
   | "ep:hls-engine:start"
   | "ep:hls-engine:ready"
   | "ep:media:attach"
@@ -19,6 +25,8 @@ export type PerformanceMarkName =
   | "ep:first-frag:buffered"
   | "ep:canplay"
   | "ep:first-frame"
+  | "ep:main:first-frame"
+  | "ep:startup-visual:release"
   | "ep:user-play"
   | "ep:user-play-first-frame";
 

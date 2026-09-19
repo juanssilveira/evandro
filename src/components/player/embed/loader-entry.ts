@@ -1,16 +1,24 @@
 /**
  * Evandro Player Tiny Loader (Budget <= 25 KB)
- * Ultra-fast bootstrap coordinator, custom element registry, and parallel asset loader.
+ * Ultra-fast bootstrap coordinator, custom element registry, persistent stage creator,
+ * and parallel early media engine initializer.
  */
 
 import { shouldUseNativeHls } from "./hls-capabilities";
+import type { PlayerEngine } from "../engine/player-engine";
+import type { EngineSourceOptions } from "../engine/types";
+import type { EvandroPlayerEngineModule } from "../engine/player-engine-entry";
+import type { PlayerConfig } from "@/types/player-config";
 
 declare const __EVANDRO_PLAYER_API_BASE__: string;
+declare const __EVANDRO_PLAYER_ENGINE_FILENAME__: string;
 declare const __EVANDRO_PLAYER_CORE_FILENAME__: string;
 declare const __EVANDRO_PLAYER_HLS_FILENAME__: string;
 
 const API_BASE: string =
   typeof __EVANDRO_PLAYER_API_BASE__ !== "undefined" ? __EVANDRO_PLAYER_API_BASE__ : "";
+const ENGINE_FILENAME: string =
+  typeof __EVANDRO_PLAYER_ENGINE_FILENAME__ !== "undefined" ? __EVANDRO_PLAYER_ENGINE_FILENAME__ : "assets/player-engine.js";
 const CORE_FILENAME: string =
   typeof __EVANDRO_PLAYER_CORE_FILENAME__ !== "undefined" ? __EVANDRO_PLAYER_CORE_FILENAME__ : "assets/player-core.js";
 const HLS_FILENAME: string =
@@ -40,19 +48,32 @@ export interface BootstrapVideoData {
     appearance?: {
       aspectRatio?: string;
       borderRadius?: number;
+      thumbnail?: {
+        enabled?: boolean;
+      };
     };
     playback?: {
       backgroundAutoplay?: boolean;
     };
+    development?: {
+      debug?: boolean;
+    };
   };
+}
+
+export interface PlayerMountContext {
+  mediaElement: HTMLVideoElement;
+  engine: PlayerEngine | null;
+  stageElement: HTMLDivElement;
 }
 
 export interface EvandroPlayerCoreModule {
   mount: (
-    container: HTMLDivElement,
+    container: HTMLElement,
     shadowRoot: ShadowRoot,
     videoId: string,
-    apiBase: string
+    apiBase: string,
+    context?: PlayerMountContext
   ) => { unmount: () => void; update: (videoId: string, apiBase: string) => void };
   ready: boolean;
 }
@@ -64,11 +85,13 @@ export interface EvandroPlayerBootstrapRegistry {
   preconnect: (url: string) => void;
   preloadVisual: (url: string) => void;
   preloadHls: () => void;
+  enginePromise: Promise<EvandroPlayerEngineModule> | null;
   corePromise: Promise<EvandroPlayerCoreModule> | null;
 }
 
 interface WindowWithEvandroPlayer extends Window {
   __EVANDRO_PLAYER_BOOTSTRAP__?: EvandroPlayerBootstrapRegistry;
+  __EVANDRO_PLAYER_ENGINE__?: EvandroPlayerEngineModule;
   __EVANDRO_PLAYER_CORE__?: EvandroPlayerCoreModule;
 }
 
@@ -219,10 +242,16 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
         }
       }
 
-      // Warm primary visual asset
-      if (json.config?.playback?.backgroundAutoplay && json.backgroundPreviewUrl) {
+      // Strict Startup Visual Policy Preload:
+      // 1. Background Autoplay ON: preload preview only (no poster fallback)
+      // 2. BG OFF + Thumbnail ON: preload poster only (no preview)
+      // 3. BG OFF + Thumbnail OFF: 0 visual preloads
+      const isBg = Boolean(json.config?.playback?.backgroundAutoplay);
+      const isThumbEnabled = json.config?.appearance?.thumbnail?.enabled ?? true;
+
+      if (isBg && json.backgroundPreviewUrl) {
         preloadVisualAsset(json.backgroundPreviewUrl);
-      } else if (json.posterUrl) {
+      } else if (!isBg && isThumbEnabled && json.posterUrl) {
         preloadVisualAsset(json.posterUrl);
       }
 
@@ -232,6 +261,49 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
   if (win?.__EVANDRO_PLAYER_BOOTSTRAP__) {
     win.__EVANDRO_PLAYER_BOOTSTRAP__.map[cacheKey] = promise;
   }
+  return promise;
+}
+
+function loadPlayerEngineModule(): Promise<EvandroPlayerEngineModule> {
+  if (win?.__EVANDRO_PLAYER_BOOTSTRAP__?.enginePromise) {
+    return win.__EVANDRO_PLAYER_BOOTSTRAP__.enginePromise;
+  }
+
+  const embedBase = getEmbedBaseUrl();
+  const engineUrl = new URL(ENGINE_FILENAME, embedBase).href;
+
+  const promise = new Promise<EvandroPlayerEngineModule>((resolve, reject) => {
+    if (win?.__EVANDRO_PLAYER_ENGINE__?.ready) {
+      resolve(win.__EVANDRO_PLAYER_ENGINE__);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = engineUrl;
+    script.crossOrigin = "anonymous";
+    script.async = true;
+
+    script.onload = () => {
+      if (win?.__EVANDRO_PLAYER_ENGINE__) {
+        resolve(win.__EVANDRO_PLAYER_ENGINE__);
+      } else {
+        reject(new Error("Engine module loaded but __EVANDRO_PLAYER_ENGINE__ not found."));
+      }
+    };
+
+    script.onerror = (err) => {
+      console.error("[Evandro Player Loader] Failed to load Player Engine:", engineUrl, err);
+      reject(err);
+    };
+
+    document.head.appendChild(script);
+  });
+
+  if (win?.__EVANDRO_PLAYER_BOOTSTRAP__) {
+    win.__EVANDRO_PLAYER_BOOTSTRAP__.enginePromise = promise;
+  }
+
   return promise;
 }
 
@@ -252,7 +324,6 @@ function loadPlayerCore(): Promise<EvandroPlayerCoreModule> {
   const coreUrl = new URL(CORE_FILENAME, embedBase).href;
 
   const promise = new Promise<EvandroPlayerCoreModule>((resolve, reject) => {
-    // If already loaded via script
     if (win?.__EVANDRO_PLAYER_CORE__?.ready) {
       resolve(win.__EVANDRO_PLAYER_CORE__);
       return;
@@ -287,7 +358,7 @@ function loadPlayerCore(): Promise<EvandroPlayerCoreModule> {
   return promise;
 }
 
-// Initialize global bootstrap registry with resolved storage
+// Initialize global bootstrap registry
 if (win && !win.__EVANDRO_PLAYER_BOOTSTRAP__) {
   win.__EVANDRO_PLAYER_BOOTSTRAP__ = {
     map: {},
@@ -296,6 +367,7 @@ if (win && !win.__EVANDRO_PLAYER_BOOTSTRAP__) {
     preconnect: preconnectOrigin,
     preloadVisual: preloadVisualAsset,
     preloadHls: preloadHlsEngine,
+    enginePromise: null,
     corePromise: null,
   };
 }
@@ -313,9 +385,13 @@ export class EvandroPlayerElement extends HTMLElement {
   }
 
   private _mountHandle: { unmount: () => void; update: (videoId: string, apiBase: string) => void } | null = null;
-  private _mountContainer: HTMLDivElement | null = null;
   private _shadowRoot: ShadowRoot | null = null;
-  private _shellElement: HTMLDivElement | null = null;
+  private _stageElement: HTMLDivElement | null = null;
+  private _mediaLayer: HTMLDivElement | null = null;
+  private _videoElement: HTMLVideoElement | null = null;
+  private _startupVisualElement: HTMLDivElement | null = null;
+  private _uiRoot: HTMLDivElement | null = null;
+  private _engine: PlayerEngine | null = null;
   private _isMounted = false;
 
   constructor() {
@@ -323,35 +399,99 @@ export class EvandroPlayerElement extends HTMLElement {
   }
 
   public connectedCallback(): void {
+    // Synchronously create persistent Stage and Video Element before any async work
     if (!this._shadowRoot) {
       this._shadowRoot = this.attachShadow({ mode: "open" });
 
-      // Create React mount container
-      this._mountContainer = document.createElement("div");
-      this._mountContainer.className = "evandro-player-embed-root";
-      this._shadowRoot.appendChild(this._mountContainer);
+      // 1. Stage container
+      const stage = document.createElement("div");
+      stage.setAttribute("data-evandro-player-stage", "true");
+      stage.style.cssText =
+        "position:relative;width:100%;height:100%;background:#000;border-radius:inherit;overflow:hidden;display:flex;align-items:center;justify-content:center;";
+
+      // 2. Media layer & persistent single HTMLVideoElement
+      const mediaLayer = document.createElement("div");
+      mediaLayer.setAttribute("data-evandro-player-media-layer", "true");
+      mediaLayer.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:0;";
+
+      const video = document.createElement("video");
+      video.setAttribute("data-evandro-player-media", "true");
+      video.playsInline = true;
+      video.preload = "auto";
+      video.style.cssText = "width:100%;height:100%;object-fit:contain;cursor:pointer;";
+      mediaLayer.appendChild(video);
+
+      // 3. Startup visual container
+      const startupVisual = document.createElement("div");
+      startupVisual.setAttribute("data-evandro-player-startup-visual", "true");
+      startupVisual.style.cssText =
+        "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:inherit;transition:opacity 150ms ease-out;";
+
+      // 4. UI Root for React Core mounting
+      const uiRoot = document.createElement("div");
+      uiRoot.setAttribute("data-evandro-player-ui-root", "true");
+      uiRoot.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:auto;";
+
+      stage.appendChild(mediaLayer);
+      stage.appendChild(startupVisual);
+      stage.appendChild(uiRoot);
+      this._shadowRoot.appendChild(stage);
+
+      this._stageElement = stage;
+      this._mediaLayer = mediaLayer;
+      this._videoElement = video;
+      this._startupVisualElement = startupVisual;
+      this._uiRoot = uiRoot;
     }
 
     const videoId = this.getAttribute("video-id") || "";
+
+    // Parallel bootstrap, engine, core, and HLS prewarm
+    preloadHlsEngine();
+    const enginePromise = loadPlayerEngineModule().catch(() => null);
+    const corePromise = loadPlayerCore().catch(() => null);
+
     if (videoId) {
-      // Kick off early bootstrap in parallel immediately
       const bootstrapPromise = startEarlyBootstrap(API_BASE, videoId);
 
-      // Render lightweight visual shell in Shadow DOM if bootstrap resolves before Core mounts
-      bootstrapPromise
-        .then((data) => {
-          if (!this._isMounted && this._shadowRoot && !this._shellElement) {
-            this.renderVisualShell(data);
+      // Early Media Initialization: as soon as bootstrap + engine resolve, start playback immediately!
+      Promise.all([bootstrapPromise, enginePromise])
+        .then(([bootstrapData, engineModule]) => {
+          if (!this.isConnected || !this._videoElement || !this._startupVisualElement) return;
+
+          if (engineModule && !this._engine) {
+            this._engine = engineModule.create({
+              videoElement: this._videoElement,
+              stageElement: this._stageElement,
+              startupVisualElement: this._startupVisualElement,
+              debug: Boolean(bootstrapData.config?.development?.debug),
+            });
+          }
+
+          if (this._engine && bootstrapData) {
+            const playbackUrl = bootstrapData.playback?.url || bootstrapData.playbackUrl;
+            if (playbackUrl) {
+              const engineOptions: EngineSourceOptions = {
+                videoId: bootstrapData.videoId || videoId,
+                playbackUrl,
+                backgroundAutoplay: Boolean(bootstrapData.config?.playback?.backgroundAutoplay),
+                thumbnailEnabled: bootstrapData.config?.appearance?.thumbnail?.enabled ?? true,
+                posterUrl: bootstrapData.posterUrl,
+                backgroundPreviewUrl: bootstrapData.backgroundPreviewUrl,
+                config: bootstrapData.config as unknown as PlayerConfig,
+              };
+
+              this._engine.loadSource(engineOptions).catch((err) => {
+                console.error("[Evandro Player Loader] Early engine loadSource error:", err);
+              });
+            }
           }
         })
         .catch(() => {});
     }
 
-    // Kick off core bundle download and HLS engine preload in parallel immediately
-    preloadHlsEngine();
-    loadPlayerCore().catch(() => {});
-
-    this.mountCore();
+    // Mount React Core into UI Root when ready
+    this.mountCore(corePromise);
   }
 
   public disconnectedCallback(): void {
@@ -359,9 +499,9 @@ export class EvandroPlayerElement extends HTMLElement {
       this._mountHandle.unmount();
       this._mountHandle = null;
     }
-    if (this._shellElement) {
-      this._shellElement.remove();
-      this._shellElement = null;
+    if (this._engine) {
+      this._engine.destroy();
+      this._engine = null;
     }
     this._isMounted = false;
   }
@@ -374,70 +514,55 @@ export class EvandroPlayerElement extends HTMLElement {
     if (oldValue !== newValue && this._shadowRoot) {
       const videoId = newValue || "";
       if (videoId) {
-        startEarlyBootstrap(API_BASE, videoId);
+        startEarlyBootstrap(API_BASE, videoId).then((data) => {
+          const playbackUrl = data.playback?.url || data.playbackUrl;
+          if (playbackUrl && this._engine) {
+            this._engine.loadSource({
+              videoId: data.videoId || videoId,
+              playbackUrl,
+              backgroundAutoplay: Boolean(data.config?.playback?.backgroundAutoplay),
+              thumbnailEnabled: data.config?.appearance?.thumbnail?.enabled ?? true,
+              posterUrl: data.posterUrl,
+              backgroundPreviewUrl: data.backgroundPreviewUrl,
+              config: data.config as unknown as PlayerConfig,
+            });
+          }
+        }).catch(() => {});
       }
+
       if (this._mountHandle) {
         this._mountHandle.update(videoId, API_BASE);
       } else {
-        this.mountCore();
+        this.mountCore(loadPlayerCore().catch(() => null));
       }
     }
   }
 
-  private renderVisualShell(data: BootstrapVideoData): void {
-    if (this._isMounted || !this._shadowRoot || this._shellElement) return;
-
-    const isBg = Boolean(data.config?.playback?.backgroundAutoplay);
-    const previewSrc = isBg
-      ? data.backgroundPreviewUrl || data.posterUrl
-      : data.posterUrl || data.backgroundPreviewUrl;
-
-    const shell = document.createElement("div");
-    shell.setAttribute("data-evandro-player-shell", "true");
-    shell.style.cssText =
-      "position:absolute;inset:0;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:12px;z-index:0;pointer-events:none;";
-
-    if (previewSrc) {
-      const img = document.createElement("img");
-      img.src = previewSrc;
-      img.alt = "";
-      img.style.cssText = "width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;";
-      shell.appendChild(img);
-    }
-
-    this._shellElement = shell;
-    // Prepend shell behind the mount container so Core takes over smoothly
-    this._shadowRoot.insertBefore(shell, this._mountContainer);
-  }
-
-  private async mountCore(): Promise<void> {
-    if (this._isMounted || !this._mountContainer || !this._shadowRoot) return;
+  private async mountCore(corePromise: Promise<EvandroPlayerCoreModule | null>): Promise<void> {
+    if (this._isMounted || !this._uiRoot || !this._shadowRoot || !this._stageElement || !this._videoElement) return;
 
     const videoId = this.getAttribute("video-id") || "";
 
     try {
-      await loadPlayerCore();
+      await corePromise;
 
-      if (!this._mountContainer || !this._shadowRoot || !this.isConnected) return;
+      if (!this._uiRoot || !this._shadowRoot || !this._stageElement || !this._videoElement || !this.isConnected) return;
 
       if (win?.__EVANDRO_PLAYER_CORE__?.mount) {
+        const mountContext: PlayerMountContext = {
+          mediaElement: this._videoElement,
+          engine: this._engine,
+          stageElement: this._stageElement,
+        };
+
         this._mountHandle = win.__EVANDRO_PLAYER_CORE__.mount(
-          this._mountContainer,
+          this._uiRoot,
           this._shadowRoot,
           videoId,
-          API_BASE
+          API_BASE,
+          mountContext
         );
         this._isMounted = true;
-
-        // Clean up visual shell once React has mounted
-        if (this._shellElement) {
-          const shell = this._shellElement;
-          this._shellElement = null;
-          // Short timeout to guarantee zero black flash while React finishes first paint
-          setTimeout(() => {
-            shell.remove();
-          }, 100);
-        }
       }
     } catch (err) {
       console.error("[Evandro Player Element] Error mounting player core:", err);
@@ -462,6 +587,7 @@ if (typeof document !== "undefined") {
 
   if (existingElements.length > 0) {
     preloadHlsEngine();
+    loadPlayerEngineModule().catch(() => {});
     loadPlayerCore().catch(() => {});
   }
 }

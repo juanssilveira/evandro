@@ -94,7 +94,16 @@ const pathAliasPlugin = {
   },
 };
 
-console.log(`[Build Embed] 2/4 Building Player Core & Dynamic HLS Chunks (ESM)...`);
+console.log(`[Build Embed] 2/4 Building Headless Player Engine, Player Core & Dynamic HLS Chunks (ESM)...`);
+
+const engineEntryFile = path.join(
+  rootDir,
+  "src",
+  "components",
+  "player",
+  "engine",
+  "player-engine-entry.ts"
+);
 
 const coreEntryFile = path.join(
   rootDir,
@@ -105,8 +114,11 @@ const coreEntryFile = path.join(
   "player-core-entry.tsx"
 );
 
-const coreBuildResult = await esbuild.build({
-  entryPoints: { "player-core": coreEntryFile },
+const splitBuildResult = await esbuild.build({
+  entryPoints: {
+    "player-engine": engineEntryFile,
+    "player-core": coreEntryFile,
+  },
   bundle: true,
   splitting: true,
   outdir: publicAssetsDir,
@@ -130,13 +142,16 @@ const coreBuildResult = await esbuild.build({
   plugins: [pathAliasPlugin],
 });
 
-// Find the main player-core output file name and HLS chunk
+// Find the engine, core, and HLS chunks
+let engineOutputRelativePath = "";
 let coreOutputRelativePath = "";
 let hlsOutputRelativePath = "";
 
-for (const [outPath, meta] of Object.entries(coreBuildResult.metafile.outputs)) {
+for (const [outPath, meta] of Object.entries(splitBuildResult.metafile.outputs)) {
   const base = path.basename(outPath);
-  if (base.startsWith("player-core-") && base.endsWith(".js")) {
+  if (base.startsWith("player-engine-") && base.endsWith(".js")) {
+    engineOutputRelativePath = `assets/${base}`;
+  } else if (base.startsWith("player-core-") && base.endsWith(".js")) {
     coreOutputRelativePath = `assets/${base}`;
   } else if (base.endsWith(".js")) {
     // Check if this chunk contains HLS.js source
@@ -149,6 +164,10 @@ for (const [outPath, meta] of Object.entries(coreBuildResult.metafile.outputs)) 
   }
 }
 
+if (!engineOutputRelativePath) {
+  throw new Error("[Build Embed] Could not find player-engine output file in build metafile.");
+}
+
 if (!coreOutputRelativePath) {
   throw new Error("[Build Embed] Could not find player-core output file in build metafile.");
 }
@@ -157,9 +176,11 @@ if (!hlsOutputRelativePath) {
   throw new Error("[Build Embed] Could not find HLS chunk in build metafile.");
 }
 
+console.log(`[Build Embed] Player Engine: ENABLED (${engineOutputRelativePath})`);
+console.log(`[Build Embed] Player Core: ENABLED (${coreOutputRelativePath})`);
 console.log(`[Build Embed] HLS Early Warm: ENABLED (${hlsOutputRelativePath})`);
 
-console.log(`[Build Embed] 3/4 Bundling Standalone Tiny Loader (API Base: ${apiBaseUrl}, Core: ${coreOutputRelativePath}, HLS: ${hlsOutputRelativePath})...`);
+console.log(`[Build Embed] 3/4 Bundling Standalone Tiny Loader (API Base: ${apiBaseUrl}, Engine: ${engineOutputRelativePath}, Core: ${coreOutputRelativePath}, HLS: ${hlsOutputRelativePath})...`);
 
 const loaderEntryFile = path.join(
   rootDir,
@@ -187,6 +208,7 @@ await esbuild.build({
   define: {
     "process.env.NODE_ENV": '"production"',
     "__EVANDRO_PLAYER_API_BASE__": JSON.stringify(apiBaseUrl),
+    "__EVANDRO_PLAYER_ENGINE_FILENAME__": JSON.stringify(engineOutputRelativePath),
     "__EVANDRO_PLAYER_CORE_FILENAME__": JSON.stringify(coreOutputRelativePath),
     "__EVANDRO_PLAYER_HLS_FILENAME__": JSON.stringify(hlsOutputRelativePath),
   },
@@ -207,17 +229,21 @@ console.log("            EVANDRO PLAYER EMBED BUILD REPORT           ");
 console.log("========================================================");
 console.log(`- Tiny Loader: ${loaderOutputFile}`);
 console.log(`  Size: ${loaderStats.size.toLocaleString()} bytes (${loaderSizeKb} KB) / Budget: <= ${loaderBudgetKb} KB [${loaderStats.size <= loaderBudgetKb * 1024 ? "PASS" : "FAIL"}]`);
+console.log(`  Player Engine: ${engineOutputRelativePath}`);
+console.log(`  Player Core: ${coreOutputRelativePath}`);
 console.log(`  HLS Early Warm: ENABLED -> ${hlsOutputRelativePath}`);
 
 let totalAssetsSize = loaderStats.size;
 
 console.log("\n- Split Core Assets:");
-for (const [outPath, meta] of Object.entries(coreBuildResult.metafile.outputs)) {
+for (const [outPath, meta] of Object.entries(splitBuildResult.metafile.outputs)) {
   if (outPath.endsWith(".js")) {
     const assetSize = meta.bytes;
     totalAssetsSize += assetSize;
     const assetSizeKb = (assetSize / 1024).toFixed(2);
-    const label = outPath.includes("player-core")
+    const label = outPath.includes("player-engine")
+      ? " [Player Engine]"
+      : outPath.includes("player-core")
       ? " [Player Core]"
       : Object.keys(meta.inputs || {}).some((i) => i.includes("hls"))
       ? " [HLS Engine]"

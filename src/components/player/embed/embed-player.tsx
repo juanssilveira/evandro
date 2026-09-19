@@ -7,10 +7,14 @@ import { AlertCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type PlayerConfig, DEFAULT_PLAYER_CONFIG, parsePlayerConfig } from "@/types/player-config";
 import { markPerformance } from "./performance-timing";
+import type { PlayerEngine } from "../engine/player-engine";
 
 export interface EmbedPlayerProps {
   videoId: string;
   apiBase?: string;
+  mediaElement?: HTMLVideoElement;
+  engine?: PlayerEngine;
+  stageElement?: HTMLElement;
 }
 
 interface EmbedVideoData {
@@ -82,7 +86,12 @@ function parsePayloadToEmbedData(
   };
 }
 
-export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
+export function EmbedPlayer({
+  videoId,
+  apiBase,
+  mediaElement,
+  engine,
+}: EmbedPlayerProps) {
   const base = (apiBase || "").replace(/\/$/, "");
   const cacheKey = `${base}:${videoId}`;
 
@@ -198,11 +207,14 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
           ? parsePlayerConfig(json.config)
           : DEFAULT_PLAYER_CONFIG;
 
-        // Warm up priority visual asset
+        // Warm up priority visual asset according to strict policy
         if (typeof window !== "undefined" && window.__EVANDRO_PLAYER_BOOTSTRAP__?.preloadVisual) {
-          if (parsedConfig.playback?.backgroundAutoplay && json.backgroundPreviewUrl) {
+          const isBg = Boolean(parsedConfig.playback?.backgroundAutoplay);
+          const isThumbEnabled = parsedConfig.appearance?.thumbnail?.enabled ?? true;
+
+          if (isBg && json.backgroundPreviewUrl) {
             window.__EVANDRO_PLAYER_BOOTSTRAP__.preloadVisual(json.backgroundPreviewUrl);
-          } else if (json.posterUrl) {
+          } else if (!isBg && isThumbEnabled && json.posterUrl) {
             window.__EVANDRO_PLAYER_BOOTSTRAP__.preloadVisual(json.posterUrl);
           }
         }
@@ -280,8 +292,11 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
       ? "aspect-square"
       : "aspect-video";
 
-  // Initial technical loading placeholder without spinner (shell/poster will show beneath)
+  // Initial technical loading placeholder without spinner (stage & video exist underneath)
   if (status === "loading") {
+    if (mediaElement) {
+      return <div className="w-full h-full pointer-events-none" />;
+    }
     return (
       <div
         className={cn(
@@ -356,6 +371,8 @@ export function EmbedPlayer({ videoId, apiBase }: EmbedPlayerProps) {
       title={data.title}
       config={data.config}
       debugEnabled={data.config.development.debug}
+      mediaElement={mediaElement}
+      engine={engine}
     />
   );
 }

@@ -24,9 +24,9 @@ export function getMuxFallbackAnimatedPreviewUrl(
   const rawDuration =
     typeof duration === "number" && Number.isFinite(duration) && duration > 0
       ? duration
-      : 10;
-  const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
-  return `https://image.mux.com/${playbackId}/animated.webp?start=0&end=${previewEnd}&width=640&fps=12`;
+      : 6;
+  const previewEnd = Math.max(1, Math.min(6, Math.floor(rawDuration)));
+  return `https://image.mux.com/${playbackId}/animated.webp?start=0&end=${previewEnd}&width=480&fps=8`;
 }
 
 /**
@@ -107,9 +107,9 @@ export async function generateAndStoreBackgroundPreview(
           Number.isFinite(targetVideo.duration) &&
           targetVideo.duration > 0
             ? targetVideo.duration
-            : 10;
-        const previewEnd = Math.max(1, Math.min(10, Math.floor(rawDuration)));
-        const gifUrl = `https://image.mux.com/${playbackId}/animated.gif?start=0&end=${previewEnd}&width=640&fps=12`;
+            : 6;
+        const previewEnd = Math.max(1, Math.min(6, Math.floor(rawDuration)));
+        const gifUrl = `https://image.mux.com/${playbackId}/animated.gif?start=0&end=${previewEnd}&width=480&fps=8`;
         response = await fetch(gifUrl, {
           headers: {
             Referer: `${baseUrl}/`,

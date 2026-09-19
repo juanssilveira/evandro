@@ -2,6 +2,7 @@ import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { EmbedPlayer } from "./embed-player";
 import EMBED_CSS from "./embed-styles.generated.css";
+import type { PlayerMountContext } from "./loader-entry";
 
 export interface PlayerMountHandle {
   unmount: () => void;
@@ -19,13 +20,14 @@ interface WindowWithCore extends Window {
 
 /**
  * Mounts React EmbedPlayer inside the provided shadow root and container.
- * Injects isolated Shadow DOM CSS styles.
+ * Injects isolated Shadow DOM CSS styles and passes pre-existing stage/engine/media context.
  */
 export function mountEvandroPlayer(
-  container: HTMLDivElement,
+  container: HTMLElement,
   shadowRoot: ShadowRoot,
   videoId: string,
-  apiBase: string
+  apiBase: string,
+  context?: PlayerMountContext
 ): PlayerMountHandle {
   // Check if style is already injected
   if (!shadowRoot.querySelector("style[data-evandro-player-styles]")) {
@@ -37,14 +39,30 @@ export function mountEvandroPlayer(
 
   const root: Root = createRoot(container);
 
-  root.render(<EmbedPlayer videoId={videoId} apiBase={apiBase} />);
+  root.render(
+    <EmbedPlayer
+      videoId={videoId}
+      apiBase={apiBase}
+      mediaElement={context?.mediaElement}
+      engine={context?.engine || undefined}
+      stageElement={context?.stageElement}
+    />
+  );
 
   return {
     unmount: () => {
       root.unmount();
     },
     update: (newVideoId: string, newApiBase: string) => {
-      root.render(<EmbedPlayer videoId={newVideoId} apiBase={newApiBase} />);
+      root.render(
+        <EmbedPlayer
+          videoId={newVideoId}
+          apiBase={newApiBase}
+          mediaElement={context?.mediaElement}
+          engine={context?.engine || undefined}
+          stageElement={context?.stageElement}
+        />
+      );
     },
   };
 }
