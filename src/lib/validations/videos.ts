@@ -33,6 +33,11 @@ export const updatePlayerConfigActionSchema = z.object({
         aspectRatio: z.enum(["16:9", "9:16", "1:1"]).optional(),
         showTitle: z.boolean().optional(),
         borderRadius: z.number().min(0).max(32).optional(),
+        thumbnail: z
+          .object({
+            enabled: z.boolean().optional(),
+          })
+          .optional(),
       })
       .optional(),
     playback: z

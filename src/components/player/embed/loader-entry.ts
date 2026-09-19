@@ -63,7 +63,7 @@ export interface BootstrapVideoData {
 
 export interface PlayerMountContext {
   mediaElement: HTMLVideoElement;
-  engine: PlayerEngine | null;
+  engine: PlayerEngine;
   stageElement: HTMLDivElement;
 }
 
@@ -448,50 +448,72 @@ export class EvandroPlayerElement extends HTMLElement {
 
     // Parallel bootstrap, engine, core, and HLS prewarm
     preloadHlsEngine();
-    const enginePromise = loadPlayerEngineModule().catch(() => null);
-    const corePromise = loadPlayerCore().catch(() => null);
 
+    // 1. Load Engine module & create stable PlayerEngine instance immediately
+    const engineModulePromise = loadPlayerEngineModule();
+    const engineReadyPromise = engineModulePromise
+      .then((engineModule) => {
+        if (!this.isConnected || !this._videoElement || !this._stageElement || !this._startupVisualElement) {
+          return null;
+        }
+        if (!this._engine) {
+          this._engine = engineModule.create({
+            videoElement: this._videoElement,
+            stageElement: this._stageElement,
+            startupVisualElement: this._startupVisualElement,
+            debug: false,
+          });
+        }
+        return this._engine;
+      })
+      .catch((err) => {
+        console.error("[Evandro Player Loader] Failed to initialize Player Engine:", err);
+        return null;
+      });
+
+    // 2. Early Media Initialization: bootstrap + engineReady -> engine.loadSource()
     if (videoId) {
       const bootstrapPromise = startEarlyBootstrap(API_BASE, videoId);
 
-      // Early Media Initialization: as soon as bootstrap + engine resolve, start playback immediately!
-      Promise.all([bootstrapPromise, enginePromise])
-        .then(([bootstrapData, engineModule]) => {
-          if (!this.isConnected || !this._videoElement || !this._startupVisualElement) return;
+      Promise.all([bootstrapPromise, engineReadyPromise])
+        .then(([bootstrapData, engine]) => {
+          if (!this.isConnected || !engine || !bootstrapData) return;
 
-          if (engineModule && !this._engine) {
-            this._engine = engineModule.create({
-              videoElement: this._videoElement,
-              stageElement: this._stageElement,
-              startupVisualElement: this._startupVisualElement,
-              debug: Boolean(bootstrapData.config?.development?.debug),
+          const playbackUrl = bootstrapData.playback?.url || bootstrapData.playbackUrl;
+          if (playbackUrl) {
+            const engineOptions: EngineSourceOptions = {
+              videoId: bootstrapData.videoId || videoId,
+              playbackUrl,
+              backgroundAutoplay: Boolean(bootstrapData.config?.playback?.backgroundAutoplay),
+              thumbnailEnabled: bootstrapData.config?.appearance?.thumbnail?.enabled ?? true,
+              posterUrl: bootstrapData.posterUrl,
+              backgroundPreviewUrl: bootstrapData.backgroundPreviewUrl,
+              config: bootstrapData.config as unknown as PlayerConfig,
+            };
+
+            engine.loadSource(engineOptions).catch((err) => {
+              console.error("[Evandro Player Loader] Early engine loadSource error:", err);
             });
-          }
-
-          if (this._engine && bootstrapData) {
-            const playbackUrl = bootstrapData.playback?.url || bootstrapData.playbackUrl;
-            if (playbackUrl) {
-              const engineOptions: EngineSourceOptions = {
-                videoId: bootstrapData.videoId || videoId,
-                playbackUrl,
-                backgroundAutoplay: Boolean(bootstrapData.config?.playback?.backgroundAutoplay),
-                thumbnailEnabled: bootstrapData.config?.appearance?.thumbnail?.enabled ?? true,
-                posterUrl: bootstrapData.posterUrl,
-                backgroundPreviewUrl: bootstrapData.backgroundPreviewUrl,
-                config: bootstrapData.config as unknown as PlayerConfig,
-              };
-
-              this._engine.loadSource(engineOptions).catch((err) => {
-                console.error("[Evandro Player Loader] Early engine loadSource error:", err);
-              });
-            }
           }
         })
         .catch(() => {});
     }
 
-    // Mount React Core into UI Root when ready
-    this.mountCore(corePromise);
+    // 3. Mount React Core into UI Root: coreReady + engineReady -> Core mount
+    // Core does NOT wait for bootstrap, only for a real, stable PlayerEngine instance
+    const corePromise = loadPlayerCore().catch((err) => {
+      console.error("[Evandro Player Loader] Failed to load Player Core:", err);
+      return null;
+    });
+
+    Promise.all([corePromise, engineReadyPromise])
+      .then(([coreModule, engine]) => {
+        if (!this.isConnected || !coreModule || !engine) return;
+        this.mountCoreWithEngine(coreModule, engine);
+      })
+      .catch((err) => {
+        console.error("[Evandro Player Loader] Core mount coordination error:", err);
+      });
   }
 
   public disconnectedCallback(): void {
@@ -514,59 +536,52 @@ export class EvandroPlayerElement extends HTMLElement {
     if (oldValue !== newValue && this._shadowRoot) {
       const videoId = newValue || "";
       if (videoId) {
-        startEarlyBootstrap(API_BASE, videoId).then((data) => {
-          const playbackUrl = data.playback?.url || data.playbackUrl;
-          if (playbackUrl && this._engine) {
-            this._engine.loadSource({
-              videoId: data.videoId || videoId,
-              playbackUrl,
-              backgroundAutoplay: Boolean(data.config?.playback?.backgroundAutoplay),
-              thumbnailEnabled: data.config?.appearance?.thumbnail?.enabled ?? true,
-              posterUrl: data.posterUrl,
-              backgroundPreviewUrl: data.backgroundPreviewUrl,
-              config: data.config as unknown as PlayerConfig,
-            });
-          }
-        }).catch(() => {});
+        startEarlyBootstrap(API_BASE, videoId)
+          .then((data) => {
+            const playbackUrl = data.playback?.url || data.playbackUrl;
+            if (playbackUrl && this._engine) {
+              this._engine.loadSource({
+                videoId: data.videoId || videoId,
+                playbackUrl,
+                backgroundAutoplay: Boolean(data.config?.playback?.backgroundAutoplay),
+                thumbnailEnabled: data.config?.appearance?.thumbnail?.enabled ?? true,
+                posterUrl: data.posterUrl,
+                backgroundPreviewUrl: data.backgroundPreviewUrl,
+                config: data.config as unknown as PlayerConfig,
+              });
+            }
+          })
+          .catch(() => {});
       }
 
       if (this._mountHandle) {
         this._mountHandle.update(videoId, API_BASE);
-      } else {
-        this.mountCore(loadPlayerCore().catch(() => null));
       }
     }
   }
 
-  private async mountCore(corePromise: Promise<EvandroPlayerCoreModule | null>): Promise<void> {
-    if (this._isMounted || !this._uiRoot || !this._shadowRoot || !this._stageElement || !this._videoElement) return;
+  private mountCoreWithEngine(
+    coreModule: EvandroPlayerCoreModule,
+    engine: PlayerEngine
+  ): void {
+    if (this._isMounted || !this._uiRoot || !this._shadowRoot || !this._stageElement || !this._videoElement || !this.isConnected) return;
 
     const videoId = this.getAttribute("video-id") || "";
 
-    try {
-      await corePromise;
+    const mountContext: PlayerMountContext = {
+      mediaElement: this._videoElement,
+      engine: engine,
+      stageElement: this._stageElement,
+    };
 
-      if (!this._uiRoot || !this._shadowRoot || !this._stageElement || !this._videoElement || !this.isConnected) return;
-
-      if (win?.__EVANDRO_PLAYER_CORE__?.mount) {
-        const mountContext: PlayerMountContext = {
-          mediaElement: this._videoElement,
-          engine: this._engine,
-          stageElement: this._stageElement,
-        };
-
-        this._mountHandle = win.__EVANDRO_PLAYER_CORE__.mount(
-          this._uiRoot,
-          this._shadowRoot,
-          videoId,
-          API_BASE,
-          mountContext
-        );
-        this._isMounted = true;
-      }
-    } catch (err) {
-      console.error("[Evandro Player Element] Error mounting player core:", err);
-    }
+    this._mountHandle = coreModule.mount(
+      this._uiRoot,
+      this._shadowRoot,
+      videoId,
+      API_BASE,
+      mountContext
+    );
+    this._isMounted = true;
   }
 }
 

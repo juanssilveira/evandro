@@ -101,11 +101,23 @@ export function EvandroPlayer({
   const internalVideoRef = useRef<HTMLVideoElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(mediaElement || null);
 
+  // Synchronize external mediaElement when provided (embed mode)
   useEffect(() => {
     if (mediaElement) {
       videoRef.current = mediaElement;
     }
   }, [mediaElement]);
+
+  // Canonical ref callback for internal video element (editor / standalone mode)
+  const handleInternalVideoRef = useCallback(
+    (el: HTMLVideoElement | null) => {
+      internalVideoRef.current = el;
+      if (!mediaElement) {
+        videoRef.current = el;
+      }
+    },
+    [mediaElement]
+  );
 
   const progressTrackRef = useRef<HTMLDivElement>(null);
   const volumeTrackRef = useRef<HTMLDivElement>(null);
@@ -428,7 +440,7 @@ export function EvandroPlayer({
 
   // Media source attachment (Native Safari HLS bypass + Dynamic HLS Light for MSE)
   const attachMediaSource = useCallback(async (mediaSrc: string) => {
-    if (engine) return;
+    if (engine || mediaElement) return;
     const video = videoRef.current;
     if (!video || !mediaSrc) return;
 
@@ -547,11 +559,11 @@ export function EvandroPlayer({
     // 3. Fallback native
     markPerformance("ep:manifest:start", videoId);
     video.src = mediaSrc;
-  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId, effectiveDebug, mediaStateManager, engine]);
+  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId, effectiveDebug, mediaStateManager, engine, mediaElement]);
 
-  // Attach media source conditionally once per resolved media URL (only when not managed by external engine)
+  // Attach media source conditionally once per resolved media URL (only when not managed by external engine/stage)
   useEffect(() => {
-    if (engine) return;
+    if (engine || mediaElement) return;
     if (isMediaAttached && resolvedSrc) {
       attachMediaSource(resolvedSrc);
     }
@@ -563,7 +575,7 @@ export function EvandroPlayer({
       }
       attachedSrcRef.current = null;
     };
-  }, [resolvedSrc, isMediaAttached, attachMediaSource, engine]);
+  }, [resolvedSrc, isMediaAttached, attachMediaSource, engine, mediaElement]);
 
   // Subscribe to external engine state if provided
   useEffect(() => {
@@ -1265,7 +1277,7 @@ export function EvandroPlayer({
       {/* Native Video Element (Only rendered when not using pre-existing mediaElement from Stage) */}
       {!isEmbedded && (
         <video
-          ref={internalVideoRef}
+          ref={handleInternalVideoRef}
           playsInline
           preload="auto"
           autoPlay={isBackgroundAutoplay}

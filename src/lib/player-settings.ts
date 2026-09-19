@@ -56,6 +56,10 @@ export async function updatePlayerConfig(
     appearance: {
       ...current.appearance,
       ...(patch.appearance || {}),
+      thumbnail: {
+        ...current.appearance.thumbnail,
+        ...(patch.appearance?.thumbnail || {}),
+      },
     },
     playback: {
       ...current.playback,
