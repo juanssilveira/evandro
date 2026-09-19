@@ -17,6 +17,8 @@ export type PerformanceMarkName =
   | "ep:visual:thumbnail:ready"
   | "ep:visual:custom-thumbnail:start"
   | "ep:visual:custom-thumbnail:ready"
+  | "ep:visual:custom-thumbnail:failed"
+  | "ep:visual:fallback-provider:applied"
   | "ep:visual:pause-thumbnail:ready"
   | "ep:visual:main-reveal"
   | "ep:hls-engine:start"

@@ -9,6 +9,10 @@ import type { PlayerEngine } from "../engine/player-engine";
 import type { EngineSourceOptions } from "../engine/types";
 import type { EvandroPlayerEngineModule } from "../engine/player-engine-entry";
 import type { PlayerConfig } from "@/types/player-config";
+import {
+  resolveStartupVisualFromConfig,
+  applyStartupVisualSurface,
+} from "../engine/startup-visual-resolver";
 
 declare const __EVANDRO_PLAYER_API_BASE__: string;
 declare const __EVANDRO_PLAYER_ENGINE_FILENAME__: string;
@@ -254,23 +258,16 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
         }
       }
 
-      // Strict Startup Visual Policy Preload:
-      // 1. Background Autoplay ON: preload preview only (no poster fallback)
-      // 2. BG OFF + Thumbnail ON: preload custom thumbnail (if custom) or poster (if provider)
-      // 3. BG OFF + Thumbnail OFF: 0 visual preloads
-      // 4. Pause Thumbnail: STRICTLY NEVER preloaded in startup path
-      const isBg = Boolean(json.config?.playback?.backgroundAutoplay);
-      const thumbConfig = json.config?.appearance?.thumbnail;
-      const isThumbEnabled = thumbConfig?.enabled ?? true;
+      // Canonical Startup Visual Preload (no wait, instant fire)
+      const visual = resolveStartupVisualFromConfig({
+        config: json.config,
+        posterUrl: json.posterUrl,
+        backgroundPreviewUrl: json.backgroundPreviewUrl,
+        apiBase: API_BASE,
+      });
 
-      if (isBg && json.backgroundPreviewUrl) {
-        preloadVisualAsset(json.backgroundPreviewUrl);
-      } else if (!isBg && isThumbEnabled) {
-        if (thumbConfig?.source === "custom" && thumbConfig?.customUrl) {
-          preloadVisualAsset(thumbConfig.customUrl);
-        } else if (json.posterUrl) {
-          preloadVisualAsset(json.posterUrl);
-        }
+      if (visual.url) {
+        preloadVisualAsset(visual.url);
       }
 
       return json;
@@ -443,7 +440,7 @@ export class EvandroPlayerElement extends HTMLElement {
       const startupVisual = document.createElement("div");
       startupVisual.setAttribute("data-evandro-player-startup-visual", "true");
       startupVisual.style.cssText =
-        "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:inherit;transition:opacity 75ms ease-out;";
+        "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:inherit;";
 
       // 4. UI Root for React Core mounting
       const uiRoot = document.createElement("div");
@@ -489,9 +486,26 @@ export class EvandroPlayerElement extends HTMLElement {
         return null;
       });
 
-    // 2. Early Media Initialization: bootstrap + engineReady -> engine.loadSource()
+    // 2. Early Media Initialization & Startup Visual Priming:
+    // Tiny Loader primes the visual surface immediately when bootstrap resolves, before waiting for Engine or Core.
     if (videoId) {
       const bootstrapPromise = startEarlyBootstrap(API_BASE, videoId);
+
+      bootstrapPromise
+        .then((bootstrapData) => {
+          if (!this.isConnected || !this._startupVisualElement || !bootstrapData) return;
+          if (this._engine && this._engine.state.startupVisualState === "released") return;
+
+          const visual = resolveStartupVisualFromConfig({
+            config: bootstrapData.config,
+            posterUrl: bootstrapData.posterUrl,
+            backgroundPreviewUrl: bootstrapData.backgroundPreviewUrl,
+            apiBase: API_BASE,
+          });
+
+          applyStartupVisualSurface(this._startupVisualElement, visual);
+        })
+        .catch(() => {});
 
       Promise.all([bootstrapPromise, engineReadyPromise])
         .then(([bootstrapData, engine]) => {
@@ -507,6 +521,7 @@ export class EvandroPlayerElement extends HTMLElement {
               posterUrl: bootstrapData.posterUrl,
               backgroundPreviewUrl: bootstrapData.backgroundPreviewUrl,
               config: bootstrapData.config as unknown as PlayerConfig,
+              apiBase: API_BASE,
             };
 
             engine.loadSource(engineOptions).catch((err) => {
@@ -556,6 +571,17 @@ export class EvandroPlayerElement extends HTMLElement {
       if (videoId) {
         startEarlyBootstrap(API_BASE, videoId)
           .then((data) => {
+            if (!this.isConnected || !data) return;
+            if (this._startupVisualElement && (!this._engine || this._engine.state.startupVisualState !== "released")) {
+              const visual = resolveStartupVisualFromConfig({
+                config: data.config,
+                posterUrl: data.posterUrl,
+                backgroundPreviewUrl: data.backgroundPreviewUrl,
+                apiBase: API_BASE,
+              });
+              applyStartupVisualSurface(this._startupVisualElement, visual);
+            }
+
             const playbackUrl = data.playback?.url || data.playbackUrl;
             if (playbackUrl && this._engine) {
               this._engine.loadSource({
@@ -566,6 +592,7 @@ export class EvandroPlayerElement extends HTMLElement {
                 posterUrl: data.posterUrl,
                 backgroundPreviewUrl: data.backgroundPreviewUrl,
                 config: data.config as unknown as PlayerConfig,
+                apiBase: API_BASE,
               });
             }
           })

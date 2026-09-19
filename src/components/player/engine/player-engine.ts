@@ -16,6 +16,11 @@ import {
   onFirstVideoFrame,
 } from "../embed/performance-timing";
 import type { PlayerConfig } from "@/types/player-config";
+import {
+  resolveStartupVisualFromConfig,
+  applyStartupVisualSurface,
+  releaseStartupVisualSurface,
+} from "./startup-visual-resolver";
 import type {
   EngineFirstFrameListener,
   EngineSourceOptions,
@@ -125,7 +130,11 @@ export class PlayerEngine implements IPlayerEngine {
   public setStartupVisualElement(element: HTMLElement | null): void {
     this._startupVisualElement = element;
     if (this._sourceOptions && !this._isDestroyed) {
-      if (this._startupVisualState === "visible" || this._startupVisualState === "loading") {
+      if (
+        this._startupVisualState === "visible" ||
+        this._startupVisualState === "loading" ||
+        this._startupVisualState === "pending_release"
+      ) {
         this.setupStartupVisual(this._sourceOptions, this._generation);
       }
     }
@@ -179,7 +188,7 @@ export class PlayerEngine implements IPlayerEngine {
       // Playing safety guard: If foreground is active, no startup visual can remain
       if (
         this._state.experience === "foreground" &&
-        (this._userForegroundRequested || this._state.playbackInitiator === "user")
+        this._userForegroundRequested
       ) {
         this.revealVideo();
         this.releaseStartupVisual(this._state.videoId);
@@ -285,7 +294,7 @@ export class PlayerEngine implements IPlayerEngine {
       videoId,
       playbackUrl,
       experience: isBg ? "background_autoplay" : "foreground",
-      playbackInitiator: isBg ? "autoplay" : "user",
+      playbackInitiator: isBg ? "autoplay" : "system",
       userForegroundRequested: false,
       hasFirstFrame: false,
       hasStartedForeground: false,
@@ -323,124 +332,118 @@ export class PlayerEngine implements IPlayerEngine {
   }
 
   /**
-   * Authoritative startup visual setup and image readiness coordinator.
-   * Eliminates broken-image glyphs via strict decode/load lifecycle.
+   * Authoritative startup visual setup and image presentation.
+   * Background Preview / Thumbnails are applied immediately to the surface without blocking on onload/decode.
+   * Eliminates broken-image glyphs via CSS background-image surface styling.
    */
   private setupStartupVisual(options: EngineSourceOptions, gen: number): void {
     this._visualAbortController?.abort();
     const ac = new AbortController();
     this._visualAbortController = ac;
 
-    const isBg = Boolean(options.backgroundAutoplay);
-    const thumbConfig = options.config?.appearance?.thumbnail;
-    const thumbEnabled = options.thumbnailEnabled ?? thumbConfig?.enabled ?? true;
+    const visual = resolveStartupVisualFromConfig({
+      config: options.config,
+      backgroundAutoplay: options.backgroundAutoplay,
+      thumbnailEnabled: options.thumbnailEnabled,
+      posterUrl: options.posterUrl,
+      backgroundPreviewUrl: options.backgroundPreviewUrl,
+      apiBase: options.apiBase,
+    });
 
-    let targetUrl: string | null = null;
-    let visualType: "preview" | "thumbnail" | "none" = "none";
-
-    if (isBg) {
-      // In Background Autoplay: ONLY Background Preview WebP is valid
-      // NEVER fallback to provider/custom startup thumbnail!
-      if (options.backgroundPreviewUrl) {
-        targetUrl = options.backgroundPreviewUrl;
-        visualType = "preview";
-        markPerformance("ep:visual:preview:start", options.videoId);
-      }
-    } else if (thumbEnabled) {
-      if (thumbConfig?.source === "custom" && thumbConfig?.customUrl) {
-        targetUrl = thumbConfig.customUrl;
-        visualType = "thumbnail";
-        markPerformance("ep:visual:custom-thumbnail:start", options.videoId);
-      } else if (options.posterUrl) {
-        targetUrl = options.posterUrl;
-        visualType = "thumbnail";
-        markPerformance("ep:visual:thumbnail:start", options.videoId);
-      }
-    }
-
-    if (!targetUrl || visualType === "none") {
+    if (visual.type === "none" || !visual.url) {
       this._startupVisualState = "released";
       this.updateState({ startupVisualState: "released" });
       if (this._startupVisualElement) {
-        this._startupVisualElement.innerHTML = "";
-        this._startupVisualElement.style.display = "none";
+        applyStartupVisualSurface(this._startupVisualElement, visual);
       }
       return;
     }
 
-    this._startupVisualState = "loading";
-    this.updateState({ startupVisualState: "loading" });
-
-    if (this._startupVisualElement) {
-      const container = this._startupVisualElement;
-      container.innerHTML = "";
-      // Keep container visible with black background; image is not inserted until fully decoded
-      container.style.display = "flex";
-      container.style.opacity = "1";
-      container.style.transition = "";
+    // Check if visual is already released or video is already revealed
+    if (this._startupVisualState === "released" || this._hasRevealedVideo) {
+      return;
     }
 
-    // Create image offscreen to prevent browser broken-image glyph
+    // Performance start marks
+    if (visual.type === "preview") {
+      markPerformance("ep:visual:preview:start", options.videoId);
+    } else if (visual.type === "custom") {
+      markPerformance("ep:visual:custom-thumbnail:start", options.videoId);
+    } else if (visual.type === "provider") {
+      markPerformance("ep:visual:thumbnail:start", options.videoId);
+    }
+
+    // Apply or adopt Background Preview / Thumbnail immediately to startup surface (no onload/decode gate)
+    if (this._startupVisualElement) {
+      applyStartupVisualSurface(this._startupVisualElement, visual);
+    }
+
+    const nextVisualState = this._userForegroundRequested ? "pending_release" : "visible";
+    this._startupVisualState = nextVisualState;
+    this.updateState({ startupVisualState: nextVisualState });
+
+    // Non-blocking auxiliary Image for readiness performance marks and confirmed error fallback
     const img = new Image();
     img.alt = "";
-    img.style.cssText = "width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;";
     (img as HTMLImageElement & { fetchPriority?: string }).fetchPriority = "high";
 
     const onImageLoaded = () => {
       if (ac.signal.aborted || gen !== this._generation || this._isDestroyed) return;
-
-      // Late image race protections:
-      // If startup visual was already released or marked pending_release, or if first frame won
       if (this._startupVisualState === "released" || this._startupVisualState === "pending_release") {
         return;
       }
-      if (isBg && this._state.hasFirstFrame) {
+      if (options.backgroundAutoplay && this._state.hasFirstFrame) {
         return;
       }
       if (this._userForegroundRequested && this._state.hasFirstFrame) {
         return;
       }
 
-      this._startupVisualState = "visible";
-      this.updateState({ startupVisualState: "visible" });
-
-      if (visualType === "preview") {
+      if (visual.type === "preview") {
         markPerformance("ep:visual:preview:ready", options.videoId);
-      } else if (visualType === "thumbnail") {
+      } else if (visual.type === "custom") {
+        markPerformance("ep:visual:custom-thumbnail:ready", options.videoId);
+      } else if (visual.type === "provider") {
         markPerformance("ep:visual:thumbnail:ready", options.videoId);
-      }
-
-      if (this._startupVisualElement && gen === this._generation) {
-        this._startupVisualElement.innerHTML = "";
-        this._startupVisualElement.appendChild(img);
       }
     };
 
     img.onload = () => {
-      if ("decode" in img && typeof img.decode === "function") {
-        img.decode().then(onImageLoaded).catch(() => onImageLoaded());
-      } else {
-        onImageLoaded();
-      }
+      onImageLoaded();
     };
 
     img.onerror = () => {
       if (ac.signal.aborted || gen !== this._generation || this._isDestroyed) return;
+      if ((this._startupVisualState as string) === "released") return;
 
-      // Fallback for custom thumbnail failure -> provider poster if available
-      if (visualType === "thumbnail" && targetUrl !== options.posterUrl && options.posterUrl) {
-        targetUrl = options.posterUrl;
-        img.src = options.posterUrl;
-        return;
+      // Confirmed fallback for custom thumbnail failure -> provider poster if available
+      if (visual.type === "custom") {
+        markPerformance("ep:visual:custom-thumbnail:failed", options.videoId);
+        if (visual.fallbackUrl) {
+          markPerformance("ep:visual:fallback-provider:applied", options.videoId);
+          if (this._startupVisualElement && gen === this._generation && (this._startupVisualState as string) !== "released") {
+            applyStartupVisualSurface(this._startupVisualElement, {
+              type: "provider",
+              url: visual.fallbackUrl,
+              fallbackUrl: null,
+            });
+          }
+          img.src = visual.fallbackUrl;
+          return;
+        }
       }
 
-      // If Background Preview fails: maintain black surface, never insert broken img or fallback to thumbnail
-      if (this._startupVisualElement) {
-        this._startupVisualElement.innerHTML = "";
+      // If Background Preview or Provider Thumbnail fails: maintain black surface, never insert broken img
+      if (this._startupVisualElement && gen === this._generation && (this._startupVisualState as string) !== "released") {
+        applyStartupVisualSurface(this._startupVisualElement, {
+          type: "none",
+          url: null,
+          fallbackUrl: null,
+        });
       }
     };
 
-    img.src = targetUrl;
+    img.src = visual.url;
   }
 
   private setupFirstFrameDetection(videoId: string, gen: number): void {
@@ -481,7 +484,7 @@ export class PlayerEngine implements IPlayerEngine {
       // 1. Background Autoplay ON -> release immediately on first frame
       // 2. Thumbnail OFF -> release immediately on first frame
       // 3. USER PLAYBACK WINS: if user requested foreground playback -> release immediately on first frame
-      if (isBg || !thumbEnabled || this._userForegroundRequested || this._state.playbackInitiator === "user") {
+      if (isBg || !thumbEnabled || this._userForegroundRequested) {
         this.releaseStartupVisual(videoId);
       }
     });
@@ -506,17 +509,8 @@ export class PlayerEngine implements IPlayerEngine {
 
     markPerformanceOnce("ep:startup-visual:release", videoId || this._state.videoId);
 
-    const el = this._startupVisualElement;
-    if (el) {
-      el.style.transition = "opacity 70ms ease-out";
-      el.style.opacity = "0";
-
-      setTimeout(() => {
-        if (el && this._startupVisualState === "released") {
-          el.innerHTML = "";
-          el.style.display = "none";
-        }
-      }, 75);
+    if (this._startupVisualElement) {
+      releaseStartupVisualSurface(this._startupVisualElement);
     }
   }
 
@@ -697,7 +691,6 @@ export class PlayerEngine implements IPlayerEngine {
       this.revealVideo();
       if (
         this._userForegroundRequested ||
-        initiator === "user" ||
         this._state.experience === "background_autoplay"
       ) {
         this.releaseStartupVisual(this._state.videoId);
@@ -779,7 +772,7 @@ export class PlayerEngine implements IPlayerEngine {
       } else {
         this.updateState({
           experience: "foreground",
-          playbackInitiator: "user",
+          playbackInitiator: "system",
         });
         this._video.pause();
         if (this._hls) {
@@ -817,6 +810,10 @@ export class PlayerEngine implements IPlayerEngine {
       this._video.load();
     } catch {
       // ignore
+    }
+
+    if (this._startupVisualElement) {
+      releaseStartupVisualSurface(this._startupVisualElement);
     }
 
     this._firstFrameListeners.clear();

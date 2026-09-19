@@ -274,6 +274,18 @@ export async function resolveEmbedBootstrap(
     ? parsePlayerConfig(row.rawPlayerConfig)
     : DEFAULT_PLAYER_CONFIG;
 
+  // Ensure custom thumbnail and pause thumbnail URLs are absolute
+  if (config.appearance?.thumbnail?.source === "custom" && config.appearance.thumbnail.customKey) {
+    if (!config.appearance.thumbnail.customUrl || config.appearance.thumbnail.customUrl.startsWith("/")) {
+      config.appearance.thumbnail.customUrl = getAssetPublicUrl(config.appearance.thumbnail.customKey);
+    }
+  }
+  if (config.appearance?.pauseThumbnail?.customKey) {
+    if (!config.appearance.pauseThumbnail.customUrl || config.appearance.pauseThumbnail.customUrl.startsWith("/")) {
+      config.appearance.pauseThumbnail.customUrl = getAssetPublicUrl(config.appearance.pauseThumbnail.customKey);
+    }
+  }
+
   const totalDurationMs = Math.round(performance.now() - startTime);
 
   return {

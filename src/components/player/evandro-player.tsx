@@ -246,6 +246,7 @@ export function EvandroPlayer({
           config: effectiveConfig,
           defaultVolume: effectiveConfig.playback?.defaultVolume ?? 1,
           defaultPlaybackRate: effectiveConfig.playback?.defaultPlaybackRate ?? 1,
+          apiBase,
         });
       }
     } else {
@@ -260,6 +261,7 @@ export function EvandroPlayer({
     effectiveConfig,
     posterUrl,
     backgroundPreviewUrl,
+    apiBase,
   ]);
 
   // Subscribe to authoritative PlayerEngine state
@@ -751,8 +753,7 @@ export function EvandroPlayer({
           ref={startupVisualRef}
           data-evandro-player-startup-visual="true"
           aria-hidden="true"
-          style={{ display: "none" }}
-          className="absolute inset-0 z-5 pointer-events-none overflow-hidden transition-opacity duration-[70ms] ease-out flex items-center justify-center bg-black"
+          className="absolute inset-0 z-5 pointer-events-none overflow-hidden flex items-center justify-center bg-black"
         />
       )}
 

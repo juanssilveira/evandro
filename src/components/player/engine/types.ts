@@ -21,6 +21,7 @@ export interface EngineSourceOptions {
   config?: PlayerConfig;
   defaultVolume?: number;
   defaultPlaybackRate?: number;
+  apiBase?: string;
 }
 
 export interface PlayerEngineState {

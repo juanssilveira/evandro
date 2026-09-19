@@ -1,1022 +1,267 @@
-# 1. Nome da spec
+# Spec 051 — Full Headless Playback Engine Ownership
 
-051_full-headless-playback-engine-ownership.md
+## Status
+Em andamento / Corrective Pass (Não aceita manualmente)
 
-# 2. Spec
-
-## 051 — Full Headless Playback Engine Ownership
-
-### Estado da milestone
-
-A Spec 050 — Thumbnail Play Button Visibility & Editor UI Polish já foi implementada em `development`.
-
-A Spec 051 ainda não foi implementada e ainda não foi aceita.
-
-Antes de iniciar qualquer trabalho, o agente deve conferir novamente o HEAD atual de `development` e usar o código real como fonte de verdade.
-
-### Objetivo
-
-Concluir a consolidação do Evandro Player para que exista uma única autoridade sobre playback, mídia, first frame e lifecycle visual de startup: o `PlayerEngine`.
-
-Esta milestone também deve corrigir duas races visuais já observadas manualmente:
-
-- ao clicar Play muito cedo, antes do first frame, a thumbnail de startup pode permanecer presa sobre um vídeo que já começou a reproduzir;
-- com Background Autoplay ativo, após F5, o browser pode exibir por um instante o ícone nativo de imagem quebrada antes de o Background Preview aparecer.
-
-As duas situações devem ser tratadas como sintomas do mesmo problema: hoje o playback e o startup visual ainda não possuem uma única fonte autoritativa.
-
-### Invariantes finais
-
-Para cada Evandro Player funcional deve existir:
-
-- exatamente 1 `HTMLVideoElement` principal;
-- exatamente 1 `PlayerEngine`;
-- no máximo 1 instância HLS principal;
-- exatamente 1 authority de playback;
-- exatamente 1 authority de first frame;
-- exatamente 1 lifecycle autoritativo de startup visual;
-- 0 owners concorrentes de source/HLS/playback.
-
-Isso vale para:
-
-- embed;
-- editor;
-- standalone.
-
-React deve atuar principalmente como UI, interação e renderização de estado.
-
-### Problema arquitetural atual
-
-No embed, o caminho já é conceitualmente:
-
-Tiny Loader → Persistent Stage → Persistent HTMLVideoElement → PlayerEngine → React Core.
-
-Porém ainda existem responsabilidades distribuídas entre:
-
-- `PlayerEngine`;
-- `PlaybackController`;
-- `PlayerRuntime`;
-- handlers React;
-- lifecycle HLS mantido no React para editor/standalone;
-- detecção de first frame no React;
-- estado visual de thumbnail/preview no React.
-
-Isso permite:
-
-- races;
-- stale state;
-- overlays presos;
-- listeners duplicados;
-- divergência entre editor e embed;
-- mais de uma camada tentando decidir qual superfície deve estar visível.
-
-### Regra arquitetural obrigatória: USER PLAYBACK WINS
-
-Adicionar uma invariável explícita:
-
-**USER PLAYBACK WINS**
-
-A partir do momento em que o usuário solicita explicitamente foreground playback, qualquer visual de startup deixa de possuir autoridade sobre a experiência.
-
-São considerados startup visuals:
-
-- provider thumbnail;
-- custom startup thumbnail;
-- Background Preview WebP;
-- startup shell do Tiny Loader;
-- qualquer imagem visual temporária utilizada para esconder warming.
-
-Isso não significa remover a imagem obrigatoriamente no mesmo milissegundo do clique.
-
-Se ainda não existe um frame real disponível, a imagem pode continuar temporariamente para evitar black flash.
-
-O lifecycle esperado é:
-
-1. usuário solicita foreground;
-2. Engine registra explicitamente a intenção do usuário;
-3. startup visual entra em estado equivalente a `pending_release`;
-4. mídia continua preparando;
-5. primeiro frame real fica disponível;
-6. main video é revelado;
-7. todos os startup visuals são liberados definitivamente.
-
-### Bug obrigatório: thumbnail presa após Play antecipado
-
-Reprodução do problema:
-
-1. F5;
-2. startup thumbnail aparece;
-3. usuário clica Play antes do vídeo possuir first frame;
-4. `startForeground()` é executado;
-5. `hasFirstFrame` ainda é `false`;
-6. thumbnail permanece;
-7. first frame chega posteriormente;
-8. vídeo aparece;
-9. thumbnail pode continuar sobre o vídeo porque a configuração ainda diz que a thumbnail está enabled.
-
-Isso deve deixar de ser possível.
-
-Depois que o usuário solicitou foreground, `thumbnail.enabled` não pode ser usado como motivo para manter a startup thumbnail depois do primeiro frame real.
-
-A regra correta é:
-
-- antes do Play explícito, a config decide qual startup visual deve aparecer;
-- depois do Play explícito, o estado real de playback decide qual visual pode permanecer.
-
-### Estado explícito de foreground solicitado pelo usuário
-
-O Engine deve possuir estado equivalente a:
-
-- `playbackInitiator = "user"`;
-- `userForegroundRequested = true`;
-
-ou nomenclatura semanticamente equivalente.
-
-Esse estado não deve depender de React inferir que houve clique a partir de outros flags.
-
-### First frame + user foreground
-
-No callback autoritativo de first frame:
-
-Se foreground foi solicitado explicitamente pelo usuário:
-
-- revelar o vídeo;
-- liberar startup visual;
-- marcar startup visual como released.
-
-Isso deve acontecer independentemente de:
-
-- `thumbnail.enabled`;
-- source provider/custom;
-- showPlayButton;
-- estado anterior do preview.
-
-### First frame sem Play explícito
-
-Preservar o comportamento de preparação antecipada.
-
-Com BG OFF + Thumbnail ON, o player pode obter first frame por baixo antes do usuário clicar Play.
-
-Nesse caso, a thumbnail deve continuar aparecendo.
-
-First frame sozinho não significa remover a thumbnail.
-
-A condição que força o release é:
-
-**first frame + user foreground requested**
-
-### Lifecycle autoritativo do startup visual
-
-Modelar conceitualmente um lifecycle equivalente a:
-
-- `available`;
-- `loading`;
-- `visible`;
-- `pending_release`;
-- `released`.
-
-Os nomes podem variar.
-
-A regra importante é:
-
-**released é terminal para aquele source.**
-
-Depois de released, a startup visual não pode reaparecer sem:
-
-- novo source;
-- novo `video-id`;
-- reset explícito equivalente de lifecycle.
-
-### releaseStartupVisual deve ser idempotente
-
-A operação de release pode ser acionada por mais de um caminho:
-
-- `startForeground`;
-- first frame;
-- safety check de `playing`.
-
-Chamadas repetidas não podem causar:
-
-- flicker;
-- timers concorrentes;
-- DOM inconsistente;
-- dupla animação;
-- reinserção de visual antigo.
-
-### `playing` como proteção adicional
-
-Se o Engine confirmar:
-
-- experience = foreground;
-- playbackInitiator = user;
-- isPlaying = true;
-
-então nenhum startup visual pode permanecer ativo.
-
-Isso funciona como safety guard.
-
-Não substituir o first-frame boundary por `playing`, porque o first frame continua necessário para evitar black flash.
+## Objetivo
+Consolidar a propriedade exclusiva de playback, inicialização de mídia, ciclo de vida de HLS/mídia nativa e superfície de startup visual dentro do `PlayerEngine` headless, garantindo startup visual instantâneo e eliminando race conditions, flickering, fallbacks indevidos e remoção prematura de thumbnails.
 
 ---
 
-## Background Preview instantâneo e sem broken-image glyph
+## Problemas Identificados no Teste Manual
 
-### Política visual continua igual
+### 1. Startup visual deixou de ser instantâneo (Gate artificial de load/decode)
+- **Sintoma:** Background Preview e thumbnails passaram a apresentar um atraso perceptível de tela preta (`black → espera → imagem`).
+- **Causa:** O Engine aguardava eventos assíncronos de `load` e `decode()` da imagem offscreen antes de exibir o elemento na superfície.
+- **Correção:** STARTUP VISUAL PRIME EARLY. Assim que a URL for conhecida, ela é aplicada imediatamente à superfície CSS (`background-image`). O browser renderiza os pixels assim que disponíveis. O objeto `Image` auxiliar atua unicamente como observer/fallback monitor, nunca como presentation gate.
 
-Preservar:
+### 2. Custom thumbnail caindo indevidamente para provider poster
+- **Sintoma:** Player com custom thumbnail selecionada acabava exibindo o poster automático do provedor.
+- **Causa:** Resoluções inconsistentes de URL, races entre Loader e Engine, ou poster automático agindo como placeholder antes do carregamento da custom.
+- **Correção:** Prioridade absoluta para a custom thumbnail (`BG OFF + Thumbnail ON + source custom + customUrl válida → Custom Thumbnail`). O provider poster somente é exibido se houver confirmação real de erro (`onerror`) da imagem custom.
 
-- BG ON → Background Preview WebP;
-- BG OFF + Thumbnail ON → provider/custom startup thumbnail;
-- BG OFF + Thumbnail OFF → black surface / first real frame.
-
-Em especial:
-
-**Thumbnail inicial OFF + Background Autoplay ON**
-
-continua significando:
-
-**Background Preview WebP**
-
-`thumbnail.enabled` não interfere no Background Preview.
-
-### Bug obrigatório: broken-image glyph
-
-Hoje, no editor/standalone, uma imagem pode ser renderizada visualmente com `src` antes de o asset estar pronto.
-
-Isso permite que o browser mostre:
-
-- broken-image glyph;
-- alt text;
-- imagem vazia;
-- artefato visual momentâneo.
-
-Após esta spec, isso não é permitido.
-
-### Regra de readiness de imagem
-
-O request deve começar o mais cedo possível.
-
-Mas:
-
-**request iniciado != imagem autorizada a aparecer**
-
-O asset só pode se tornar visualmente visível depois de:
-
-- `load` confirmado;
-- ou `decode()` confirmado;
-- ou mecanismo equivalente seguro.
-
-Enquanto a imagem ainda não estiver pronta:
-
-- manter black surface;
-- não renderizar visualmente um `<img>` quebrado.
-
-### Não mascarar com CSS
-
-Não esconder apenas o ícone de imagem quebrada com CSS.
-
-Corrigir o lifecycle.
-
-O browser não deve receber uma imagem visível antes de ela estar pronta para ser apresentada.
-
-### Preservar perceived speed
-
-A correção não pode atrasar desnecessariamente o preview.
-
-Preservar:
-
-- early bootstrap;
-- `preloadVisual`;
-- `fetchPriority="high"` quando aplicável;
-- request assim que a URL estiver disponível;
-- carregamento independente de HLS/manifest/first frame.
-
-Com cache quente, o preview deve continuar praticamente instantâneo.
-
-Com cache frio, é aceitável:
-
-black → preview válido
-
-Não é aceitável:
-
-broken image → preview válido.
-
-### BG ON não usa startup thumbnail como fallback
-
-Quando Background Autoplay está ON e o Background Preview ainda não ficou pronto:
-
-usar temporariamente black surface.
-
-Não usar como fallback:
-
-- provider thumbnail;
-- custom startup thumbnail.
-
-Background Preview e startup thumbnail continuam sendo produtos visuais separados.
-
-### Erro real de Background Preview
-
-Se o preview falhar:
-
-- não mostrar broken-image glyph;
-- não cair para provider/custom startup thumbnail;
-- manter black surface;
-- revelar main video quando first frame chegar.
-
-Fluxo esperado:
-
-black → first main frame → video.
-
-### Late-load race
-
-Tratar explicitamente:
-
-1. preview começa a carregar;
-2. main video vence;
-3. startup visual é released;
-4. preview termina de carregar depois.
-
-Resultado obrigatório:
-
-**ignorar o preview atrasado.**
-
-Nenhum callback tardio pode inserir novamente startup visual.
-
-Essa regra vale para:
-
-- Background Preview;
-- provider thumbnail;
-- custom startup thumbnail.
+### 3. Thumbnail automática e custom piscando e desaparecendo antes do Play
+- **Sintoma:** Thumbnail surge rapidamente, o primeiro frame do vídeo é decodificado por baixo, a thumbnail desaparece e expõe o vídeo pausado antes de qualquer clique do usuário.
+- **Causa:** `PlayerEngine.loadSource()` inicializava players BG OFF com `playbackInitiator = "user"` mesmo sem qualquer interação do usuário. No callback de first-frame, a regra `isBg || !thumbEnabled || userForegroundRequested || playbackInitiator === "user"` disparava a liberação imediata da thumbnail.
+- **Correção:** Apenas carregar/preparar mídia em BG OFF define `playbackInitiator = "system"` (não `"user"`). A autoridade para liberação por intenção do usuário passa a ser exclusivamente `userForegroundRequested === true`.
 
 ---
 
-## Pause Thumbnail é outro lifecycle
+## Semântica Canônica de Playback Initiator
 
-Pause Thumbnail não é startup visual.
+1. **Carga e preparação inicial (BG OFF):**
+   - `playbackInitiator = "system"`
+   - `userForegroundRequested = false`
+   - Carregar ou pré-bufferizar mídia não constitui intenção do usuário.
 
-Ela pode aparecer depois que foreground playback já começou quando:
+2. **Background Autoplay inicial (BG ON):**
+   - `playbackInitiator = "autoplay"`
+   - `userForegroundRequested = false`
 
-- vídeo está pausado;
-- pause thumbnail está enabled;
-- existe custom URL válida.
-
-Quando `isPlaying = true`:
-
-- Pause Thumbnail deve estar hidden;
-- Continue assistindo deve estar hidden.
-
-Ao retomar playback, a camada de pause deve sair imediatamente.
-
-Ela nunca pode ficar presa sobre vídeo reproduzindo.
-
-A configuração da Spec 050 continua válida:
-
-- `thumbnail.showPlayButton`;
-- `pauseThumbnail.showPlayButton`.
-
-Esses campos são apenas de apresentação.
-
-Eles não alteram:
-
-- startup lifecycle;
-- media ownership;
-- release rules;
-- first frame;
-- playback commands.
+3. **Ação explícita do usuário:**
+   - `startForeground()` ou `play("user")` ou clique explícito
+   - `playbackInitiator = "user"`
+   - `userForegroundRequested = true`
 
 ---
 
-## PlayerEngine obrigatório
+## Regra Canônica de First-Frame Release
 
-### Embed
+O primeiro frame decodificado do vídeo libera a startup visual surface **apenas** quando uma destas condições for verdadeira:
 
-Continuar utilizando a Engine criada pelo Tiny Loader.
+```text
+isBg || !thumbEnabled || userForegroundRequested
+```
 
-React recebe:
+Onde:
+- `isBg`: Background Autoplay está ativo (`experience === "background_autoplay"`).
+- `!thumbEnabled`: Thumbnail de inicialização está desativada na configuração.
+- `userForegroundRequested`: O usuário solicitou explicitamente a reprodução em primeiro plano.
 
-- `mediaElement`;
-- `engine`;
+**Nunca** utilizar genericamente `playbackInitiator === "user"` como critério de liberação do primeiro frame.
 
-e adota ambos.
+### Comportamento BG OFF + Thumbnail ON antes do Play
+- `userForegroundRequested === false`
+- O primeiro frame pode ser decodificado e bufferizado por baixo com `opacity: 1` no elemento `<video>`.
+- A startup surface permanece com `z-index: 1`, opaca e visível sobre o vídeo.
+- **Resultado:** A thumbnail permanece perfeitamente visível até a interação do usuário.
 
-React não cria segunda Engine.
+### Play após first frame já preparado
+- Usuário clica em Play / Big Play Button / container.
+- `userForegroundRequested = true`.
+- Como `hasFirstFrame === true`, `releaseStartupVisual()` é executado imediatamente.
+- O vídeo em primeiro plano é revelado sem latência e sem flash preto.
 
-React não destrói a Engine externa em unmount do Core.
+### Play antes do first frame ser preparado
+- Usuário clica em Play enquanto a mídia ainda está conectando/bufferizando.
+- `userForegroundRequested = true`.
+- `startupVisualState` passa para `"pending_release"`.
+- A thumbnail permanece visível cobrindo o aquecimento do vídeo.
+- Assim que o first frame chega, a startup surface é liberada suavemente (`70ms`).
+- **Resultado:** USER PLAYBACK WINS preservado sem flash preto.
 
-### Editor / standalone
-
-Quando não existir Engine externa:
-
-- React cria/renderiza o `HTMLVideoElement`;
-- cria uma Engine associada a esse elemento;
-- chama `engine.loadSource()`.
-
-Utilizar a mesma implementação de PlayerEngine do embed.
-
-Não manter lifecycle HLS paralelo em React.
-
-### Lifetime
-
-Engine acompanha o vídeo.
-
-Não recriar por:
-
-- config update;
-- thumbnail update;
-- pause thumbnail update;
-- accent color;
-- border radius;
-- controls;
-- volume;
-- rate.
-
-Novo source pode reutilizar a mesma Engine via `loadSource()`.
+### Safety Guard do evento `playing`
+- O listener de `playing` no elemento de vídeo deve verificar `userForegroundRequested === true` antes de liberar a startup surface em `experience === "foreground"`.
+- Um evento `playing` espúrio ou disparado por preparação em background não pode remover a thumbnail antes da interação do usuário.
 
 ---
 
-## Source/HLS ownership
+## Startup Visual Instantâneo (STARTUP VISUAL PRIME EARLY)
 
-Somente o Engine pode controlar operações equivalentes a:
+### Princípio
+Assim que a URL correta do startup visual for conhecida (seja no Tiny Loader após bootstrap ou no Engine Standalone), ela deve ser aplicada imediatamente à startup visual surface.
 
-- `video.src = ...`;
-- `video.load()`;
-- `new Hls()`;
-- `hls.loadSource()`;
-- `hls.attachMedia()`;
-- `hls.destroy()`;
-- `hls.startLoad()`;
-- `hls.recoverMediaError()`.
+**Não esperar:**
+- `img.onload`
+- `img.decode()`
+- Carregamento do Player Core
+- Download de manifesto HLS ou primeiro segmento
+- First frame do vídeo
 
-`evandro-player.tsx` não deve continuar com lifecycle HLS próprio.
+### Surface Segura (CSS Background Surface)
+A apresentação visual é realizada diretamente via propriedades CSS no container:
+- `background-color: #000;`
+- `background-image: url("...");`
+- `background-size: cover;`
+- `background-position: center;`
+- `background-repeat: no-repeat;`
 
-Remover do React, quando usados como ownership:
+**Vantagens:**
+- Sem broken-image glyph nativo do browser em caso de lentidão ou falha transitória.
+- Browser pinta os pixels progressivamente sem barreira de execução de JS.
+- Nenhum elemento `<img>` visível obrigatório no caminho crítico.
+- Suporte nativo a WebP animado.
 
-- `hlsRef`;
-- `attachMediaSource`;
-- `loadHlsEngine`;
-- `shouldUseNativeHls`;
-- `createStartupHlsConfig`;
-- `saveBandwidthEstimate`;
-- seleção Native HLS;
-- recovery HLS;
-- attach/destroy.
-
-### Bundles
-
-Preservar arquitetura separada:
-
-- Tiny Loader;
-- Player Engine;
-- Player Core;
-- HLS Light.
-
-Não resolver a consolidação colocando HLS/Engine dentro do Player Core de forma duplicada.
-
-Safari/native path continua podendo carregar 0 bytes de HLS.js quando aplicável.
+### Image Auxiliar (Observer / Fallback Monitor)
+Um objeto `new Image()` offscreen é utilizado exclusivamente para:
+1. Registrar performance marks (`ep:visual:*:ready`).
+2. Detectar erro real (`onerror`) e acionar o fallback para provider poster quando cabível.
+3. Este objeto é um observador assíncrono e **não** atua como presentation gate.
 
 ---
 
-## Playback commands passam pelo Engine
+## Resolver Canônico de Startup Visual
 
-Toda mutação funcional da mídia deve passar pelo PlayerEngine.
+Uma única política de resolução pura compartilhada entre Tiny Loader e Player Engine (`resolveStartupVisual`):
 
-Incluindo:
+```text
+1. Background Autoplay ON:
+   - Se backgroundPreviewUrl existir:
+     → { type: "preview", url: backgroundPreviewUrl, fallbackUrl: null }
+   - Se não existir:
+     → { type: "none", url: null, fallbackUrl: null } (Superfície preta)
+   * Startup thumbnail nunca participa no modo BG ON.
 
-- Play;
-- Pause;
-- Background → Foreground;
-- Seek;
-- Volume;
-- Mute;
-- Playback Rate;
-- Background Autoplay transitions.
+2. Background Autoplay OFF + Thumbnail OFF:
+   → { type: "none", url: null, fallbackUrl: null } (Superfície preta → first frame)
 
-API conceitual:
+3. Background Autoplay OFF + Thumbnail ON + source "custom":
+   - Se customUrl existir e for válida:
+     → { type: "custom", url: customUrl, fallbackUrl: posterUrl } (Prioridade Absoluta)
+   - Se customUrl estiver vazia mas posterUrl existir:
+     → { type: "provider", url: posterUrl, fallbackUrl: null }
+   - Se nenhuma existir:
+     → { type: "none", url: null, fallbackUrl: null }
 
-- `engine.play()`;
-- `engine.pause()`;
-- `engine.seek(time)`;
-- `engine.setVolume(volume)`;
-- `engine.setMuted(muted)`;
-- `engine.setPlaybackRate(rate)`;
-- `engine.startForeground(...)`;
-- API apropriada para atualização de Background Autoplay/config.
+4. Background Autoplay OFF + Thumbnail ON + source "provider":
+   - Se posterUrl existir:
+     → { type: "provider", url: posterUrl, fallbackUrl: null }
+   - Se não existir:
+     → { type: "none", url: null, fallbackUrl: null }
+```
 
-Os nomes exatos podem variar.
-
-### React deixa de controlar diretamente a mídia
-
-Handlers React não devem executar diretamente, como owner normal:
-
-- `video.play()`;
-- `video.pause()`;
-- `video.currentTime = ...`;
-- `video.volume = ...`;
-- `video.muted = ...`;
-- `video.playbackRate = ...`.
-
-React expressa intenção.
-
-Engine realiza o comando.
+### Política de Fallback Custom → Provider
+- A custom thumbnail é aplicada imediatamente na superfície.
+- O observer `Image` monitora o carregamento da custom URL.
+- Se a custom carregar com sucesso: permanece a custom.
+- Se a custom disparar erro real (`onerror`) confirmado: a superfície é atualizada para `fallbackUrl` (provider poster).
+- O provider poster **nunca** é exibido antes da confirmação do erro.
 
 ---
 
-## Estado canônico do Engine
+## Integração com Tiny Loader e Handoff para o Engine
 
-Expandir `PlayerEngineState` conforme necessário para cobrir ao menos:
+### Ciclo no Embed
+1. Tiny Loader inicializa synchronously o Persistent Stage, Video Element e Startup Visual Container.
+2. Bootstrap retorna config, `posterUrl`, `backgroundPreviewUrl` e custom thumbnail.
+3. Loader executa `resolveStartupVisual()`.
+4. Loader executa `preloadVisualAsset(visual.url)` (Link preload high-priority).
+5. Loader aplica `applyStartupVisualSurface(el, visual)` imediatamente.
+6. Player Engine é carregado e inicializado.
+7. `PlayerEngine.loadSource()` executa o mesmo resolver canônico.
+8. **Adoção Transparente:** Ao detectar que a startup surface já possui o mesmo asset aplicado (`data-startup-url === visual.url`), o Engine adota a superfície sem limpar, sem flash preto e sem novo request.
+9. Player Core monta posteriormente no `uiRoot`.
 
-- `videoId`;
-- `playbackUrl`;
-- `experience`;
-- `playbackInitiator`;
-- `userForegroundRequested`;
-- `isPlaying`;
-- `isMuted`;
-- `volume`;
-- `currentTime`;
-- `duration`;
-- `bufferedEnd`;
-- `playbackRate`;
-- `hasFirstFrame`;
-- `hasStartedForeground`;
-- `isBuffering`;
-- `isEnded`;
-- `hasError`;
-- `errorMessage`.
+### Standalone / Editor
+- No Editor (onde o Tiny Loader não atua), `PlayerEngine.loadSource()` resolve e aplica o asset imediatamente à superfície ao iniciar.
+- Paridade total de comportamento visual entre editor e embed.
 
-Nomes podem variar.
-
-Regra:
-
-**se é um fato de playback, o Engine é a fonte canônica.**
+### Normalização de URLs Custom
+- URLs relativas de custom thumbnails e assets no bootstrap/config são normalizadas contra o `apiBase` / `CDN_URL` oficial do Evandro, garantindo que embeds em domínios de terceiros resolvam os assets corretamente.
 
 ---
 
-## PlaybackController
+## Lifecycle, Idempotência e Generation Guard
 
-Preferência: remover `PlaybackController`.
+1. **Idempotência de `releaseStartupVisual()`:**
+   - Marca `startupVisualState = "released"`.
+   - Aborta controllers visuais pendentes.
+   - Aplica fade-out CSS de 70ms e remove `background-image` e atributos após a transição.
+   - Chamadas subsequentes no mesmo ciclo não produzem efeitos colaterais.
 
-Se permanecer temporariamente, ele não pode tocar diretamente no `HTMLVideoElement`.
+2. **Generation Guard:**
+   - Cada chamada a `loadSource()` incrementa `_generation`.
+   - Callbacks atrasados de imagens, manifests HLS ou first frame de gerações anteriores são ignorados imediatamente.
+   - Callbacks tardios não podem reexibir startup visual após a transição para playback foreground.
 
-Só pode delegar comandos para o PlayerEngine.
-
-Não manter duas abstrações com autoridade equivalente.
-
----
-
-## PlayerRuntime
-
-Pode permanecer para:
-
-- events;
-- snapshots;
-- debug;
-- `onEvent`;
-- `onRuntimeReady`;
-- futuro Tracker.
-
-Mas apenas como observer.
-
-Não pode:
-
-- comandar mídia;
-- possuir playback mode concorrente;
-- manter authority diferente da Engine.
+3. **Pause Thumbnail Preservada:**
+   - O ciclo da Pause Thumbnail permanece independente (`pauseThumbnail.showPlayButton`, imagem de pausa personalizada, fallback "Continue assistindo", clique para retomar e remoção imediata no evento `play`/`playing`).
 
 ---
 
-## Background Autoplay
+## Matriz de Cenários de Teste Manual
 
-Preservar:
+### Cenário A — Provider thumbnail antes do Play
+- **Config:** BG OFF, Thumbnail ON, Source Automática (provider).
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Provider thumbnail permanece visível continuamente. Mesmo que o first frame seja decodificado por baixo, a thumbnail permanece. Somente após o usuário clicar em Play o vídeo assume.
 
-- Background Preview WebP;
-- muted playback;
-- janela de aproximadamente 8 segundos;
-- quality cap de aproximadamente até 480p onde aplicável;
-- visibility handling.
+### Cenário B — Custom thumbnail antes do Play
+- **Config:** BG OFF, Thumbnail ON, Source Personalizada (custom válida).
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Custom thumbnail visível imediatamente e permanece contínua. Provider poster nunca aparece. First frame decodifica por baixo sem substituir a imagem custom.
 
-### Background → Foreground
+### Cenário C — Custom + Play Button OFF
+- **Config:** BG OFF, Thumbnail ON, Source Personalizada, Play Button desativado.
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Imagem custom cobre o player sem botão central. Clique em qualquer área inicia o playback e libera a imagem.
 
-Ao clicar no CTA:
+### Cenário D — Play com first frame já pronto
+- **Config:** BG OFF, Thumbnail ON.
+- **Ação:** Aguardar 2s (mídia bufferizada por baixo) e clicar em Play.
+- **Resultado Esperado:** Liberação instantânea da thumbnail (`70ms` fade) e início imediato do vídeo foreground com áudio.
 
-- experience → foreground;
-- playbackInitiator → user;
-- startup visual → pending release / invalidated;
-- quality cap → removido;
-- currentTime → 0;
-- volume → restaurado;
-- muted → conforme volume;
-- default playbackRate → aplicada;
-- `play()`.
+### Cenário E — Play antes do first frame
+- **Config:** BG OFF, Thumbnail ON.
+- **Ação:** Clicar em Play imediatamente após o carregamento inicial da página (Fast Click).
+- **Resultado Esperado:** Thumbnail permanece visível durante a conexão da mídia (`pending_release`). Assim que o first frame chega, a thumbnail é liberada suavemente sem flash preto.
 
-Tudo usando:
+### Cenário F — Thumbnail OFF
+- **Config:** BG OFF, Thumbnail OFF.
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Fundo preto até o first real frame, que é exibido imediatamente assim que decodificado. Nenhuma thumbnail exibida.
 
-- mesmo video;
-- mesmo source;
-- mesma HLS instance;
-- mesmo buffer.
+### Cenário G — Background Autoplay
+- **Config:** BG ON, Thumbnail OFF ou ON.
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Background Preview exibido o mais cedo possível, seguido imediatamente pela transição suave para o vídeo mudo em loop. Configuração de thumbnail não participa.
 
-Não recriar HLS.
+### Cenário H — Custom inválida (Fallback confirmado)
+- **Config:** BG OFF, Thumbnail ON, Source Custom com URL que retorna 404/erro de rede.
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Superfície preta durante a tentativa da custom. Ao confirmar o erro no observer `Image`, o fallback exibe o provider poster. O provider nunca aparece antes da confirmação de erro da custom.
 
-### BG ON/OFF ao vivo no editor
+### Cenário I — Cache quente
+- **Config:** Qualquer modo com assets em cache do navegador.
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Apresentação visual praticamente instantânea após a disponibilidade da URL no bootstrap, sem delays artificiais de JavaScript.
 
-Alterações live:
-
-- OFF → ON;
-- ON → OFF;
-
-devem ser processadas pela Engine.
-
-Não recriar HLS/source/manifest sem necessidade.
-
----
-
-## First frame
-
-Deve existir uma única authority de first frame: PlayerEngine.
-
-React não instala segundo detector concorrente.
-
-Engine:
-
-- detecta first frame;
-- atualiza state;
-- notifica subscribers;
-- coordena startup release quando necessário.
+### Cenário J — Cache frio
+- **Config:** Navegador com cache limpo / conexão móvel.
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Superfície preta apenas durante o download do bootstrap e bytes iniciais. Nenhum gate adicional de decode/load após a chegada da URL.
 
 ---
 
-## Seek, Volume, Mute e Rate
-
-Seek:
-
-- timeline click;
-- timeline drag;
-- ArrowLeft;
-- ArrowRight;
-
-usa `engine.seek()`.
-
-Volume usa `engine.setVolume()`.
-
-Mute usa `engine.setMuted()`.
-
-Playback rate usa `engine.setPlaybackRate()`.
-
-Preservar a UX atual.
-
----
-
-## Keyboard
-
-Preservar:
-
-- Space / K → Play/Pause;
-- M → Mute;
-- F → Fullscreen;
-- ArrowLeft → -5s;
-- ArrowRight → +5s.
-
-Comandos de mídia passam pelo Engine.
-
-Fullscreen continua responsabilidade da UI.
-
----
-
-## Native HLS e HLS Light
-
-Preservar:
-
-- Native HLS em Safari/Apple/WebKit quando adequado;
-- HLS.js não carregado no native path;
-- HLS Light separado;
-- startup ABR;
-- bandwidth session memory;
-- dynamic loading;
-- Mux;
-- Bunny.
-
----
-
-## Cleanup da Engine
-
-`engine.destroy()` deve limpar:
-
-- video event listeners;
-- visibility listener;
-- first-frame callback;
-- visual async work;
-- pending image callbacks;
-- HLS listeners;
-- HLS instance;
-- subscribers.
-
-Preferir `AbortController` ou handlers removíveis.
-
-Engine externa do embed não deve ser destruída pelo unmount do React Core.
-
-Engine interna do editor pode ser destruída quando o vídeo realmente desmontar.
-
----
-
-## Source change e generation guard
-
-Novo source pode reiniciar o startup lifecycle.
-
-Source anterior não pode reassumir o player por callback assíncrono atrasado.
-
-Preservar/reforçar generation guard.
-
-Depois de trocar source:
-
-- callbacks de imagem antigos não podem inserir visual;
-- callbacks HLS antigos não podem assumir mídia;
-- first-frame antigo não pode alterar o novo source.
-
----
-
-## Tracking e regras comerciais
-
-Preservar tracking atual de foreground activation.
-
-Não bloquear playback aguardando tracking.
-
-PlayerEngine não deve conhecer:
-
-- subscription;
-- quota;
-- account;
-- billing;
-- entitlement;
-- ownership.
-
-Essas regras permanecem fora da Engine.
-
----
-
-## Fora do escopo
-
-Não implementar nesta milestone:
-
-- Persistent Resume;
-- Access / Startup Pipeline evolution;
-- Tracker / remote telemetry;
-- Evandro Delivery;
-- Edge Gateway;
-- custom video CDN;
-- HLS proxy;
-- signed playback redesign.
-
----
-
-## Testes manuais obrigatórios
-
-### Cenário 1 — Play antecipado com provider thumbnail
-
-Config:
-
-- BG OFF;
-- Thumbnail ON;
-- source provider.
-
-F5.
-
-Clicar Play imediatamente, antes do vídeo parecer pronto.
-
-Esperado:
-
-- thumbnail pode permanecer durante warming;
-- primeiro frame real chega;
-- thumbnail desaparece;
-- vídeo fica sozinho;
-- Pause/Play posteriores nunca trazem startup thumbnail de volta.
-
-### Cenário 2 — Play antecipado com custom startup
-
-Repetir com:
-
-- custom startup;
-- showPlayButton ON.
-
-Depois repetir com:
-
-- custom startup;
-- showPlayButton OFF.
-
-Mesmo resultado.
-
-### Cenário 3 — BG ON + Thumbnail OFF
-
-Config:
-
-- Thumbnail inicial OFF;
-- Background Autoplay ON.
-
-F5.
-
-Desde o primeiro pixel, o usuário pode ver apenas:
-
-- black surface;
-- ou Background Preview válido.
-
-Nunca:
-
-- broken-image glyph;
-- alt text;
-- provider thumbnail;
-- custom thumbnail;
-- white flash.
-
-Com cache frio:
-
-black → preview válido → main video.
-
-Com cache quente:
-
-preview praticamente instantâneo → main video.
-
-### Cenário 4 — Preview falha
-
-Forçar falha do Background Preview.
-
-Esperado:
-
-black → main first frame → video.
-
-Sem broken image e sem fallback para startup thumbnail.
-
-### Cenário 5 — Late preview
-
-Preview termina de carregar depois que o vídeo já venceu.
-
-Esperado:
-
-preview é ignorado e nunca aparece.
-
-### Cenário 6 — Pause Thumbnail
-
-Play.
-
-Pause.
-
-Custom Pause Thumbnail aparece quando configurada.
-
-Resume.
-
-Esperado:
-
-pause thumbnail sai imediatamente e vídeo fica visível.
-
-### Cenário 7 — Continue assistindo
-
-Com Pause Thumbnail OFF:
-
-Pause → Continue assistindo.
-
-Resume → card desaparece.
-
-### Cenário 8 — Background Autoplay
-
-F5 com BG ON.
-
-Preview → first frame → preview sai.
-
-Clique CTA.
-
-Nenhum startup preview permanece ou reaparece.
-
-### Cenário 9 — Editor vs embed
-
-Executar os principais testes em editor e embed.
-
-Comportamento deve ser semanticamente equivalente.
-
-### Cenário 10 — Source change
-
-Trocar `video-id`/source.
-
-Novo source pode iniciar novo startup lifecycle.
-
-Startup visual do source anterior nunca pode reaparecer.
-
-### Cenário 11 — Múltiplos players
-
-Dois ou mais players na mesma página.
-
-Cada player possui seu próprio:
-
-- video;
-- Engine;
-- HLS;
-- startup lifecycle.
-
-Sem cross-talk.
-
----
-
-## Inspeção estática obrigatória
-
-Comprovar:
-
-- 1 HTMLVideoElement por player;
-- 1 PlayerEngine por player;
-- <= 1 HLS principal por player;
-- `evandro-player.tsx` sem lifecycle HLS próprio;
-- React sem direct playback media mutations como owner;
-- PlaybackController removido ou neutralizado;
-- PlayerRuntime apenas observer;
-- 1 authority de first frame;
-- user foreground + first frame → startup release obrigatório;
-- startup visual released → late asset não reaparece;
-- preview só fica visualmente exposto quando carregado;
-- `releaseStartupVisual()` idempotente;
-- config visual não recria Engine/HLS;
-- external Engine não é destruída pelo React Core.
-
----
-
-## Checks técnicos
-
-Executar:
-
-- `pnpm typecheck`
-- `pnpm lint`
-- `pnpm build:embed`
-- `pnpm build`
-
-Todos devem passar.
-
-Não adicionar Playwright/Cypress como requisito da milestone.
-
----
-
-## Bundle validation
-
-Reportar tamanhos de:
-
-- Tiny Loader;
-- Player Engine;
-- Player Core;
-- HLS Light.
-
-Confirmar:
-
-- Tiny Loader <= 25 KB minified;
-- Player Engine separado;
-- Player Core separado;
-- HLS Light separado;
-- native path continua sem HLS.js quando aplicável.
-
----
-
-## Falhou se
-
-A milestone falhou se qualquer um destes ocorrer:
-
-- Play antecipado deixa startup thumbnail presa;
-- vídeo toca por baixo de startup thumbnail;
-- Pause/Play posterior não remove startup visual;
-- broken-image glyph aparece;
-- preview é exposto visualmente antes de carregar;
-- Thumbnail OFF impede Background Preview com BG ON;
-- BG ON usa provider/custom thumbnail como fallback;
-- late preview reaparece sobre vídeo;
-- late custom/provider thumbnail reaparece sobre vídeo;
-- Pause Thumbnail permanece enquanto isPlaying=true;
-- Continue assistindo permanece enquanto isPlaying=true;
-- first frame continua com múltiplos owners;
-- React continua owner de HLS;
-- PlaybackController continua segundo owner;
-- editor e embed mantêm arquiteturas divergentes;
-- Background → Foreground recria HLS;
-- Background → Foreground perde buffer;
-- startup visual some cedo demais e cria black flash desnecessário;
-- Spec 050 showPlayButton sofre regressão;
-- Background Preview sofre regressão;
-- fade/crossfade sofre regressão;
-- spinner sofre regressão;
-- seek/volume/mute/rate/fullscreen sofrem regressão.
-
----
-
-## Commit esperado
-
-`spec(051): consolidate playback ownership in headless engine`
-
-Push somente para `origin development`.
-
-Não promover para `main`.
-
----
-
-## Critério de aceite
-
-A Spec 051 continua não aceita até existir:
-
-- implementação concluída;
-- typecheck/lint/build passando;
-- inspeção estrutural;
-- teste manual;
-- confirmação explícita do usuário.
-
-Somente depois disso avançar para a próxima milestone.
+## Critérios de Aceite Técnicos
+
+- [x] Semântica de `playbackInitiator`: BG OFF inicia com `"system"`, somente ações explícitas definem `"user"`.
+- [x] Regra de first-frame release: `isBg || !thumbEnabled || userForegroundRequested`.
+- [x] Startup visual não bloqueado por `img.onload` ou `img.decode()`.
+- [x] Tiny Loader prima a startup visual surface imediatamente no bootstrap.
+- [x] Player Engine adota a superfície já primada sem flicker ou requisições redundantes.
+- [x] Fallback custom → provider poster ocorre unicamente após erro real confirmado.
+- [x] Broken-image glyph nativo impossibilitado pelo uso de CSS background surface.
+- [x] USER PLAYBACK WINS preservado sem flash preto em cliques imediatos ou tardios.
+- [x] Bundles dentro dos limites arquiteturais: Tiny Loader <= 25 KB minified.
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm build:embed` e `pnpm build` executam com 0 erros.
