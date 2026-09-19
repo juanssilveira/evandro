@@ -442,6 +442,36 @@ export function PlayerThumbnailUploader({
               </div>
             </div>
 
+            {/* Provider Section */}
+            {currentSource === "provider" && (
+              <div className="p-3.5 rounded-lg border border-border/80 bg-card space-y-3">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  O player utiliza automaticamente a capa gerada a partir do vídeo.
+                </p>
+
+                {/* Play Button Visibility Setting */}
+                <ThumbnailPlayButtonSetting
+                  id={`startup-play-switch-${videoId}`}
+                  checked={showPlayButton}
+                  disabled={isPending || isUploading || isRemoving}
+                  isPending={isPending && pendingField === "thumbnailPlayButton"}
+                  description="Exibe um botão de Play central sobre a imagem inicial."
+                  onCheckedChange={(checked) =>
+                    onConfigUpdate(
+                      {
+                        appearance: {
+                          thumbnail: {
+                            showPlayButton: checked,
+                          },
+                        },
+                      },
+                      "thumbnailPlayButton"
+                    )
+                  }
+                />
+              </div>
+            )}
+
             {/* Custom Asset Section */}
             {currentSource === "custom" && (
               <div className="p-3.5 rounded-lg border border-border/80 bg-card space-y-3">
@@ -507,7 +537,7 @@ export function PlayerThumbnailUploader({
                       </button>
                     </div>
 
-                    {/* Play Button Visibility Setting (Exclusive to existing custom thumbnail) */}
+                    {/* Play Button Visibility Setting */}
                     <ThumbnailPlayButtonSetting
                       id={`startup-play-switch-${videoId}`}
                       checked={showPlayButton}
@@ -568,6 +598,27 @@ export function PlayerThumbnailUploader({
                         </div>
                       )}
                     </div>
+
+                    {/* Play Button Visibility Setting */}
+                    <ThumbnailPlayButtonSetting
+                      id={`startup-play-switch-${videoId}`}
+                      checked={showPlayButton}
+                      disabled={isPending || isUploading || isRemoving}
+                      isPending={isPending && pendingField === "thumbnailPlayButton"}
+                      description="Exibe um botão de Play central sobre a imagem inicial."
+                      onCheckedChange={(checked) =>
+                        onConfigUpdate(
+                          {
+                            appearance: {
+                              thumbnail: {
+                                showPlayButton: checked,
+                              },
+                            },
+                          },
+                          "thumbnailPlayButton"
+                        )
+                      }
+                    />
                   </div>
                 )}
 

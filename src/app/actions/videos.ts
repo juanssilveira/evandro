@@ -446,7 +446,6 @@ export async function removePlayerThumbnailAction(rawInput: unknown) {
             customUrl: null,
             customKey: null,
             customAspectRatio: null,
-            showPlayButton: true,
           },
         },
       });

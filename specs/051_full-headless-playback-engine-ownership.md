@@ -4,7 +4,7 @@
 Em andamento / Corrective Pass (Não aceita manualmente)
 
 ## Objetivo
-Consolidar a propriedade exclusiva de playback, inicialização de mídia, ciclo de vida de HLS/mídia nativa e superfície de startup visual dentro do `PlayerEngine` headless, garantindo startup visual instantâneo e eliminando race conditions, flickering, fallbacks indevidos e remoção prematura de thumbnails.
+Consolidar a propriedade exclusiva de playback, inicialização de mídia, ciclo de vida de HLS/mídia nativa e superfície de startup visual dentro do `PlayerEngine` headless, garantindo startup visual instantâneo e eliminando race conditions, flickering, fallbacks indevidos, remoção prematura de thumbnails, e polindo a experiência de controle de Play buttons e Pause Thumbnail.
 
 ---
 
@@ -24,6 +24,11 @@ Consolidar a propriedade exclusiva de playback, inicialização de mídia, ciclo
 - **Sintoma:** Thumbnail surge rapidamente, o primeiro frame do vídeo é decodificado por baixo, a thumbnail desaparece e expõe o vídeo pausado antes de qualquer clique do usuário.
 - **Causa:** `PlayerEngine.loadSource()` inicializava players BG OFF com `playbackInitiator = "user"` mesmo sem qualquer interação do usuário. No callback de first-frame, a regra `isBg || !thumbEnabled || userForegroundRequested || playbackInitiator === "user"` disparava a liberação imediata da thumbnail.
 - **Correção:** Apenas carregar/preparar mídia em BG OFF define `playbackInitiator = "system"` (não `"user"`). A autoridade para liberação por intenção do usuário passa a ser exclusivamente `userForegroundRequested === true`.
+
+### 4. Piscada de Black + Play Button antes da thumbnail inicial carregar
+- **Sintoma:** F5 na página mostrava fundo preto com o botão de Play central renderizado por cima por alguns milissegundos antes da thumbnail aparecer atrás do botão.
+- **Causa:** No Standalone/Editor, a surface inicial era renderizada sem estilo `background-image` enquanto o `useEffect` criava o Engine e executava `loadSource()`. No Embed, o Core React podia pintar o overlay de Big Play antes do bootstrap resolver a URL da thumbnail.
+- **Correção:** No Standalone/Editor, a startup surface recebe `initialVisual` de forma síncrona/pura já no primeiro render. No Embed e Core, o overlay de Big Play possui a condição `showStartupPlayButton && isStartupReady`, impedindo que o Play seja exibido sobre uma tela preta quando há thumbnail configurada e esperada.
 
 ---
 
@@ -63,7 +68,7 @@ Onde:
 ### Comportamento BG OFF + Thumbnail ON antes do Play
 - `userForegroundRequested === false`
 - O primeiro frame pode ser decodificado e bufferizado por baixo com `opacity: 1` no elemento `<video>`.
-- A startup surface permanece com `z-index: 1`, opaca e visível sobre o vídeo.
+- A startup surface permanece com `z-index: 5` (standalone) / `z-index: 1` (embed stage), opaca e visível sobre o vídeo.
 - **Resultado:** A thumbnail permanece perfeitamente visível até a interação do usuário.
 
 ### Play após first frame já preparado
@@ -120,6 +125,36 @@ Um objeto `new Image()` offscreen é utilizado exclusivamente para:
 
 ---
 
+## Corrective UI Polish — Thumbnail Controls & Pause Experience
+
+### 1. Fake Progress Bar sobre a Custom Pause Thumbnail
+- **Camada:** A Fake Progress Bar agora possui `z-index: 15`, posicionando-se visualmente acima da Custom Pause Thumbnail (`z-index: 12`) e abaixo dos controles flutuantes de reprodução (`z-index: 20`).
+- **Comportamento no Pause:** A Fake Progress Bar mantém o percentual alcançado no momento da pausa, congela sem resetar e sem continuar avançando enquanto o vídeo estiver pausado. Retoma o avanço normalmente quando a reprodução recomeça.
+- **Pass-through de cliques:** A barra permanece `pointer-events: none`, permitindo que cliques em qualquer região continuem acionando o resume da Pause Thumbnail.
+
+### 2. Play Button Animado da Custom Pause Thumbnail
+- Quando `pauseThumbnail.showPlayButton === true`:
+  - Botão central circular renderizado com `var(--player-accent)` e `var(--player-accent-foreground)`.
+  - **Ondas Concêntricas:** 3 anéis/ondas concêntricos animados (`ep-pause-wave-1`, `ep-pause-wave-2`, `ep-pause-wave-3`) expandem-se a partir do botão com duração de `2.4s` e delays escalonados (`0s`, `0.8s`, `1.6s`), desvanecendo a opacidade progressivamente (`0.55 → 0.22 → 0`).
+  - **Breathing Pulse:** O botão central respira sutilmente com escala de `1` a `1.045` (`ep-pause-pulse`).
+  - **Acessibilidade:** `prefers-reduced-motion: reduce` desativa integralmente as ondas e o pulse contínuo, mantendo o botão estático e 100% funcional.
+  - **Pointer Events:** As ondas e o botão possuem `pointer-events: none`; o clique em qualquer parte da thumbnail retoma o playback.
+  - Quando `pauseThumbnail.showPlayButton === false`, nenhum elemento visual de Play é renderizado.
+
+### 3. Play Button da Thumbnail Inicial: Suporte Universal (Automática e Personalizada)
+- **Supersessão da Spec 050:** A regra anterior da Spec 050 que limitava `showPlayButton` exclusivamente a thumbnails personalizadas e forçava `true` para automáticas é **SUPERADA**.
+- `appearance.thumbnail.showPlayButton` passa a controlar o botão central de Play da THUMBNAIL INICIAL independentemente da source (`provider` ou `custom`).
+- O switch *"Mostrar botão de reprodução"* fica disponível no editor tanto para o modo *Automática* quanto *Personalizada* sempre que `thumbnail.enabled = true`.
+- **Preservação de Escolha:** Alternar entre *Automática* e *Personalizada* preserva o valor de `showPlayButton`. Remover uma thumbnail personalizada (`kind: "startup"`) restaura a source para `provider` mantendo o valor configurado de `showPlayButton` (não reseta para `true`).
+- **Fallback Custom → Provider:** Em caso de erro na custom thumbnail, o fallback para o provider poster preserva integralmente o estado de `showPlayButton`.
+
+### 4. Eliminação da Piscada Black + Play Button
+- **Editor / Standalone:** `EvandroPlayer` resolve `initialVisual` de maneira síncrona a partir das props iniciais e insere o estilo inline `background-image` diretamente no JSX da surface. O browser recebe e renderiza a imagem no primeiro commit, sem aguardar o ciclo de `useEffect` do Engine.
+- **Embed:** O Tiny Loader já cria a surface e prima o asset imediatamente após a resposta do bootstrap. O componente Core monta com a checagem `isStartupReady`, garantindo que o Big Play inicial só seja exibido quando a startup visual estiver primada ou o first frame chegar, evitando o flash preto com botão de Play isolado.
+- **Limite Arquitetural do Cold-Start Embed:** Em uma primeira visita sem cache, o player permanece preto apenas durante o intervalo estritamente necessário para o fetch do bootstrap `/api/embed/videos/:id`. Não são criados caches inseguros de localStorage ou bypasses de quota/access para ocultar esse tempo de rede.
+
+---
+
 ## Resolver Canônico de Startup Visual
 
 Uma única política de resolução pura compartilhada entre Tiny Loader e Player Engine (`resolveStartupVisual`):
@@ -173,7 +208,7 @@ Uma única política de resolução pura compartilhada entre Tiny Loader e Playe
 9. Player Core monta posteriormente no `uiRoot`.
 
 ### Standalone / Editor
-- No Editor (onde o Tiny Loader não atua), `PlayerEngine.loadSource()` resolve e aplica o asset imediatamente à superfície ao iniciar.
+- No Editor (onde o Tiny Loader não atua), `EvandroPlayer` prima a startup surface no primeiro frame síncrono e `PlayerEngine.loadSource()` adota o elemento ao iniciar.
 - Paridade total de comportamento visual entre editor e embed.
 
 ### Normalização de URLs Custom
@@ -199,57 +234,72 @@ Uma única política de resolução pura compartilhada entre Tiny Loader e Playe
 
 ---
 
-## Matriz de Cenários de Teste Manual
+## Matriz de Cenários de Teste Manual (Aguardando Validação)
 
-### Cenário A — Provider thumbnail antes do Play
-- **Config:** BG OFF, Thumbnail ON, Source Automática (provider).
+### Cenário A — Automática + Play ON
+- **Config:** BG OFF, Thumbnail ON, Source Automática (provider), Play Button ON.
 - **Ação:** F5 na página.
-- **Resultado Esperado:** Provider thumbnail permanece visível continuamente. Mesmo que o first frame seja decodificado por baixo, a thumbnail permanece. Somente após o usuário clicar em Play o vídeo assume.
+- **Resultado Esperado:** Provider Thumbnail + Play central exibidos juntos. Sem flash perceptível de black + Play antes da imagem.
 
-### Cenário B — Custom thumbnail antes do Play
-- **Config:** BG OFF, Thumbnail ON, Source Personalizada (custom válida).
+### Cenário B — Automática + Play OFF
+- **Config:** BG OFF, Thumbnail ON, Source Automática (provider), Play Button OFF.
 - **Ação:** F5 na página.
-- **Resultado Esperado:** Custom thumbnail visível imediatamente e permanece contínua. Provider poster nunca aparece. First frame decodifica por baixo sem substituir a imagem custom.
+- **Resultado Esperado:** Provider Thumbnail limpa, sem Play central. Imagem inteira clicável para iniciar playback. Sem overlays escuros residuais.
 
-### Cenário C — Custom + Play Button OFF
-- **Config:** BG OFF, Thumbnail ON, Source Personalizada, Play Button desativado.
+### Cenário C — Custom + Play ON
+- **Config:** BG OFF, Thumbnail ON, Source Personalizada, Play Button ON.
 - **Ação:** F5 na página.
-- **Resultado Esperado:** Imagem custom cobre o player sem botão central. Clique em qualquer área inicia o playback e libera a imagem.
+- **Resultado Esperado:** Custom Thumbnail + Play central. Nunca exibe black + Play antes da imagem custom.
 
-### Cenário D — Play com first frame já pronto
-- **Config:** BG OFF, Thumbnail ON.
-- **Ação:** Aguardar 2s (mídia bufferizada por baixo) e clicar em Play.
-- **Resultado Esperado:** Liberação instantânea da thumbnail (`70ms` fade) e início imediato do vídeo foreground com áudio.
-
-### Cenário E — Play antes do first frame
-- **Config:** BG OFF, Thumbnail ON.
-- **Ação:** Clicar em Play imediatamente após o carregamento inicial da página (Fast Click).
-- **Resultado Esperado:** Thumbnail permanece visível durante a conexão da mídia (`pending_release`). Assim que o first frame chega, a thumbnail é liberada suavemente sem flash preto.
-
-### Cenário F — Thumbnail OFF
-- **Config:** BG OFF, Thumbnail OFF.
+### Cenário D — Custom + Play OFF
+- **Config:** BG OFF, Thumbnail ON, Source Personalizada, Play Button OFF.
 - **Ação:** F5 na página.
-- **Resultado Esperado:** Fundo preto até o first real frame, que é exibido imediatamente assim que decodificado. Nenhuma thumbnail exibida.
+- **Resultado Esperado:** Custom Thumbnail limpa, sem botão central. Imagem inteira clicável para iniciar playback.
 
-### Cenário G — Background Autoplay
-- **Config:** BG ON, Thumbnail OFF ou ON.
-- **Ação:** F5 na página.
-- **Resultado Esperado:** Background Preview exibido o mais cedo possível, seguido imediatamente pela transição suave para o vídeo mudo em loop. Configuração de thumbnail não participa.
+### Cenário E — Alternar Source (Preservação de Play Button)
+- **Config:** Automática com Play Button OFF.
+- **Ação:** Trocar para Personalizada e voltar para Automática no editor.
+- **Resultado Esperado:** `showPlayButton = false` é preservado em todas as transições.
 
-### Cenário H — Custom inválida (Fallback confirmado)
-- **Config:** BG OFF, Thumbnail ON, Source Custom com URL que retorna 404/erro de rede.
-- **Ação:** F5 na página.
-- **Resultado Esperado:** Superfície preta durante a tentativa da custom. Ao confirmar o erro no observer `Image`, o fallback exibe o provider poster. O provider nunca aparece antes da confirmação de erro da custom.
+### Cenário F — Remover Custom (Preservação de Play Button)
+- **Config:** Personalizada ativa com Play Button OFF.
+- **Ação:** Clicar em "Remover" thumbnail personalizada.
+- **Resultado Esperado:** Source volta para provider e `showPlayButton` continua `false` (não reseta para `true`).
 
-### Cenário I — Cache quente
-- **Config:** Qualquer modo com assets em cache do navegador.
-- **Ação:** F5 na página.
-- **Resultado Esperado:** Apresentação visual praticamente instantânea após a disponibilidade da URL no bootstrap, sem delays artificiais de JavaScript.
+### Cenário G — Custom Fallback (Preservação de Play Button)
+- **Config:** Custom inválida com Play Button OFF (e depois com ON).
+- **Ação:** Disparar erro de rede na custom.
+- **Resultado Esperado:** Provider poster fallback assume preservando exatamente a preferência de `showPlayButton` (sem Play quando false, com Play quando true).
 
-### Cenário J — Cache frio
-- **Config:** Navegador com cache limpo / conexão móvel.
+### Cenário H — Pause Thumbnail + Fake Progress
+- **Config:** Fake Progress ON, Pause Thumbnail ON, Pause Play Button ON.
+- **Ação:** Reproduzir por alguns segundos e pausar.
+- **Resultado Esperado:** Custom Pause Thumbnail exibida com Fake Progress visível por cima (`z-15`) e Play Button com ondas concêntricas animadas. Fake Progress não avança durante a pausa.
+
+### Cenário I — Pause Play OFF
+- **Config:** Pause Thumbnail ON, Pause Play Button OFF.
+- **Ação:** Pausar vídeo em foreground.
+- **Resultado Esperado:** Custom Pause Thumbnail com Fake Progress sobreposta, sem Play central e sem ondas. Imagem inteira clicável.
+
+### Cenário J — Reduced Motion
+- **Config:** Ativar `prefers-reduced-motion: reduce` no sistema/navegador.
+- **Ação:** Pausar com Play Button ON.
+- **Resultado Esperado:** Botão de Play da pausa permanece visível e estático; ondas e pulse contínuos são desativados.
+
+### Cenário K — Editor First Paint
+- **Config:** Editor de vídeo com Provider ou Custom thumbnail configurada.
 - **Ação:** F5 na página.
-- **Resultado Esperado:** Superfície preta apenas durante o download do bootstrap e bytes iniciais. Nenhum gate adicional de decode/load após a chegada da URL.
+- **Resultado Esperado:** A thumbnail é pintada no primeiro frame renderizado pelo React. Sem flash de black + Play.
+
+### Cenário L — Embed Cache Quente
+- **Config:** Player embed com assets em cache do navegador.
+- **Ação:** Recarregar página externa contendo `<evandro-player>`.
+- **Resultado Esperado:** Apresentação da thumbnail praticamente instantânea após a resolução do bootstrap, sem exibição prévia de Play sobre tela preta.
+
+### Cenário M — Embed Cache Frio
+- **Config:** Limpar cache do navegador e recarregar player embed.
+- **Ação:** F5 na página.
+- **Resultado Esperado:** Fundo preto durante o fetch do bootstrap. Assim que a URL chega, a thumbnail é apresentada sem gates artificiais de decode. Play não surge sobre o preto enquanto o bootstrap estiver pendente.
 
 ---
 
@@ -260,8 +310,15 @@ Uma única política de resolução pura compartilhada entre Tiny Loader e Playe
 - [x] Startup visual não bloqueado por `img.onload` ou `img.decode()`.
 - [x] Tiny Loader prima a startup visual surface imediatamente no bootstrap.
 - [x] Player Engine adota a superfície já primada sem flicker ou requisições redundantes.
+- [x] Standalone / Editor prima startup visual síncrona no primeiro paint React.
+- [x] Big Play button não aparece sobre tela preta aguardando thumbnail inicial.
+- [x] `thumbnail.showPlayButton` controla thumbnails Automática e Personalizada.
+- [x] Alternar ou remover thumbnail personalizada preserva `showPlayButton`.
+- [x] Fake Progress Bar (`z-15`) visível sobre a Custom Pause Thumbnail (`z-12`) e congela durante pause.
+- [x] Pause Play Button possui 3 ondas concêntricas animadas e pulse, respeitando `prefers-reduced-motion`.
 - [x] Fallback custom → provider poster ocorre unicamente após erro real confirmado.
 - [x] Broken-image glyph nativo impossibilitado pelo uso de CSS background surface.
 - [x] USER PLAYBACK WINS preservado sem flash preto em cliques imediatos ou tardios.
 - [x] Bundles dentro dos limites arquiteturais: Tiny Loader <= 25 KB minified.
 - [x] `pnpm typecheck`, `pnpm lint`, `pnpm build:embed` e `pnpm build` executam com 0 erros.
+- [ ] Validação manual em todos os cenários (A a M) aguardando teste do usuário.

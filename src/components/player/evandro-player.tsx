@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Play,
   Pause,
@@ -35,6 +35,7 @@ import {
   markPerformance,
 } from "./embed/performance-timing";
 import { PlayerEngine } from "./engine/player-engine";
+import { resolveStartupVisualFromConfig } from "./engine/startup-visual-resolver";
 
 export interface EvandroPlayerProps {
   src?: string;
@@ -365,6 +366,7 @@ export function EvandroPlayer({
   }, [isPlaying, isDraggingSeek, activeEngine]);
 
   // Dynamic experience mode
+  const isEmbedded = Boolean(mediaElement || externalEngine);
   const playbackMode: PlaybackMode =
     activeEngine?.state.experience === "background_autoplay" ||
     (effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground)
@@ -373,11 +375,27 @@ export function EvandroPlayer({
 
   // Thumbnails configuration & presentation
   const thumbConfig = effectiveConfig.appearance?.thumbnail;
-  const isCustomStartup = thumbConfig?.source === "custom" && Boolean(thumbConfig?.customUrl);
+  const showStartupPlayButton = thumbConfig?.showPlayButton ?? true;
   const pauseConfig = effectiveConfig.appearance?.pauseThumbnail;
   const isPauseThumbActive = Boolean(
     pauseConfig?.enabled && pauseConfig?.customUrl && !pauseThumbError
   );
+
+  const initialVisual = useMemo(() => {
+    if (isEmbedded) return null;
+    return resolveStartupVisualFromConfig({
+      config: effectiveConfig,
+      posterUrl,
+      backgroundPreviewUrl,
+      apiBase,
+    });
+  }, [isEmbedded, effectiveConfig, posterUrl, backgroundPreviewUrl, apiBase]);
+
+  const isStartupReady =
+    effectiveConfig.appearance?.thumbnail?.enabled === false ||
+    !isEmbedded ||
+    hasFirstFrame ||
+    (activeEngine?.state.startupVisualState !== "available" && activeEngine?.state.startupVisualState !== undefined);
 
   // Autohide controls logic
   const showControlsTemporarily = useCallback(() => {
@@ -725,8 +743,6 @@ export function EvandroPlayer({
       ? "aspect-square"
       : "aspect-video";
 
-  const isEmbedded = Boolean(mediaElement || externalEngine);
-
   return (
     <div
       ref={containerRef}
@@ -752,7 +768,17 @@ export function EvandroPlayer({
         <div
           ref={startupVisualRef}
           data-evandro-player-startup-visual="true"
+          data-startup-url={initialVisual?.url ?? undefined}
+          data-startup-type={initialVisual?.type ?? undefined}
           aria-hidden="true"
+          style={{
+            display: initialVisual?.url ? "flex" : "none",
+            backgroundColor: "#000",
+            backgroundImage: initialVisual?.url ? `url("${initialVisual.url}")` : "none",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
           className="absolute inset-0 z-5 pointer-events-none overflow-hidden flex items-center justify-center bg-black"
         />
       )}
@@ -923,27 +949,20 @@ export function EvandroPlayer({
       )}
 
       {/* Big Play Button Overlay on Initial Start (Before first play) */}
-      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !userActivatedForeground && (
+      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !userActivatedForeground && showStartupPlayButton && isStartupReady && (
         <div
           onClick={togglePlay}
-          className={cn(
-            "absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-opacity",
-            (isCustomStartup ? (thumbConfig?.showPlayButton ?? true) : true)
-              ? "bg-black/20"
-              : "bg-transparent"
-          )}
+          className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-opacity bg-black/20"
         >
-          {(isCustomStartup ? (thumbConfig?.showPlayButton ?? true) : true) && (
-            <div
-              style={{
-                backgroundColor: "var(--player-accent)",
-                color: "var(--player-accent-foreground)",
-              }}
-              className="flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105 pointer-events-none"
-            >
-              <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
-            </div>
-          )}
+          <div
+            style={{
+              backgroundColor: "var(--player-accent)",
+              color: "var(--player-accent-foreground)",
+            }}
+            className="flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105 pointer-events-none"
+          >
+            <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
+          </div>
         </div>
       )}
 
@@ -962,14 +981,84 @@ export function EvandroPlayer({
                 className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
               />
               {(pauseConfig?.showPlayButton ?? false) && (
-                <div
-                  style={{
-                    backgroundColor: "var(--player-accent)",
-                    color: "var(--player-accent-foreground)",
-                  }}
-                  className="relative z-1 flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105 pointer-events-none"
-                >
-                  <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
+                <div className="relative flex items-center justify-center size-14 @min-[480px]:size-16 pointer-events-none group/pauseplay">
+                  {/* Concentric animated sound/pulse waves */}
+                  <span
+                    aria-hidden="true"
+                    className="ep-pause-wave-1 absolute inset-0 rounded-full pointer-events-none"
+                    style={{ backgroundColor: "var(--player-accent)" }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="ep-pause-wave-2 absolute inset-0 rounded-full pointer-events-none"
+                    style={{ backgroundColor: "var(--player-accent)" }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="ep-pause-wave-3 absolute inset-0 rounded-full pointer-events-none"
+                    style={{ backgroundColor: "var(--player-accent)" }}
+                  />
+
+                  {/* Central breathing button */}
+                  <div
+                    style={{
+                      backgroundColor: "var(--player-accent)",
+                      color: "var(--player-accent-foreground)",
+                    }}
+                    className="ep-pause-play-btn relative z-1 flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-2xl transition-transform hover:scale-108 pointer-events-none"
+                  >
+                    <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current shrink-0" />
+                  </div>
+
+                  <style>{`
+                    @keyframes ep-pause-wave {
+                      0% {
+                        transform: scale(0.9);
+                        opacity: 0.55;
+                      }
+                      50% {
+                        opacity: 0.22;
+                      }
+                      100% {
+                        transform: scale(1.85);
+                        opacity: 0;
+                      }
+                    }
+                    @keyframes ep-pause-pulse {
+                      0%, 100% {
+                        transform: scale(1);
+                      }
+                      50% {
+                        transform: scale(1.045);
+                      }
+                    }
+                    .ep-pause-wave-1 {
+                      animation: ep-pause-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+                      animation-delay: 0s;
+                    }
+                    .ep-pause-wave-2 {
+                      animation: ep-pause-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+                      animation-delay: 0.8s;
+                    }
+                    .ep-pause-wave-3 {
+                      animation: ep-pause-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+                      animation-delay: 1.6s;
+                    }
+                    .ep-pause-play-btn {
+                      animation: ep-pause-pulse 2.4s ease-in-out infinite;
+                    }
+                    @media (prefers-reduced-motion: reduce) {
+                      .ep-pause-wave-1,
+                      .ep-pause-wave-2,
+                      .ep-pause-wave-3 {
+                        display: none !important;
+                        animation: none !important;
+                      }
+                      .ep-pause-play-btn {
+                        animation: none !important;
+                      }
+                    }
+                  `}</style>
                 </div>
               )}
             </div>
@@ -1076,7 +1165,7 @@ export function EvandroPlayer({
       {isFakeProgressEnabled && (
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 bottom-0 z-10 pointer-events-none overflow-hidden select-none"
+          className="absolute inset-x-0 bottom-0 z-15 pointer-events-none overflow-hidden select-none"
           style={{
             height: `${fakeBarHeight}px`,
             backgroundColor: "rgba(255, 255, 255, 0.2)",
