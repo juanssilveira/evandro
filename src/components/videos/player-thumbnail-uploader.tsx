@@ -319,7 +319,7 @@ export function PlayerThumbnailUploader({
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp,.jfif,.avif"
                         className="hidden"
                         onChange={handleFileSelect}
                         disabled={isUploading || isRemoving}
@@ -358,7 +358,7 @@ export function PlayerThumbnailUploader({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/jpeg,image/png,image/webp"
+                      accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp,.jfif,.avif"
                       className="hidden"
                       onChange={handleFileSelect}
                       disabled={isUploading}
@@ -629,7 +629,7 @@ export function PlayerThumbnailUploader({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp,.jfif,.avif"
                   className="hidden"
                   onChange={handleFileSelect}
                   disabled={isUploading || isRemoving}
@@ -668,7 +668,7 @@ export function PlayerThumbnailUploader({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp,.jfif,.avif"
                 className="hidden"
                 onChange={handleFileSelect}
                 disabled={isUploading}

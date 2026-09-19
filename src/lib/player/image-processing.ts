@@ -17,15 +17,34 @@ export const RECOMMENDED_DIMENSIONS: Record<
   "1:1": { width: 1080, height: 1080, label: "1080 × 1080 px (1:1)" },
 };
 
-const ALLOWED_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const ALLOWED_MIME_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/pjpeg",
+  "image/png",
+  "image/x-png",
+  "image/webp",
+  "image/avif",
+  "image/bmp",
+];
+const ALLOWED_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".avif",
+  ".jfif",
+  ".pjpeg",
+  ".bmp",
+];
 const MAX_ORIGINAL_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const TARGET_SIZE_BYTES = 500 * 1024; // ~500 KB
 const HARD_MAX_SIZE_BYTES = 750 * 1024; // 750 KB
 
 /**
  * Validates and processes an uploaded image client-side:
- * 1. Checks format (JPEG/PNG/WebP) and original size (<= 10MB)
- * 2. Decodes image in browser
+ * 1. Checks format (JPEG/PNG/WebP/etc) and original size (<= 10MB)
+ * 2. Decodes image in browser (Canvas / Image)
  * 3. Applies center-crop to target aspect ratio
  * 4. Resizes to recommended dimensions
  * 5. Encodes to WebP with iterative quality control (target ~500KB, hard max 750KB)
@@ -35,7 +54,12 @@ export async function processClientThumbnail(
   aspectRatio: PlayerAspectRatio
 ): Promise<ProcessedImageResult> {
   // 1. Validate original file
-  if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
+  const mime = (file.type || "").toLowerCase();
+  const name = (file.name || "").toLowerCase();
+  const isAllowedMime = mime ? ALLOWED_MIME_TYPES.includes(mime) : false;
+  const isAllowedExt = ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
+
+  if (!isAllowedMime && !isAllowedExt) {
     throw new Error(
       "Formato inválido. Selecione uma imagem nos formatos JPG, PNG ou WebP."
     );

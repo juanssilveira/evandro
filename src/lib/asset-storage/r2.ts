@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 
 export interface R2Config {
@@ -120,6 +121,44 @@ export async function deleteAssetObject(key: string): Promise<boolean> {
   } catch (error) {
     console.error(`[Asset Storage R2] Failed to delete asset key=${key}:`, error);
     return false;
+  }
+}
+
+/**
+ * Retrieves a derived asset from R2.
+ */
+export async function getAssetObject(key: string): Promise<{
+  body: Uint8Array;
+  contentType: string;
+  cacheControl?: string;
+} | null> {
+  const config = getR2Config();
+  const client = getR2Client();
+
+  if (!config || !client || !key) {
+    return null;
+  }
+
+  try {
+    const command = new GetObjectCommand({
+      Bucket: config.assetsBucket,
+      Key: key,
+    });
+
+    const response = await client.send(command);
+    if (!response.Body) {
+      return null;
+    }
+
+    const byteArray = await response.Body.transformToByteArray();
+    return {
+      body: byteArray,
+      contentType: response.ContentType || "image/webp",
+      cacheControl:
+        response.CacheControl || "public, max-age=31536000, immutable",
+    };
+  } catch {
+    return null;
   }
 }
 
