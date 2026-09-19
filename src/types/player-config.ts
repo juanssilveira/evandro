@@ -145,6 +145,7 @@ export const playerConfigSchema = z.object({
           customUrl: z.string().nullable().default(null),
           customKey: z.string().nullable().default(null),
           customAspectRatio: z.enum(playerAspectRatios).nullable().default(null),
+          showPlayButton: z.boolean().default(true),
         })
         .default({
           enabled: true,
@@ -152,6 +153,7 @@ export const playerConfigSchema = z.object({
           customUrl: null,
           customKey: null,
           customAspectRatio: null,
+          showPlayButton: true,
         }),
       pauseThumbnail: z
         .object({
@@ -159,12 +161,14 @@ export const playerConfigSchema = z.object({
           customUrl: z.string().nullable().default(null),
           customKey: z.string().nullable().default(null),
           customAspectRatio: z.enum(playerAspectRatios).nullable().default(null),
+          showPlayButton: z.boolean().default(false),
         })
         .default({
           enabled: false,
           customUrl: null,
           customKey: null,
           customAspectRatio: null,
+          showPlayButton: false,
         }),
     })
     .default({
@@ -178,12 +182,14 @@ export const playerConfigSchema = z.object({
         customUrl: null,
         customKey: null,
         customAspectRatio: null,
+        showPlayButton: true,
       },
       pauseThumbnail: {
         enabled: false,
         customUrl: null,
         customKey: null,
         customAspectRatio: null,
+        showPlayButton: false,
       },
     }),
 
@@ -281,12 +287,14 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
       customUrl: null,
       customKey: null,
       customAspectRatio: null,
+      showPlayButton: true,
     },
     pauseThumbnail: {
       enabled: false,
       customUrl: null,
       customKey: null,
       customAspectRatio: null,
+      showPlayButton: false,
     },
   },
 

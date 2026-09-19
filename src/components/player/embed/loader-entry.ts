@@ -54,12 +54,14 @@ export interface BootstrapVideoData {
         customUrl?: string | null;
         customKey?: string | null;
         customAspectRatio?: string | null;
+        showPlayButton?: boolean;
       };
       pauseThumbnail?: {
         enabled?: boolean;
         customUrl?: string | null;
         customKey?: string | null;
         customAspectRatio?: string | null;
+        showPlayButton?: boolean;
       };
     };
     playback?: {

@@ -1556,17 +1556,24 @@ export function EvandroPlayer({
       {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !userActivatedForeground && (
         <div
           onClick={togglePlay}
-          className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer bg-black/20 transition-opacity"
+          className={cn(
+            "absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-opacity",
+            (isCustomStartup ? (thumbConfig?.showPlayButton ?? true) : true)
+              ? "bg-black/20"
+              : "bg-transparent"
+          )}
         >
-          <div
-            style={{
-              backgroundColor: "var(--player-accent)",
-              color: "var(--player-accent-foreground)",
-            }}
-            className="flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105"
-          >
-            <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
-          </div>
+          {(isCustomStartup ? (thumbConfig?.showPlayButton ?? true) : true) && (
+            <div
+              style={{
+                backgroundColor: "var(--player-accent)",
+                color: "var(--player-accent-foreground)",
+              }}
+              className="flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105 pointer-events-none"
+            >
+              <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
+            </div>
+          )}
         </div>
       )}
 
@@ -1582,8 +1589,19 @@ export function EvandroPlayer({
                 src={pauseConfig.customUrl}
                 alt="Thumbnail de pausa"
                 onError={() => setPauseThumbError(true)}
-                className="w-full h-full object-cover select-none pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
               />
+              {(pauseConfig?.showPlayButton ?? false) && (
+                <div
+                  style={{
+                    backgroundColor: "var(--player-accent)",
+                    color: "var(--player-accent-foreground)",
+                  }}
+                  className="relative z-1 flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105 pointer-events-none"
+                >
+                  <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
+                </div>
+              )}
             </div>
           ) : (
             <div

@@ -40,6 +40,7 @@ export const updatePlayerConfigActionSchema = z.object({
             customUrl: z.string().nullable().optional(),
             customKey: z.string().nullable().optional(),
             customAspectRatio: z.enum(["16:9", "9:16", "1:1"]).nullable().optional(),
+            showPlayButton: z.boolean().optional(),
           })
           .optional(),
         pauseThumbnail: z
@@ -48,6 +49,7 @@ export const updatePlayerConfigActionSchema = z.object({
             customUrl: z.string().nullable().optional(),
             customKey: z.string().nullable().optional(),
             customAspectRatio: z.enum(["16:9", "9:16", "1:1"]).nullable().optional(),
+            showPlayButton: z.boolean().optional(),
           })
           .optional(),
       })
