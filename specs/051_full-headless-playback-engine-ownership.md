@@ -153,6 +153,13 @@ Um objeto `new Image()` offscreen é utilizado exclusivamente para:
 - **Embed:** O Tiny Loader já cria a surface e prima o asset imediatamente após a resposta do bootstrap. O componente Core monta com a checagem `isStartupReady`, garantindo que o Big Play inicial só seja exibido quando a startup visual estiver primada ou o first frame chegar, evitando o flash preto com botão de Play isolado.
 - **Limite Arquitetural do Cold-Start Embed:** Em uma primeira visita sem cache, o player permanece preto apenas durante o intervalo estritamente necessário para o fetch do bootstrap `/api/embed/videos/:id`. Não são criados caches inseguros de localStorage ou bypasses de quota/access para ocultar esse tempo de rede.
 
+### 5. Desacoplamento entre Experience e User Intent no Big Play Inicial
+- **Distinção Fundamental:**
+  - `experience` descreve a modalidade de reprodução do player (`foreground`, `background_autoplay`, `idle`). Um player BG OFF normal nasce com `experience = "foreground"`, o que **NÃO** significa que o usuário já ativou a reprodução.
+  - `userForegroundRequested` descreve exclusivamente uma ação explícita do usuário (`startForeground()`, `play("user")`, clique no Play). Antes de qualquer clique, `userForegroundRequested === false`.
+- **Correção da Subscription:** A subscription do `PlayerEngine` em `EvandroPlayer` atualiza o estado de ativação exclusivamente via `state.userForegroundRequested || state.hasStartedForeground`, eliminando a inferência errônea de `state.experience === "foreground"`.
+- **Exibição do Big Play:** O botão central de Play da thumbnail inicial agora é renderizado com a condição `!userActivatedForeground && !hasStartedForeground && showStartupPlayButton && isStartupReady`, garantindo que o botão apareça tanto em capar Automática quanto Personalizada antes do primeiro Play e nunca reapareça em pausas subsequentes (onde atua a Pause UI).
+
 ---
 
 ## Resolver Canônico de Startup Visual

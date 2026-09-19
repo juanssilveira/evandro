@@ -287,7 +287,7 @@ export function EvandroPlayer({
       setHasFirstFrame(state.hasFirstFrame);
       setHasStartedForeground(state.hasStartedForeground);
       setUserActivatedForeground(
-        state.userForegroundRequested || state.experience === "foreground"
+        state.userForegroundRequested || state.hasStartedForeground
       );
       setIsEnded(state.isEnded);
       setHasError(state.hasError);
@@ -949,7 +949,7 @@ export function EvandroPlayer({
       )}
 
       {/* Big Play Button Overlay on Initial Start (Before first play) */}
-      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !userActivatedForeground && showStartupPlayButton && isStartupReady && (
+      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !userActivatedForeground && !hasStartedForeground && showStartupPlayButton && isStartupReady && (
         <div
           onClick={togglePlay}
           className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-opacity bg-black/20"
