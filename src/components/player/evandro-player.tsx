@@ -69,6 +69,90 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+function PlayerPlayButton({ className }: { className?: string }) {
+  return (
+    <div className={cn("relative flex items-center justify-center size-14 @min-[480px]:size-16 pointer-events-none group/playbtn select-none", className)}>
+      {/* Concentric animated pulse waves */}
+      <span
+        aria-hidden="true"
+        className="ep-canonical-play-wave-1 absolute inset-0 rounded-full pointer-events-none"
+        style={{ backgroundColor: "var(--player-accent)" }}
+      />
+      <span
+        aria-hidden="true"
+        className="ep-canonical-play-wave-2 absolute inset-0 rounded-full pointer-events-none"
+        style={{ backgroundColor: "var(--player-accent)" }}
+      />
+      <span
+        aria-hidden="true"
+        className="ep-canonical-play-wave-3 absolute inset-0 rounded-full pointer-events-none"
+        style={{ backgroundColor: "var(--player-accent)" }}
+      />
+
+      {/* Central breathing button */}
+      <div
+        style={{
+          backgroundColor: "var(--player-accent)",
+          color: "var(--player-accent-foreground)",
+        }}
+        className="ep-canonical-play-btn relative z-1 flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-2xl transition-transform hover:scale-108 pointer-events-none"
+      >
+        <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current shrink-0" />
+      </div>
+
+      <style>{`
+        @keyframes ep-canonical-play-wave {
+          0% {
+            transform: scale(0.9);
+            opacity: 0.55;
+          }
+          50% {
+            opacity: 0.22;
+          }
+          100% {
+            transform: scale(1.85);
+            opacity: 0;
+          }
+        }
+        @keyframes ep-canonical-play-pulse {
+          0%, 100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.045);
+          }
+        }
+        .ep-canonical-play-wave-1 {
+          animation: ep-canonical-play-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+          animation-delay: 0s;
+        }
+        .ep-canonical-play-wave-2 {
+          animation: ep-canonical-play-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+          animation-delay: 0.8s;
+        }
+        .ep-canonical-play-wave-3 {
+          animation: ep-canonical-play-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+          animation-delay: 1.6s;
+        }
+        .ep-canonical-play-btn {
+          animation: ep-canonical-play-pulse 2.4s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ep-canonical-play-wave-1,
+          .ep-canonical-play-wave-2,
+          .ep-canonical-play-wave-3 {
+            display: none !important;
+            animation: none !important;
+          }
+          .ep-canonical-play-btn {
+            animation: none !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export function EvandroPlayer({
   src,
   videoId = "default-video",
@@ -954,15 +1038,7 @@ export function EvandroPlayer({
           onClick={togglePlay}
           className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-opacity bg-black/20"
         >
-          <div
-            style={{
-              backgroundColor: "var(--player-accent)",
-              color: "var(--player-accent-foreground)",
-            }}
-            className="flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105 pointer-events-none"
-          >
-            <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current" />
-          </div>
+          <PlayerPlayButton />
         </div>
       )}
 
@@ -981,85 +1057,7 @@ export function EvandroPlayer({
                 className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
               />
               {(pauseConfig?.showPlayButton ?? false) && (
-                <div className="relative flex items-center justify-center size-14 @min-[480px]:size-16 pointer-events-none group/pauseplay">
-                  {/* Concentric animated sound/pulse waves */}
-                  <span
-                    aria-hidden="true"
-                    className="ep-pause-wave-1 absolute inset-0 rounded-full pointer-events-none"
-                    style={{ backgroundColor: "var(--player-accent)" }}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="ep-pause-wave-2 absolute inset-0 rounded-full pointer-events-none"
-                    style={{ backgroundColor: "var(--player-accent)" }}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="ep-pause-wave-3 absolute inset-0 rounded-full pointer-events-none"
-                    style={{ backgroundColor: "var(--player-accent)" }}
-                  />
-
-                  {/* Central breathing button */}
-                  <div
-                    style={{
-                      backgroundColor: "var(--player-accent)",
-                      color: "var(--player-accent-foreground)",
-                    }}
-                    className="ep-pause-play-btn relative z-1 flex size-14 @min-[480px]:size-16 items-center justify-center rounded-full shadow-2xl transition-transform hover:scale-108 pointer-events-none"
-                  >
-                    <Play className="size-7 @min-[480px]:size-8 ml-1 fill-current shrink-0" />
-                  </div>
-
-                  <style>{`
-                    @keyframes ep-pause-wave {
-                      0% {
-                        transform: scale(0.9);
-                        opacity: 0.55;
-                      }
-                      50% {
-                        opacity: 0.22;
-                      }
-                      100% {
-                        transform: scale(1.85);
-                        opacity: 0;
-                      }
-                    }
-                    @keyframes ep-pause-pulse {
-                      0%, 100% {
-                        transform: scale(1);
-                      }
-                      50% {
-                        transform: scale(1.045);
-                      }
-                    }
-                    .ep-pause-wave-1 {
-                      animation: ep-pause-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
-                      animation-delay: 0s;
-                    }
-                    .ep-pause-wave-2 {
-                      animation: ep-pause-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
-                      animation-delay: 0.8s;
-                    }
-                    .ep-pause-wave-3 {
-                      animation: ep-pause-wave 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
-                      animation-delay: 1.6s;
-                    }
-                    .ep-pause-play-btn {
-                      animation: ep-pause-pulse 2.4s ease-in-out infinite;
-                    }
-                    @media (prefers-reduced-motion: reduce) {
-                      .ep-pause-wave-1,
-                      .ep-pause-wave-2,
-                      .ep-pause-wave-3 {
-                        display: none !important;
-                        animation: none !important;
-                      }
-                      .ep-pause-play-btn {
-                        animation: none !important;
-                      }
-                    }
-                  `}</style>
-                </div>
+                <PlayerPlayButton />
               )}
             </div>
           ) : (

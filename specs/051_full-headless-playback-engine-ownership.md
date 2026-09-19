@@ -132,14 +132,21 @@ Um objeto `new Image()` offscreen é utilizado exclusivamente para:
 - **Comportamento no Pause:** A Fake Progress Bar mantém o percentual alcançado no momento da pausa, congela sem resetar e sem continuar avançando enquanto o vídeo estiver pausado. Retoma o avanço normalmente quando a reprodução recomeça.
 - **Pass-through de cliques:** A barra permanece `pointer-events: none`, permitindo que cliques em qualquer região continuem acionando o resume da Pause Thumbnail.
 
-### 2. Play Button Animado da Custom Pause Thumbnail
-- Quando `pauseThumbnail.showPlayButton === true`:
-  - Botão central circular renderizado com `var(--player-accent)` e `var(--player-accent-foreground)`.
-  - **Ondas Concêntricas:** 3 anéis/ondas concêntricos animados (`ep-pause-wave-1`, `ep-pause-wave-2`, `ep-pause-wave-3`) expandem-se a partir do botão com duração de `2.4s` e delays escalonados (`0s`, `0.8s`, `1.6s`), desvanecendo a opacidade progressivamente (`0.55 → 0.22 → 0`).
-  - **Breathing Pulse:** O botão central respira sutilmente com escala de `1` a `1.045` (`ep-pause-pulse`).
-  - **Acessibilidade:** `prefers-reduced-motion: reduce` desativa integralmente as ondas e o pulse contínuo, mantendo o botão estático e 100% funcional.
-  - **Pointer Events:** As ondas e o botão possuem `pointer-events: none`; o clique em qualquer parte da thumbnail retoma o playback.
-  - Quando `pauseThumbnail.showPlayButton === false`, nenhum elemento visual de Play é renderizado.
+### 2. Play Button Canônico Compartilhado (PlayerPlayButton)
+- **Unificação Visual:** O botão central de Play passa a ter uma **ÚNICA** implementação canônica (`PlayerPlayButton`), eliminando qualquer divergência visual entre startup e pausa.
+- **Contextos de Uso:**
+  1. **Thumbnail Inicial Automática** (`thumbnail.showPlayButton = true` com source `provider`).
+  2. **Thumbnail Inicial Personalizada** (`thumbnail.showPlayButton = true` com source `custom`).
+  3. **Custom Pause Thumbnail** (`pauseThumbnail.showPlayButton = true` com `pauseConfig.customUrl`).
+- **Composição Visual Canônica:**
+  - Círculo central com `var(--player-accent)` e foreground `var(--player-accent-foreground)` com ícone `Play` (`size-7 @min-[480px]:size-8`).
+  - **3 Ondas Concêntricas Animadas:** ondas com `var(--player-accent)` expandem-se ciclicamente (`scale(0.9) → scale(1.85)`, opacidade `0.55 → 0.22 → 0`) com duração de `2.4s`, curva `cubic-bezier(0.2, 0.6, 0.35, 1)` e delays escalonados de `0s`, `0.8s` e `1.6s`.
+  - **Breathing Pulse:** O botão central respira continuamente com escala de `1` a `1.045` (`2.4s ease-in-out infinite`).
+  - **Hover:** Leve escala e resposta luminosa suave compartilhada.
+  - **Acessibilidade (`prefers-reduced-motion: reduce`):** As ondas e o breathing pulse são totalmente removidos (`display: none !important; animation: none !important`), mantendo o botão estático e 100% acessível em todos os contextos.
+  - **Pointer Events:** Todos os elementos decorativos (ondas, anéis, botão) utilizam `pointer-events: none`; a superfície/overlay pai continua capturando o clique para iniciar ou retomar a reprodução sem interferência.
+- **Independência de Contexto:** A superfície e overlay atrás do botão continuam específicos de cada contexto (ex.: overlay escurecido de startup `bg-black/20` vs. pause `bg-black/40`), mas o componente visual do Play não diverge.
+- **Sincronização Futura:** Qualquer ajuste futuro na linguagem visual de Play do Evandro Player é feito exclusivamente em `PlayerPlayButton`, mantendo startup e pause permanentemente sincronizados.
 
 ### 3. Play Button da Thumbnail Inicial: Suporte Universal (Automática e Personalizada)
 - **Supersessão da Spec 050:** A regra anterior da Spec 050 que limitava `showPlayButton` exclusivamente a thumbnails personalizadas e forçava `true` para automáticas é **SUPERADA**.
