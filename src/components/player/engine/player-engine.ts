@@ -26,8 +26,6 @@ import type {
   EngineFirstFrameListener,
   EngineSourceOptions,
   EngineStateListener,
-  EngineTelemetryListener,
-  EngineTelemetrySignal,
   IPlayerEngine,
   PlaybackInitiator,
   PlayerEngineOptions,
@@ -97,14 +95,12 @@ export class PlayerEngine implements IPlayerEngine {
     errorMessage: null,
     startupVisualState: "available",
     resumeState: "none",
-    resumeDecision: "none",
     requestedResumeTime: null,
     resolvedResumeTime: null,
   };
 
   private _firstFrameListeners = new Set<EngineFirstFrameListener>();
   private _stateListeners = new Set<EngineStateListener>();
-  private _telemetryListeners = new Set<EngineTelemetryListener>();
   private _cancelFirstFrameCallback: (() => void) | null = null;
   private _visualAbortController: AbortController | null = null;
   private _resumeCleanup: (() => void) | null = null;
@@ -169,29 +165,11 @@ export class PlayerEngine implements IPlayerEngine {
     });
   }
 
-  private emitTelemetry(signal: EngineTelemetrySignal): void {
-    if (this._isDestroyed) return;
-    this._telemetryListeners.forEach((listener) => {
-      try {
-        listener(signal);
-      } catch (err) {
-        console.error("[PlayerEngine] Telemetry listener error:", err);
-      }
-    });
-  }
-
   public subscribe(listener: EngineStateListener): () => void {
     this._stateListeners.add(listener);
     listener(this._state);
     return () => {
       this._stateListeners.delete(listener);
-    };
-  }
-
-  public subscribeTelemetry(listener: EngineTelemetryListener): () => void {
-    this._telemetryListeners.add(listener);
-    return () => {
-      this._telemetryListeners.delete(listener);
     };
   }
 
@@ -268,42 +246,11 @@ export class PlayerEngine implements IPlayerEngine {
       this.handleBackgroundAutoplayWindow();
     });
 
-    const emitNativeQualityIfApplicable = () => {
-      if (!this._hls && v.videoWidth > 0 && v.videoHeight > 0) {
-        const isNativeHls = Boolean(
-          this._sourceOptions?.playbackUrl &&
-            (this._sourceOptions.playbackUrl.includes(".m3u8") ||
-              this._sourceOptions.playbackUrl.includes("m3u8")) &&
-            shouldUseNativeHls(v)
-        );
-        this.emitTelemetry({
-          type: "QUALITY_SAMPLE",
-          sample: {
-            source: isNativeHls ? "native" : "direct",
-            level: null,
-            width: v.videoWidth,
-            height: v.videoHeight,
-            bitrate: null,
-            bandwidthEstimateBps: null,
-          },
-        });
-      }
-    };
-
-    v.addEventListener("loadedmetadata", emitNativeQualityIfApplicable);
-    v.addEventListener("canplay", emitNativeQualityIfApplicable);
-    v.addEventListener("resize", emitNativeQualityIfApplicable);
-
     v.addEventListener("error", () => {
       if (this._video.error) {
         this.updateState({
           hasError: true,
           errorMessage: this._video.error.message || "Erro na mídia do vídeo.",
-        });
-        this.emitTelemetry({
-          type: "ERROR",
-          errorType: "media",
-          message: this._video.error.message || "Video media error",
         });
       }
     });
@@ -389,7 +336,6 @@ export class PlayerEngine implements IPlayerEngine {
       errorMessage: null,
       startupVisualState: isResumeEligible ? "released" : "available",
       resumeState: isResumeEligible ? "preparing" : "none",
-      resumeDecision: "none",
       requestedResumeTime: resumePos,
       resolvedResumeTime: null,
     });
@@ -755,23 +701,6 @@ export class PlayerEngine implements IPlayerEngine {
               }
             }
 
-            const initialLevel = hls.currentLevel >= 0 ? hls.currentLevel : 0;
-            const lvl = data.levels?.[initialLevel];
-            this.emitTelemetry({
-              type: "QUALITY_SAMPLE",
-              sample: {
-                source: "hlsjs",
-                level: initialLevel,
-                width: lvl?.width ?? null,
-                height: lvl?.height ?? null,
-                bitrate: lvl?.bitrate ?? null,
-                bandwidthEstimateBps:
-                  hls.bandwidthEstimate && hls.bandwidthEstimate > 0
-                    ? hls.bandwidthEstimate
-                    : null,
-              },
-            });
-
             if (resumePos) {
               try {
                 this._video.pause();
@@ -786,26 +715,6 @@ export class PlayerEngine implements IPlayerEngine {
             }
           });
 
-          hls.on(HlsClass.Events.LEVEL_SWITCHED, (_event, data) => {
-            if (gen !== this._generation || this._isDestroyed) return;
-            const levelIndex = data.level;
-            const lvl = hls.levels?.[levelIndex];
-            this.emitTelemetry({
-              type: "QUALITY_SAMPLE",
-              sample: {
-                source: "hlsjs",
-                level: levelIndex,
-                width: lvl?.width ?? null,
-                height: lvl?.height ?? null,
-                bitrate: lvl?.bitrate ?? null,
-                bandwidthEstimateBps:
-                  hls.bandwidthEstimate && hls.bandwidthEstimate > 0
-                    ? hls.bandwidthEstimate
-                    : null,
-              },
-            });
-          });
-
           hls.on(HlsClass.Events.FRAG_LOADING, () => {
             markPerformanceOnce("ep:first-frag:start", this._state.videoId);
           });
@@ -814,10 +723,6 @@ export class PlayerEngine implements IPlayerEngine {
             markPerformanceOnce("ep:first-frag:loaded", this._state.videoId);
             if (hls.bandwidthEstimate && hls.bandwidthEstimate > 0) {
               saveBandwidthEstimate(mediaSrc, hls.bandwidthEstimate);
-              this.emitTelemetry({
-                type: "BANDWIDTH_ESTIMATE",
-                bandwidthEstimateBps: hls.bandwidthEstimate,
-              });
             }
           });
 
@@ -829,19 +734,6 @@ export class PlayerEngine implements IPlayerEngine {
             HlsClass.Events.ERROR,
             (_event: unknown, errorData: { fatal?: boolean; type?: string }) => {
               if (gen !== this._generation || this._isDestroyed) return;
-
-              const errType =
-                errorData.type === HlsClass.ErrorTypes.NETWORK_ERROR
-                  ? "hls_network"
-                  : errorData.type === HlsClass.ErrorTypes.MEDIA_ERROR
-                  ? "hls_media"
-                  : "hls_other";
-
-              this.emitTelemetry({
-                type: "ERROR",
-                errorType: errType,
-                message: "HLS Error",
-              });
 
               if (errorData.fatal) {
                 console.error("[PlayerEngine HLS Fatal Error]", errorData);
@@ -955,7 +847,6 @@ export class PlayerEngine implements IPlayerEngine {
     this._userForegroundRequested = true;
     this.updateState({
       resumeState: "resolved",
-      resumeDecision: "continue",
       experience: "foreground",
       playbackInitiator: "user",
       userForegroundRequested: true,
@@ -993,7 +884,6 @@ export class PlayerEngine implements IPlayerEngine {
     this._userForegroundRequested = true;
     this.updateState({
       resumeState: "resolved",
-      resumeDecision: "restart",
       experience: "foreground",
       playbackInitiator: "user",
       userForegroundRequested: true,
@@ -1193,6 +1083,5 @@ export class PlayerEngine implements IPlayerEngine {
 
     this._firstFrameListeners.clear();
     this._stateListeners.clear();
-    this._telemetryListeners.clear();
   }
 }

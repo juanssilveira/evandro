@@ -6,5 +6,4 @@ export * from "./player-settings";
 export * from "./plans";
 export * from "./app-settings";
 export * from "./audit";
-export * from "./tracker-sessions";
 
