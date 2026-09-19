@@ -24,30 +24,17 @@ import {
   type FullscreenInitiator,
   type PlaybackMode,
 } from "./runtime";
-import { PlaybackController } from "./controllers/playback-controller";
 import {
   type PlayerConfig,
   DEFAULT_PLAYER_CONFIG,
   PLAYER_ACCENT_PRESETS,
 } from "@/types/player-config";
 import { calculateFakeProgress } from "@/lib/player/fake-progress-engine";
-import type Hls from "hls.js";
-import { shouldUseNativeHls, loadHlsEngine } from "./embed/hls-engine";
-import {
-  createStartupHlsConfig,
-  saveBandwidthEstimate,
-  getInitialBandwidthEstimate,
-} from "./embed/startup-abr";
 import { MediaLoadingStateManager } from "./embed/media-loading-state";
 import {
   markPerformance,
-  markPerformanceOnce,
-  measurePerformance,
-  onFirstVideoFrame,
-  logPerformanceDebugReport,
 } from "./embed/performance-timing";
-
-import type { PlayerEngine } from "./engine/player-engine";
+import { PlayerEngine } from "./engine/player-engine";
 
 export interface EvandroPlayerProps {
   src?: string;
@@ -93,43 +80,24 @@ export function EvandroPlayer({
   config = DEFAULT_PLAYER_CONFIG,
   debugEnabled,
   mediaElement,
-  engine,
+  engine: externalEngine,
   onEvent,
   onRuntimeReady,
 }: EvandroPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const startupVisualRef = useRef<HTMLDivElement | null>(null);
   const internalVideoRef = useRef<HTMLVideoElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(mediaElement || null);
+  const [internalEngine, setInternalEngine] = useState<PlayerEngine | null>(null);
 
-  // Synchronize external mediaElement when provided (embed mode)
-  useEffect(() => {
-    if (mediaElement) {
-      videoRef.current = mediaElement;
-    }
-  }, [mediaElement]);
-
-  // Canonical ref callback for internal video element (editor / standalone mode)
-  const handleInternalVideoRef = useCallback(
-    (el: HTMLVideoElement | null) => {
-      internalVideoRef.current = el;
-      if (!mediaElement) {
-        videoRef.current = el;
-      }
-    },
-    [mediaElement]
-  );
+  const activeEngine = externalEngine || internalEngine;
 
   const progressTrackRef = useRef<HTMLDivElement>(null);
   const volumeTrackRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<PlayerRuntime | null>(null);
-  const playbackControllerRef = useRef<PlaybackController | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  const hasResolvedInitialPlaybackRef = useRef(false);
-  const userPlayClickTimestampRef = useRef<number | null>(null);
 
   const resolvedSrc = src || "";
 
-  // Play session ID for server-side activation and quota tracking (idempotent per instance)
+  // Play session ID for server-side activation and quota tracking
   const playSessionIdRef = useRef<string | null>(null);
   const getPlaySessionId = useCallback(() => {
     if (!playSessionIdRef.current) {
@@ -208,515 +176,142 @@ export function EvandroPlayer({
       })
   );
 
-  // User explicit foreground activation & First Frame boundary state
-  const [prevSrc, setPrevSrc] = useState(src);
-  const playbackKey = `${effectiveConfig.playback?.backgroundAutoplay ? 1 : 0}`;
-  const [prevPlaybackKey, setPrevPlaybackKey] = useState(playbackKey);
-  const [userActivatedForeground, setUserActivatedForeground] = useState(false);
-  const pendingForegroundActivationRef = useRef(false);
-  const [isPlayPending, setIsPlayPending] = useState(false);
-  const [hasStartedPlayingForeground, setHasStartedPlayingForeground] = useState(false);
-  const [hasFirstFrameRendered, setHasFirstFrameRendered] = useState(false);
-  const [hasRevealedVideo, setHasRevealedVideo] = useState(false);
-  const [isTransitioningPreviewOut, setIsTransitioningPreviewOut] = useState(false);
-  const [previewError, setPreviewError] = useState(false);
-  const [customThumbError, setCustomThumbError] = useState(false);
-  const [pauseThumbError, setPauseThumbError] = useState(false);
-  const [isEnded, setIsEnded] = useState(false);
-
-  if (src !== prevSrc) {
-    setPrevSrc(src);
-    setUserActivatedForeground(false);
-    setIsPlayPending(false);
-    setHasStartedPlayingForeground(false);
-    setHasFirstFrameRendered(false);
-    setHasRevealedVideo(false);
-    setPreviewError(false);
-    setCustomThumbError(false);
-    setPauseThumbError(false);
-    setIsEnded(false);
-  }
-
-  if (playbackKey !== prevPlaybackKey) {
-    setPrevPlaybackKey(playbackKey);
-    setUserActivatedForeground(false);
-    setIsPlayPending(false);
-    setHasStartedPlayingForeground(false);
-    setHasFirstFrameRendered(false);
-    setHasRevealedVideo(false);
-    setPreviewError(false);
-    setCustomThumbError(false);
-    setPauseThumbError(false);
-    setIsEnded(false);
-  }
-
-  useEffect(() => {
-    mediaStateManager.reset();
-  }, [src, mediaStateManager]);
-
-  // Dynamic mode resolution based on config and user interaction
-  const isBackgroundAutoplay = Boolean(
-    effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground
-  );
-
-  // Strict Startup Visual Policy (for editor / standalone fallback)
-  const thumbConfig = effectiveConfig.appearance?.thumbnail;
-  const isThumbEnabled = thumbConfig?.enabled ?? true;
-  const isCustomStartup = thumbConfig?.source === "custom" && Boolean(thumbConfig?.customUrl);
-  const customStartupUrl = thumbConfig?.customUrl;
-  const candidateBgPreview = previewError ? null : (backgroundPreviewUrl || null);
-
-  let displayPreviewSrc: string | null = null;
-  if (isBackgroundAutoplay) {
-    displayPreviewSrc = candidateBgPreview;
-  } else if (isThumbEnabled) {
-    if (isCustomStartup && customStartupUrl && !customThumbError) {
-      displayPreviewSrc = customStartupUrl;
-    } else {
-      displayPreviewSrc = posterUrl || null;
-    }
-  }
-
-  const playbackMode: PlaybackMode = isBackgroundAutoplay ? "background_autoplay" : "foreground";
-
-  // Immediate media attachment: Video is ALWAYS attached and prebuffered immediately
-  const isMediaAttached = Boolean(resolvedSrc);
-
-  // Derived Preview / Poster Layer:
-  // In BG ON: visible until first video frame renders
-  // In BG OFF + Thumb ON: remains visible until user Play AND first video frame renders (no black flash, no premature removal)
-  // In BG OFF + Thumb OFF: never visible
-  const isPreviewVisible = Boolean(
-    !mediaElement &&
-      displayPreviewSrc &&
-      (isBackgroundAutoplay
-        ? !hasFirstFrameRendered
-        : !userActivatedForeground || !hasFirstFrameRendered)
-  );
-
-  // Pause Thumbnail Active state
-  const pauseConfig = effectiveConfig.appearance?.pauseThumbnail;
-  const isPauseThumbActive = Boolean(
-    pauseConfig?.enabled && pauseConfig?.customUrl && !pauseThumbError
-  );
-
-  const initialVolume = effectiveConfig.playback?.defaultVolume ?? 1;
-  const initialPlaybackRate = effectiveConfig.playback?.defaultPlaybackRate ?? 1;
-
-  // Playback state
+  // Playback state derived from authoritative PlayerEngine
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [bufferedEnd, setBufferedEnd] = useState(0);
-  const [volume, setVolume] = useState(initialVolume);
-  const [isMuted, setIsMuted] = useState(initialVolume === 0);
-  const [playbackRate, setPlaybackRate] = useState(initialPlaybackRate);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [volume, setVolume] = useState(effectiveConfig.playback?.defaultVolume ?? 1);
+  const [isMuted, setIsMuted] = useState((effectiveConfig.playback?.defaultVolume ?? 1) === 0);
+  const [playbackRate, setPlaybackRate] = useState(effectiveConfig.playback?.defaultPlaybackRate ?? 1);
+  const [hasFirstFrame, setHasFirstFrame] = useState(false);
+  const [hasStartedForeground, setHasStartedForeground] = useState(false);
+  const [userActivatedForeground, setUserActivatedForeground] = useState(false);
+  const [isEnded, setIsEnded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [pauseThumbError, setPauseThumbError] = useState(false);
 
   // UI state
-  const [hasError, setHasError] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isDraggingSeek, setIsDraggingSeek] = useState(false);
   const [isVolumeHovered, setIsVolumeHovered] = useState(false);
   const [isDraggingVolume, setIsDraggingVolume] = useState(false);
-  const lastVolumeRef = useRef(initialVolume);
+  const lastVolumeRef = useRef(effectiveConfig.playback?.defaultVolume ?? 1);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const defaultPlaybackRate = effectiveConfig.playback?.defaultPlaybackRate ?? 1;
-  const defaultVolume = effectiveConfig.playback?.defaultVolume ?? 1;
-
-  const configRef = useRef(effectiveConfig);
-  const modeRef = useRef(playbackMode);
-  const attachedSrcRef = useRef<string | null>(null);
-
+  // Create internal PlayerEngine for Editor & Standalone mode
   useEffect(() => {
-    configRef.current = effectiveConfig;
-    modeRef.current = playbackMode;
-  }, [effectiveConfig, playbackMode]);
+    if (externalEngine || mediaElement) return;
 
-  // Reset initial playback resolution on src change
-  useEffect(() => {
-    hasResolvedInitialPlaybackRef.current = false;
-    pendingForegroundActivationRef.current = false;
-  }, [src]);
+    const videoEl = internalVideoRef.current;
+    if (!videoEl) return;
 
-  // React immediately to dynamic changes in backgroundAutoplay (e.g. live toggle in editor)
-  const isInitialMountRef = useRef(true);
-  useEffect(() => {
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
-      return;
-    }
-
-    const controller = playbackControllerRef.current;
-    const video = videoRef.current;
-    if (!controller || !video) return;
-
-    if (effectiveConfig.playback?.backgroundAutoplay) {
-      controller.startBackgroundAutoplay().catch(() => {});
-    } else {
-      controller.stopBackgroundAutoplay();
-    }
-  }, [playbackKey, effectiveConfig.playback?.backgroundAutoplay]);
-
-  // Apply default media settings (volume and rate) on fresh playback init
-  const applyInitialMediaSettings = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const currentConfig = configRef.current;
-    const currentRate = currentConfig.playback?.defaultPlaybackRate ?? 1;
-    const currentVol = currentConfig.playback?.defaultVolume ?? 1;
-
-    video.playbackRate = currentRate;
-    setPlaybackRate(currentRate);
-
-    if (modeRef.current !== "background_autoplay") {
-      video.volume = currentVol;
-      video.muted = currentVol === 0;
-      setVolume(currentVol);
-      setIsMuted(currentVol === 0);
-      lastVolumeRef.current = currentVol;
-    }
-  }, []);
-
-  // Helper to trigger initial playback resolution safely once
-  const triggerInitialPlaybackIfNeeded = useCallback(() => {
-    if (!playbackControllerRef.current || !videoRef.current) return;
-
-    if (pendingForegroundActivationRef.current) {
-      pendingForegroundActivationRef.current = false;
-      hasResolvedInitialPlaybackRef.current = true;
-      playbackControllerRef.current.startForegroundPlayback(lastVolumeRef.current);
-      return;
-    }
-
-    if (!hasResolvedInitialPlaybackRef.current) {
-      hasResolvedInitialPlaybackRef.current = true;
-      playbackControllerRef.current.resolveInitialPlayback();
-    }
-  }, []);
-
-  // Update controller config when effectiveConfig changes without destroying controller
-  useEffect(() => {
-    playbackControllerRef.current?.updateConfig(effectiveConfig);
-  }, [effectiveConfig]);
-
-  // Prefetch Pause Thumbnail after foreground playback starts
-  useEffect(() => {
-    if (
-      hasStartedPlayingForeground &&
-      effectiveConfig.appearance?.pauseThumbnail?.enabled &&
-      effectiveConfig.appearance?.pauseThumbnail?.customUrl
-    ) {
-      const img = new Image();
-      img.src = effectiveConfig.appearance.pauseThumbnail.customUrl;
-    }
-  }, [
-    hasStartedPlayingForeground,
-    effectiveConfig.appearance?.pauseThumbnail?.enabled,
-    effectiveConfig.appearance?.pauseThumbnail?.customUrl,
-  ]);
-
-  // First frame detection & click-to-frame performance tracking
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const cleanup = onFirstVideoFrame(video, (frameTime) => {
-      markPerformance("ep:first-frame", videoId);
-      markPerformance("ep:visual:main-reveal", videoId);
-      mediaStateManager.onFirstFrame();
-
-      setHasFirstFrameRendered(true);
-      setHasRevealedVideo(true);
-
-      if (isBackgroundAutoplay && displayPreviewSrc) {
-        setIsTransitioningPreviewOut(true);
-        setTimeout(() => {
-          setIsTransitioningPreviewOut(false);
-        }, 70);
-      }
-
-      let clickToFrame: number | undefined;
-      if (userPlayClickTimestampRef.current != null) {
-        markPerformance("ep:user-play-first-frame", videoId);
-        clickToFrame = Math.round(frameTime - userPlayClickTimestampRef.current);
-        userPlayClickTimestampRef.current = null;
-      }
-
-      if (effectiveDebug) {
-        const bootstrapDur = measurePerformance("ep:bootstrap", "ep:bootstrap:start", "ep:bootstrap:end", videoId);
-        const coreReadyDur = measurePerformance("ep:core:ready", "ep:core:start", "ep:core:ready", videoId);
-        const hlsReadyDur = measurePerformance("ep:hls-engine", "ep:hls-engine:start", "ep:hls-engine:ready");
-        const manifestDur = measurePerformance("ep:manifest", "ep:manifest:start", "ep:manifest:parsed", videoId);
-        const firstFragDur =
-          measurePerformance("ep:first-frag", "ep:first-frag:start", "ep:first-frag:buffered", videoId) ??
-          measurePerformance("ep:first-frag", "ep:first-frag:start", "ep:first-frag:loaded", videoId);
-        const canPlayDur = measurePerformance("ep:canplay", "ep:media:attach", "ep:canplay", videoId);
-        const firstFrameDur = measurePerformance("ep:first-frame", "ep:media:attach", "ep:first-frame", videoId);
-
-        const bwEstimate = hlsRef.current?.bandwidthEstimate
-          ? `${(hlsRef.current.bandwidthEstimate / 1_000_000).toFixed(2)} Mbps`
-          : undefined;
-        const currentLevelIndex = hlsRef.current?.currentLevel ?? hlsRef.current?.firstLevel;
-        const currentLevel =
-          currentLevelIndex != null && hlsRef.current?.levels
-            ? hlsRef.current.levels[currentLevelIndex]
-            : undefined;
-        const startupLevel = currentLevel?.height ? `${currentLevel.height}p` : undefined;
-        const startupBitrate = currentLevel?.bitrate ? `${Math.round(currentLevel.bitrate / 1000)} kbps` : undefined;
-
-        logPerformanceDebugReport(videoId, {
-          videoId,
-          bootstrapDurationMs: bootstrapDur ?? undefined,
-          coreReadyDurationMs: coreReadyDur ?? undefined,
-          hlsEngineReadyDurationMs: hlsReadyDur ?? undefined,
-          manifestDurationMs: manifestDur ?? undefined,
-          firstFragDurationMs: firstFragDur ?? undefined,
-          canPlayDurationMs: canPlayDur ?? undefined,
-          firstFrameDurationMs: firstFrameDur ?? undefined,
-          clickToFrameDurationMs: clickToFrame,
-          startupLevel,
-          startupBitrate,
-          bandwidthEstimate: bwEstimate,
-        });
-      }
+    const eng = new PlayerEngine({
+      videoElement: videoEl,
+      startupVisualElement: startupVisualRef.current,
+      debug: effectiveDebug,
     });
 
-    return cleanup;
-  }, [
-    videoId,
-    effectiveDebug,
-    displayPreviewSrc,
-    mediaStateManager,
-    isBackgroundAutoplay,
-    isThumbEnabled,
-    hasStartedPlayingForeground,
-  ]);
-
-  // Media source attachment (Native Safari HLS bypass + Dynamic HLS Light for MSE)
-  const attachMediaSource = useCallback(async (mediaSrc: string) => {
-    if (engine || mediaElement) return;
-    const video = videoRef.current;
-    if (!video || !mediaSrc) return;
-
-    if (attachedSrcRef.current === mediaSrc && (hlsRef.current || video.src)) {
-      return;
-    }
-
-    attachedSrcRef.current = mediaSrc;
-    setHasError(false);
-    mediaStateManager.onMediaAttach();
-    markPerformance("ep:media:attach", videoId);
-
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-
-    const isHls = mediaSrc.includes(".m3u8") || mediaSrc.includes("m3u8");
-
-    // 1. Native HLS for Safari macOS / iOS WebKit (0 bytes HLS.js transferred)
-    if (isHls && shouldUseNativeHls(video)) {
-      markPerformance("ep:manifest:start", videoId);
-      video.src = mediaSrc;
-      return;
-    }
-
-    // 2. Dynamic HLS Light for MSE browsers (Chrome, Edge, Firefox, etc.)
-    if (isHls) {
-      try {
-        const HlsClass = await loadHlsEngine();
-        if (HlsClass && HlsClass.isSupported()) {
-          if (attachedSrcRef.current !== mediaSrc) return;
-
-          markPerformance("ep:manifest:start", videoId);
-
-          const hlsOptions = createStartupHlsConfig(mediaSrc);
-          const hls = new HlsClass(hlsOptions);
-
-          hls.loadSource(mediaSrc);
-          hls.attachMedia(video);
-
-          hls.on(HlsClass.Events.MANIFEST_PARSED, (_event, data) => {
-            markPerformance("ep:manifest:parsed", videoId);
-            mediaStateManager.onManifestParsed();
-            setHasError(false);
-            applyInitialMediaSettings();
-            triggerInitialPlaybackIfNeeded();
-
-            if (effectiveDebug) {
-              const firstLevel = data.levels?.[data.firstLevel ?? 0];
-              const startupLevel = firstLevel?.height ? `${firstLevel.height}p` : "auto";
-              const seedKbps = Math.round(getInitialBandwidthEstimate(mediaSrc) / 1000);
-              console.log(`[Evandro Player HLS] Manifest Parsed | Startup: ${startupLevel} | Seed: ${seedKbps} kbps`);
-            }
-          });
-
-          hls.on(HlsClass.Events.FRAG_LOADING, () => {
-            markPerformanceOnce("ep:first-frag:start", videoId);
-          });
-
-          hls.on(HlsClass.Events.FRAG_LOADED, () => {
-            markPerformanceOnce("ep:first-frag:loaded", videoId);
-            if (hls.bandwidthEstimate && hls.bandwidthEstimate > 0) {
-              saveBandwidthEstimate(mediaSrc, hls.bandwidthEstimate);
-            }
-          });
-
-          hls.on(HlsClass.Events.FRAG_BUFFERED, () => {
-            markPerformanceOnce("ep:first-frag:buffered", videoId);
-          });
-
-          hls.on(HlsClass.Events.LEVEL_SWITCHED, (_event, data) => {
-            if (effectiveDebug && hls.levels) {
-              const levelObj = hls.levels[data.level];
-              if (levelObj) {
-                const res = levelObj.height ? `${levelObj.height}p` : `Level ${data.level}`;
-                const br = Math.round(levelObj.bitrate / 1000);
-                const est = Math.round(hls.bandwidthEstimate / 1000);
-                console.log(`[Evandro Player HLS] Level Switched: ${res} (${br} kbps) | Bandwidth Est: ${est} kbps`);
-              }
-            }
-            if (hls.bandwidthEstimate && hls.bandwidthEstimate > 0) {
-              saveBandwidthEstimate(mediaSrc, hls.bandwidthEstimate);
-            }
-          });
-
-          hls.on(HlsClass.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
-            if (data.fatal) {
-              console.error("[Evandro Player HLS Fatal Error]", data);
-              switch (data.type) {
-                case HlsClass.ErrorTypes.NETWORK_ERROR:
-                  console.warn("[Evandro Player HLS] Retrying network error...");
-                  hls.startLoad();
-                  break;
-                case HlsClass.ErrorTypes.MEDIA_ERROR:
-                  console.warn("[Evandro Player HLS] Recovering media error...");
-                  hls.recoverMediaError();
-                  break;
-                default:
-                  hls.destroy();
-                  setHasError(true);
-                  mediaStateManager.onError();
-                  break;
-              }
-            }
-          });
-
-          hlsRef.current = hls as unknown as Hls;
-          return;
-        }
-      } catch (err) {
-        console.warn("[Evandro Player] Dynamic HLS load error, falling back to native:", err);
-      }
-    }
-
-    // 3. Fallback native
-    markPerformance("ep:manifest:start", videoId);
-    video.src = mediaSrc;
-  }, [applyInitialMediaSettings, triggerInitialPlaybackIfNeeded, videoId, effectiveDebug, mediaStateManager, engine, mediaElement]);
-
-  // Attach media source conditionally once per resolved media URL (only when not managed by external engine/stage)
-  useEffect(() => {
-    if (engine || mediaElement) return;
-    if (isMediaAttached && resolvedSrc) {
-      attachMediaSource(resolvedSrc);
-    }
+    setInternalEngine(eng);
 
     return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-      attachedSrcRef.current = null;
+      eng.destroy();
+      setInternalEngine(null);
     };
-  }, [resolvedSrc, isMediaAttached, attachMediaSource, engine, mediaElement]);
+  }, [externalEngine, mediaElement, effectiveDebug]);
 
-  // Subscribe to external engine state if provided
+  // Pass startupVisual element to engine if attached after mount
   useEffect(() => {
-    if (!engine) return;
-    const unsubscribe = engine.subscribe((s) => {
-      setIsPlaying(s.isPlaying);
-      setVolume(s.volume);
-      setIsMuted(s.isMuted);
-      setPlaybackRate(s.playbackRate);
-      if (s.hasFirstFrame) {
-        setHasFirstFrameRendered(true);
+    if (activeEngine && startupVisualRef.current) {
+      activeEngine.setStartupVisualElement(startupVisualRef.current);
+    }
+  }, [activeEngine]);
+
+  // Load source into internal Engine or update external Engine config
+  useEffect(() => {
+    if (!activeEngine) return;
+
+    if (!externalEngine) {
+      // Editor / Standalone mode: React manages loadSource on internal engine
+      if (resolvedSrc) {
+        activeEngine.loadSource({
+          videoId,
+          playbackUrl: resolvedSrc,
+          backgroundAutoplay: Boolean(effectiveConfig.playback?.backgroundAutoplay),
+          thumbnailEnabled: effectiveConfig.appearance?.thumbnail?.enabled ?? true,
+          posterUrl,
+          backgroundPreviewUrl,
+          config: effectiveConfig,
+          defaultVolume: effectiveConfig.playback?.defaultVolume ?? 1,
+          defaultPlaybackRate: effectiveConfig.playback?.defaultPlaybackRate ?? 1,
+        });
       }
-      if (s.hasError) {
-        setHasError(true);
+    } else {
+      // Embed mode: Tiny Loader already started loadSource; update live config if changed
+      activeEngine.updateConfig(effectiveConfig);
+    }
+  }, [
+    activeEngine,
+    externalEngine,
+    resolvedSrc,
+    videoId,
+    effectiveConfig,
+    posterUrl,
+    backgroundPreviewUrl,
+  ]);
+
+  // Subscribe to authoritative PlayerEngine state
+  useEffect(() => {
+    if (!activeEngine) return;
+
+    const unsubscribe = activeEngine.subscribe((state) => {
+      setIsPlaying(state.isPlaying);
+      setVolume(state.volume);
+      setIsMuted(state.isMuted);
+      if (state.volume > 0 && !state.isMuted) {
+        lastVolumeRef.current = state.volume;
+      }
+      setPlaybackRate(state.playbackRate);
+      if (!isDraggingSeek) {
+        setCurrentTime(state.currentTime);
+      }
+      if (Number.isFinite(state.duration)) {
+        setDuration(state.duration);
+      }
+      setBufferedEnd(state.bufferedEnd);
+      setHasFirstFrame(state.hasFirstFrame);
+      setHasStartedForeground(state.hasStartedForeground);
+      setUserActivatedForeground(
+        state.userForegroundRequested || state.experience === "foreground"
+      );
+      setIsEnded(state.isEnded);
+      setHasError(state.hasError);
+
+      if (state.isBuffering) {
+        mediaStateManager.onWaiting();
+      } else {
+        mediaStateManager.onCanPlay();
+      }
+
+      if (state.hasFirstFrame) {
+        mediaStateManager.onFirstFrame();
+      }
+
+      if (state.isPlaying) {
+        mediaStateManager.onPlaying();
       }
     });
+
     return () => {
       unsubscribe();
     };
-  }, [engine]);
+  }, [activeEngine, isDraggingSeek, mediaStateManager]);
 
-  // Sync native media element events when passed from embed stage
+  // Initialize PlayerRuntime lifecycle (strictly as Observer)
   useEffect(() => {
-    if (!mediaElement) return;
-    const v = mediaElement;
-    const onPlay = () => {
-      setIsPlaying(true);
-      setIsPlayPending(false);
-    };
-    const onPause = () => {
-      setIsPlaying(false);
-      setIsPlayPending(false);
-    };
-    const onEnded = () => {
-      setIsEnded(true);
-      setIsPlayPending(false);
-    };
-    const onPlaying = () => {
-      setIsPlaying(true);
-      setIsPlayPending(false);
-      setHasStartedPlayingForeground(true);
-    };
-    const onTime = () => {
-      if (!isDraggingSeek) setCurrentTime(v.currentTime);
-    };
-    const onDuration = () => {
-      if (Number.isFinite(v.duration)) setDuration(v.duration);
-    };
-    const onVol = () => {
-      setVolume(v.volume);
-      setIsMuted(v.muted || v.volume === 0);
-    };
-
-    v.addEventListener("play", onPlay);
-    v.addEventListener("pause", onPause);
-    v.addEventListener("ended", onEnded);
-    v.addEventListener("playing", onPlaying);
-    v.addEventListener("timeupdate", onTime);
-    v.addEventListener("durationchange", onDuration);
-    v.addEventListener("volumechange", onVol);
-
-    queueMicrotask(() => {
-      if (v.readyState >= 1 && Number.isFinite(v.duration)) {
-        setDuration(v.duration);
-      }
-      setCurrentTime(v.currentTime);
-      setIsPlaying(!v.paused);
-    });
-
-    return () => {
-      v.removeEventListener("play", onPlay);
-      v.removeEventListener("pause", onPause);
-      v.removeEventListener("ended", onEnded);
-      v.removeEventListener("playing", onPlaying);
-      v.removeEventListener("timeupdate", onTime);
-      v.removeEventListener("durationchange", onDuration);
-      v.removeEventListener("volumechange", onVol);
-    };
-  }, [mediaElement, isDraggingSeek]);
-
-  // Initialize PlayerRuntime and PlaybackController lifecycle once per videoId / debug flag
-  useEffect(() => {
-    const video = videoRef.current;
+    const video = activeEngine?.video || mediaElement || internalVideoRef.current;
     const container = containerRef.current;
     if (!video) return;
 
@@ -726,14 +321,7 @@ export function EvandroPlayer({
       containerElement: container,
     });
 
-    const controller = new PlaybackController({
-      video,
-      runtime,
-      config: configRef.current,
-    });
-
     runtimeRef.current = runtime;
-    playbackControllerRef.current = controller;
 
     let unsubscribe: (() => void) | undefined;
     if (onEvent) {
@@ -742,34 +330,21 @@ export function EvandroPlayer({
 
     onRuntimeReady?.(runtime);
 
-    // If media is attached and metadata is already available
-    if (isMediaAttached) {
-      if (video.readyState >= 1) {
-        if (video.duration && Number.isFinite(video.duration)) {
-          setDuration(video.duration);
-        }
-      }
-      triggerInitialPlaybackIfNeeded();
-    }
-
     return () => {
       runtimeRef.current = null;
-      playbackControllerRef.current?.dispose();
-      playbackControllerRef.current = null;
       unsubscribe?.();
       runtime.destroy();
-      mediaStateManager.dispose();
     };
-  }, [videoId, effectiveDebug, onEvent, onRuntimeReady, isMediaAttached, triggerInitialPlaybackIfNeeded, mediaStateManager]);
+  }, [activeEngine, mediaElement, videoId, effectiveDebug, onEvent, onRuntimeReady]);
 
-  // 60fps smooth linear progress animation loop
+  // 60fps smooth progress update loop while playing
   useEffect(() => {
     let animationFrameId: number;
 
     const loop = () => {
-      const video = videoRef.current;
-      if (video && !isDraggingSeek) {
-        setCurrentTime(video.currentTime);
+      const v = activeEngine?.video;
+      if (v && !isDraggingSeek) {
+        setCurrentTime(v.currentTime);
       }
       if (isPlaying) {
         animationFrameId = requestAnimationFrame(loop);
@@ -785,7 +360,22 @@ export function EvandroPlayer({
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [isPlaying, isDraggingSeek]);
+  }, [isPlaying, isDraggingSeek, activeEngine]);
+
+  // Dynamic experience mode
+  const playbackMode: PlaybackMode =
+    activeEngine?.state.experience === "background_autoplay" ||
+    (effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground)
+      ? "background_autoplay"
+      : "foreground";
+
+  // Thumbnails configuration & presentation
+  const thumbConfig = effectiveConfig.appearance?.thumbnail;
+  const isCustomStartup = thumbConfig?.source === "custom" && Boolean(thumbConfig?.customUrl);
+  const pauseConfig = effectiveConfig.appearance?.pauseThumbnail;
+  const isPauseThumbActive = Boolean(
+    pauseConfig?.enabled && pauseConfig?.customUrl && !pauseThumbError
+  );
 
   // Autohide controls logic
   const showControlsTemporarily = useCallback(() => {
@@ -811,9 +401,8 @@ export function EvandroPlayer({
     }
   };
 
-  // Deduped session activation for background quota tracking
+  // Background play tracking session
   const hasActivatedSessionRef = useRef(false);
-
   useEffect(() => {
     hasActivatedSessionRef.current = false;
   }, [src, videoId]);
@@ -843,131 +432,58 @@ export function EvandroPlayer({
     }
   }, [apiBase, videoId, getPlaySessionId, isEditor]);
 
-  // Main foreground playback activation (seamless preview -> HLS transition with volume restore)
+  // Main foreground playback activation
   const activateForegroundPlayback = useCallback(async () => {
-    const video = videoRef.current;
-    if (!video) return;
+    if (!activeEngine) return;
 
     markPerformance("ep:user-play", videoId);
-    userPlayClickTimestampRef.current = performance.now();
     mediaStateManager.onPlayRequested();
 
-    setUserActivatedForeground(true);
-    setIsPlayPending(true);
-
-    if (hasFirstFrameRendered) {
-      setHasRevealedVideo(true);
-      if (displayPreviewSrc) {
-        setIsTransitioningPreviewOut(true);
-        setTimeout(() => {
-          setIsTransitioningPreviewOut(false);
-        }, 70);
-      }
-    }
-
-    const targetVol = lastVolumeRef.current > 0 ? lastVolumeRef.current : defaultVolume;
-    const targetRate = defaultPlaybackRate;
-
-    video.volume = targetVol;
-    video.muted = targetVol === 0;
-    video.playbackRate = targetRate;
-    setVolume(targetVol);
-    setIsMuted(targetVol === 0);
-    setPlaybackRate(targetRate);
+    const targetVol =
+      lastVolumeRef.current > 0
+        ? lastVolumeRef.current
+        : (effectiveConfig.playback?.defaultVolume ?? 1);
 
     activateSession();
-
-    if (engine) {
-      await engine.startForeground(targetVol);
-    } else if (playbackControllerRef.current) {
-      await playbackControllerRef.current.startForegroundPlayback(targetVol);
-    } else {
-      video.loop = false;
-      if (video.currentTime !== 0) {
-        try {
-          video.currentTime = 0;
-        } catch {
-          // ignore
-        }
-      }
-      const onSeeked = () => {
-        video.removeEventListener("seeked", onSeeked);
-        if (video.paused) {
-          video.play().catch(() => {});
-        }
-      };
-      video.addEventListener("seeked", onSeeked, { once: true });
-      video.play().catch(() => {});
-    }
-  }, [
-    defaultPlaybackRate,
-    defaultVolume,
-    activateSession,
-    videoId,
-    mediaStateManager,
-    engine,
-    displayPreviewSrc,
-    hasFirstFrameRendered,
-  ]);
+    await activeEngine.startForeground(targetVol);
+  }, [activeEngine, videoId, mediaStateManager, effectiveConfig, activateSession]);
 
   // Play / Pause toggle
   const togglePlay = useCallback(() => {
+    if (!activeEngine) return;
+
     if (playbackMode === "background_autoplay" || !userActivatedForeground) {
       activateForegroundPlayback();
       return;
     }
 
-    const video = videoRef.current;
-    if (!video) return;
-
     markPerformance("ep:user-play", videoId);
-    userPlayClickTimestampRef.current = performance.now();
 
-    // If currently playing muted due to browser autoplay fallback, clicking anywhere on the player immediately unmutes with audio
-    if (isPlaying && (video.muted || isMuted)) {
-      const restored = lastVolumeRef.current > 0 ? lastVolumeRef.current : defaultVolume;
-      video.muted = false;
-      video.volume = restored;
-      setVolume(restored);
-      setIsMuted(false);
+    // If playing muted due to autoplay fallback, un-mute with audio
+    if (isPlaying && (activeEngine.video.muted || isMuted)) {
+      const restored =
+        lastVolumeRef.current > 0
+          ? lastVolumeRef.current
+          : (effectiveConfig.playback?.defaultVolume ?? 1);
+      activeEngine.setMuted(false);
+      activeEngine.setVolume(restored);
       return;
     }
 
-    if (!isMediaAttached) {
-      activateForegroundPlayback();
-      return;
-    }
-
-    if (playbackControllerRef.current) {
-      activateSession();
-      if (video.paused || video.ended) {
-        setIsPlayPending(true);
-        mediaStateManager.onPlayRequested();
-      } else {
-        setIsPlayPending(false);
-      }
-      playbackControllerRef.current.handleUserPlayToggle(lastVolumeRef.current);
-      return;
-    }
-
-    if (video.paused || video.ended) {
-      activateSession();
-      setIsPlayPending(true);
-      mediaStateManager.onPlayRequested();
-      video.play().catch(() => {
-        setIsPlayPending(false);
-      });
+    if (isPlaying) {
+      activeEngine.pause();
     } else {
-      setIsPlayPending(false);
-      video.pause();
+      activateSession();
+      mediaStateManager.onPlayRequested();
+      activeEngine.play("user");
     }
   }, [
+    activeEngine,
     playbackMode,
     userActivatedForeground,
-    isMediaAttached,
     isPlaying,
     isMuted,
-    defaultVolume,
+    effectiveConfig,
     activateForegroundPlayback,
     activateSession,
     videoId,
@@ -976,46 +492,44 @@ export function EvandroPlayer({
 
   // Mute toggle
   const toggleMute = useCallback(() => {
+    if (!activeEngine) return;
+
     if (playbackMode === "background_autoplay") {
       activateForegroundPlayback();
       return;
     }
 
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (video.muted || video.volume === 0 || isMuted) {
-      const restored = lastVolumeRef.current > 0 ? lastVolumeRef.current : 1;
-      video.muted = false;
-      video.volume = restored;
-      setVolume(restored);
-      setIsMuted(false);
+    if (isMuted || volume === 0) {
+      const restored =
+        lastVolumeRef.current > 0
+          ? lastVolumeRef.current
+          : (effectiveConfig.playback?.defaultVolume ?? 1);
+      activeEngine.setMuted(false);
+      activeEngine.setVolume(restored);
     } else {
-      lastVolumeRef.current = video.volume > 0 ? video.volume : 1;
-      video.muted = true;
-      setIsMuted(true);
+      lastVolumeRef.current = volume > 0 ? volume : 1;
+      activeEngine.setMuted(true);
     }
-  }, [isMuted, playbackMode, activateForegroundPlayback]);
+  }, [activeEngine, playbackMode, isMuted, volume, effectiveConfig, activateForegroundPlayback]);
 
-  // Volume drag/click
-  const updateVolumeFromPosition = useCallback((clientX: number) => {
-    const track = volumeTrackRef.current;
-    const video = videoRef.current;
-    if (!track || !video) return;
+  // Volume slider interaction
+  const updateVolumeFromPosition = useCallback(
+    (clientX: number) => {
+      const track = volumeTrackRef.current;
+      if (!track || !activeEngine) return;
 
-    const rect = track.getBoundingClientRect();
-    if (rect.width === 0) return;
-    const rawVol = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const newVol = Math.round(rawVol * 100) / 100;
+      const rect = track.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const rawVol = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const newVol = Math.round(rawVol * 100) / 100;
 
-    video.volume = newVol;
-    video.muted = newVol === 0;
-    setVolume(newVol);
-    setIsMuted(newVol === 0);
-    if (newVol > 0) {
-      lastVolumeRef.current = newVol;
-    }
-  }, []);
+      activeEngine.setVolume(newVol);
+      if (newVol > 0) {
+        lastVolumeRef.current = newVol;
+      }
+    },
+    [activeEngine]
+  );
 
   const handleVolumeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -1038,26 +552,23 @@ export function EvandroPlayer({
     window.addEventListener("mouseup", onMouseUp);
   };
 
-  // Playback rate change
+  // Playback rate
   const handleRateChange = (rate: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.playbackRate = rate;
-    setPlaybackRate(rate);
+    if (!activeEngine) return;
+    activeEngine.setPlaybackRate(rate);
     setShowSettings(false);
   };
 
-  // Seek calculation from mouse event
+  // Seek interaction
   const seekToPosition = (clientX: number) => {
     const track = progressTrackRef.current;
-    const video = videoRef.current;
-    if (!track || !video || !duration) return;
+    if (!track || !activeEngine || !duration) return;
 
     const rect = track.getBoundingClientRect();
     const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const targetTime = pos * duration;
 
-    video.currentTime = targetTime;
+    activeEngine.seek(targetTime);
     setCurrentTime(targetTime);
   };
 
@@ -1079,7 +590,7 @@ export function EvandroPlayer({
     window.addEventListener("mouseup", onMouseUp);
   };
 
-  // Fullscreen toggle (shared controller for button and double click)
+  // Fullscreen toggle
   const toggleFullscreen = useCallback(
     (initiator: FullscreenInitiator = "button") => {
       if (!fullscreenConfig.enabled) return;
@@ -1109,7 +620,6 @@ export function EvandroPlayer({
     [fullscreenConfig]
   );
 
-  // Double click handler on video container / main area
   const handleContainerDoubleClick = (e: React.MouseEvent) => {
     if (!fullscreenConfig.enabled || !fullscreenConfig.doubleClick) return;
 
@@ -1132,7 +642,6 @@ export function EvandroPlayer({
     toggleFullscreen("double_click");
   };
 
-  // Listen to fullscreen changes for UI state
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
@@ -1167,17 +676,14 @@ export function EvandroPlayer({
         showControlsTemporarily();
       } else if (e.code === "ArrowLeft") {
         e.preventDefault();
-        if (videoRef.current) {
-          videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
+        if (activeEngine) {
+          activeEngine.seek(Math.max(0, activeEngine.state.currentTime - 5));
         }
         showControlsTemporarily();
       } else if (e.code === "ArrowRight") {
         e.preventDefault();
-        if (videoRef.current) {
-          videoRef.current.currentTime = Math.min(
-            duration,
-            videoRef.current.currentTime + 5
-          );
+        if (activeEngine) {
+          activeEngine.seek(Math.min(duration, activeEngine.state.currentTime + 5));
         }
         showControlsTemporarily();
       }
@@ -1187,118 +693,15 @@ export function EvandroPlayer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [duration, showControlsTemporarily, toggleMute, togglePlay, toggleFullscreen]);
+  }, [activeEngine, duration, showControlsTemporarily, toggleMute, togglePlay, toggleFullscreen]);
 
-  // Video event handlers
-  const handleDurationChange = () => {
-    if (videoRef.current && videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
-      setDuration(videoRef.current.duration);
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      if (!isDraggingSeek) {
-        setCurrentTime(videoRef.current.currentTime);
-      }
-      if (videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
-        setDuration((prev) => (prev === 0 ? videoRef.current!.duration : prev));
-      }
-      if (videoRef.current.buffered.length > 0) {
-        try {
-          const end = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
-          setBufferedEnd(end);
-        } catch {
-          // ignore index errors
-        }
-      }
-    }
-  };
-
-  const handleVolumeSync = () => {
-    if (videoRef.current) {
-      setVolume(videoRef.current.volume);
-      setIsMuted(videoRef.current.muted || videoRef.current.volume === 0);
-      if (videoRef.current.volume > 0 && !videoRef.current.muted) {
-        lastVolumeRef.current = videoRef.current.volume;
-      }
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      markPerformance("ep:canplay", videoId);
-      if (videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
-        setDuration(videoRef.current.duration);
-      }
-      mediaStateManager.onCanPlay();
-      applyInitialMediaSettings();
-      triggerInitialPlaybackIfNeeded();
-    }
-  };
-
-  const handleCanPlay = () => {
-    markPerformance("ep:canplay", videoId);
-    if (videoRef.current && videoRef.current.duration && Number.isFinite(videoRef.current.duration)) {
-      setDuration((prev) => (prev === 0 ? videoRef.current!.duration : prev));
-    }
-    mediaStateManager.onCanPlay();
-    triggerInitialPlaybackIfNeeded();
-  };
-
-  const handleWaiting = () => {
-    mediaStateManager.onWaiting();
-  };
-
-  const handlePlaying = () => {
-    mediaStateManager.onPlaying();
-    setIsPlaying(true);
-    setIsEnded(false);
-    setIsPlayPending(false);
-    setHasStartedPlayingForeground(true);
-  };
-
-  const handlePause = () => {
-    mediaStateManager.onPause();
-    setIsPlaying(false);
-    setIsPlayPending(false);
-  };
-
-  const handleEnded = () => {
-    mediaStateManager.onEnded();
-    setIsPlaying(false);
-    setIsEnded(true);
-    setIsPlayPending(false);
-    setControlsVisible(true);
-  };
-
-  const handleError = () => {
-    const video = videoRef.current;
-    // When HLS.js is active, error handling is delegated to Hls.Events.ERROR
-    if (hlsRef.current) {
-      return;
-    }
-    // Only trigger error overlay if video has an actual native error code and valid src
-    if (video?.error && src) {
-      console.error("[Evandro Player Native Video Error]", video.error);
-      setHasError(true);
-      mediaStateManager.onError();
-    }
-  };
-
-  const handleLoadStart = () => {
-    if (src && isMediaAttached) {
-      setHasError(false);
-    }
-  };
-
-  // Real progress for native timeline (always currentTime / duration)
+  // Calculated Progress percentages
   const realProgressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedPercent = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
   const effectiveVolume = isMuted ? 0 : volume;
   const isVolumeOpen = isVolumeHovered || isDraggingVolume;
 
-  // Fake Progress Bar (isolated layer, 0% during background autoplay)
+  // Fake progress bar calculation
   const isFakeProgressEnabled = Boolean(effectiveConfig.progress?.fake?.enabled);
   const fakeProgress =
     isFakeProgressEnabled && playbackMode !== "background_autoplay"
@@ -1320,7 +723,7 @@ export function EvandroPlayer({
       ? "aspect-square"
       : "aspect-video";
 
-  const isEmbedded = Boolean(mediaElement);
+  const isEmbedded = Boolean(mediaElement || externalEngine);
 
   return (
     <div
@@ -1342,60 +745,33 @@ export function EvandroPlayer({
         className
       )}
     >
-      {/* Derived Lightweight Background Preview / Poster Layer (Only in standalone / editor fallback mode) */}
-      {!isEmbedded && isPreviewVisible && displayPreviewSrc && (
+      {/* Standalone / Editor Startup Visual Surface managed by PlayerEngine */}
+      {!isEmbedded && (
         <div
+          ref={startupVisualRef}
+          data-evandro-player-startup-visual="true"
           aria-hidden="true"
-          className={cn(
-            "absolute inset-0 z-5 pointer-events-none overflow-hidden transition-opacity duration-[70ms] ease-out",
-            isTransitioningPreviewOut ? "opacity-0" : "opacity-100"
-          )}
-        >
-          <img
-            src={displayPreviewSrc}
-            alt=""
-            fetchPriority="high"
-            onError={() => {
-              if (!customThumbError && isCustomStartup) {
-                setCustomThumbError(true);
-              } else if (!previewError && candidateBgPreview) {
-                setPreviewError(true);
-              }
-            }}
-            className="w-full h-full object-cover pointer-events-none select-none"
-          />
-        </div>
+          style={{ display: "none" }}
+          className="absolute inset-0 z-5 pointer-events-none overflow-hidden transition-opacity duration-[70ms] ease-out flex items-center justify-center bg-black"
+        />
       )}
 
-      {/* Native Video Element (Only rendered when not using pre-existing mediaElement from Stage) */}
+      {/* Standalone / Editor Native Video Element managed by PlayerEngine */}
       {!isEmbedded && (
         <video
-          ref={handleInternalVideoRef}
+          ref={internalVideoRef}
           playsInline
           preload="auto"
-          autoPlay={isBackgroundAutoplay}
-          muted={isBackgroundAutoplay}
           controls={false}
           onClick={togglePlay}
-          onLoadStart={handleLoadStart}
-          onCanPlay={handleCanPlay}
-          onDurationChange={handleDurationChange}
-          onTimeUpdate={handleTimeUpdate}
-          onVolumeChange={handleVolumeSync}
-          onLoadedMetadata={handleLoadedMetadata}
-          onWaiting={handleWaiting}
-          onPlaying={handlePlaying}
-          onPause={handlePause}
-          onEnded={handleEnded}
-          onError={handleError}
           className={cn(
             "w-full h-full object-contain cursor-pointer transition-opacity duration-[70ms] ease-out",
-            hasRevealedVideo ? "opacity-100" : "opacity-0"
+            hasFirstFrame ? "opacity-100" : "opacity-0"
           )}
         />
       )}
 
-      {/* Central Tap / Click-to-Toggle-Play Backdrop (Handles body clicks in both Embed & Standalone modes) */}
+      {/* Central Tap / Click-to-Toggle-Play Backdrop */}
       {playbackMode !== "background_autoplay" && !hasError && (
         <div
           aria-hidden="true"
@@ -1404,7 +780,7 @@ export function EvandroPlayer({
         />
       )}
 
-      {/* Loading Buffering Indicator (Delayed trigger via MediaLoadingStateManager) */}
+      {/* Loading Buffering Indicator */}
       {isLoading && !hasError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 bg-black/20">
           <div className="flex size-14 items-center justify-center rounded-full bg-black/60 backdrop-blur-md shadow-lg">
@@ -1465,29 +841,22 @@ export function EvandroPlayer({
                 "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
               )}
             >
-              {/* Icon Circle with concentric animated sound waves */}
+              {/* Concentric animated sound waves */}
               <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
-                {/* Concentric sound waves */}
                 <span
                   aria-hidden="true"
                   className="ep-sound-wave-1 absolute inset-0 rounded-full pointer-events-none"
-                  style={{
-                    backgroundColor: "var(--player-accent)",
-                  }}
+                  style={{ backgroundColor: "var(--player-accent)" }}
                 />
                 <span
                   aria-hidden="true"
                   className="ep-sound-wave-2 absolute inset-0 rounded-full pointer-events-none"
-                  style={{
-                    backgroundColor: "var(--player-accent)",
-                  }}
+                  style={{ backgroundColor: "var(--player-accent)" }}
                 />
                 <span
                   aria-hidden="true"
                   className="ep-sound-wave-3 absolute inset-0 rounded-full pointer-events-none"
-                  style={{
-                    backgroundColor: "var(--player-accent)",
-                  }}
+                  style={{ backgroundColor: "var(--player-accent)" }}
                 />
 
                 {/* Center Audio Icon Badge */}
@@ -1502,7 +871,7 @@ export function EvandroPlayer({
                 </div>
               </div>
 
-              {/* Subtitle / Context */}
+              {/* Subtitle */}
               <span className="text-[10.5px] @min-[360px]:text-[11px] @min-[420px]:text-xs font-medium text-zinc-300 leading-tight">
                 Seu vídeo já começou
               </span>
@@ -1578,7 +947,7 @@ export function EvandroPlayer({
       )}
 
       {/* Pause Overlay (Custom Pause Thumbnail OR "Continue assistindo" Card) */}
-      {!isPlaying && !isPlayPending && !isLoading && !hasError && playbackMode !== "background_autoplay" && hasStartedPlayingForeground && !isEnded && (
+      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && hasStartedForeground && !isEnded && (
         <>
           {isPauseThumbActive && pauseConfig?.customUrl ? (
             <div
@@ -1702,7 +1071,7 @@ export function EvandroPlayer({
         </div>
       )}
 
-      {/* Standalone Fake Progress Bar (Independent layer on bottom of video) */}
+      {/* Standalone Fake Progress Bar */}
       {isFakeProgressEnabled && (
         <div
           aria-hidden="true"
@@ -1737,7 +1106,7 @@ export function EvandroPlayer({
             controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
           )}
         >
-          {/* Seek Bar (Linear, Smooth, Spans 100% width) */}
+          {/* Seek Bar */}
           <div
             ref={progressTrackRef}
             onMouseDown={handleSeekMouseDown}
@@ -1771,7 +1140,7 @@ export function EvandroPlayer({
             />
           </div>
 
-          {/* Control Buttons & Indicators Row (Responsive Flex Nowrap) */}
+          {/* Control Buttons & Indicators Row */}
           <div className="flex items-center justify-between gap-1 @min-[340px]:gap-1.5 @min-[400px]:gap-2 text-white flex-nowrap min-w-0">
             {/* Left: Play/Pause, Volume, Time */}
             <div className="flex items-center gap-1 @min-[340px]:gap-1.5 @min-[440px]:gap-2.5 min-w-0 shrink">
@@ -1790,7 +1159,7 @@ export function EvandroPlayer({
                 )}
               </button>
 
-              {/* Volume & YouTube-style Expandable Slider */}
+              {/* Volume & Expandable Slider */}
               <div
                 className="flex items-center group/volume shrink-0 relative"
                 onMouseEnter={() => setIsVolumeHovered(true)}

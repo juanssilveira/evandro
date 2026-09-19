@@ -154,9 +154,9 @@ for (const [outPath, meta] of Object.entries(splitBuildResult.metafile.outputs))
   } else if (base.startsWith("player-core-") && base.endsWith(".js")) {
     coreOutputRelativePath = `assets/${base}`;
   } else if (base.endsWith(".js")) {
-    // Check if this chunk contains HLS.js source
+    // Check if this chunk contains HLS.js source library
     const isHls = Object.keys(meta.inputs || {}).some(
-      (inputPath) => inputPath.includes("hls.js") || inputPath.includes("hls")
+      (inputPath) => inputPath.includes("node_modules/hls.js") || inputPath.includes("node_modules\\hls.js")
     );
     if (isHls) {
       hlsOutputRelativePath = `assets/${base}`;
@@ -245,9 +245,9 @@ for (const [outPath, meta] of Object.entries(splitBuildResult.metafile.outputs))
       ? " [Player Engine]"
       : outPath.includes("player-core")
       ? " [Player Core]"
-      : Object.keys(meta.inputs || {}).some((i) => i.includes("hls"))
-      ? " [HLS Engine]"
-      : "";
+      : Object.keys(meta.inputs || {}).some((i) => i.includes("node_modules/hls.js") || i.includes("node_modules\\hls.js"))
+      ? " [HLS Light]"
+      : " [Shared]";
     console.log(`  * ${path.basename(outPath)}${label}: ${assetSize.toLocaleString()} bytes (${assetSizeKb} KB)`);
   }
 }

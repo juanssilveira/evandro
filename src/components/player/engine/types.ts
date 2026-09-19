@@ -7,7 +7,8 @@ import type { PlayerConfig } from "@/types/player-config";
 import type Hls from "hls.js";
 
 export type PlaybackExperience = "background_autoplay" | "foreground" | "idle";
-
+export type PlaybackInitiator = "user" | "autoplay" | "system";
+export type StartupVisualState = "available" | "loading" | "visible" | "pending_release" | "released";
 export type StartupVisualType = "preview" | "thumbnail" | "none";
 
 export interface EngineSourceOptions {
@@ -26,15 +27,22 @@ export interface PlayerEngineState {
   videoId: string;
   playbackUrl: string | null;
   experience: PlaybackExperience;
+  playbackInitiator: PlaybackInitiator;
+  userForegroundRequested: boolean;
   isPlaying: boolean;
   isMuted: boolean;
   volume: number;
   currentTime: number;
   duration: number;
+  bufferedEnd: number;
   playbackRate: number;
   hasFirstFrame: boolean;
+  hasStartedForeground: boolean;
+  isBuffering: boolean;
+  isEnded: boolean;
   hasError: boolean;
   errorMessage: string | null;
+  startupVisualState: StartupVisualState;
 }
 
 export interface PlayerEngineOptions {
@@ -53,12 +61,15 @@ export interface IPlayerEngine {
   readonly hls: Hls | null;
   loadSource(options: EngineSourceOptions): Promise<void>;
   startForeground(volume?: number): Promise<void>;
-  play(): Promise<void>;
+  play(initiator?: PlaybackInitiator): Promise<void>;
   pause(): void;
   seek(time: number): void;
   setVolume(volume: number): void;
   setMuted(muted: boolean): void;
   setPlaybackRate(rate: number): void;
+  updateConfig(config: PlayerConfig): void;
+  releaseStartupVisual(videoId?: string): void;
+  setStartupVisualElement(element: HTMLElement | null): void;
   onFirstFrame(listener: EngineFirstFrameListener): () => void;
   subscribe(listener: EngineStateListener): () => void;
   destroy(): void;
