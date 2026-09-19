@@ -15,47 +15,30 @@ import { eq, and, or, isNull, gt, desc } from "drizzle-orm";
 import { getCurrentPeriodKey } from "@/lib/plans/access";
 import { getPlanByCode, PRO_PLAN, type PlanDefinition } from "@/lib/plans/catalog";
 import { isAccountActive } from "@/lib/accounts/status";
-import { parsePlayerConfig, DEFAULT_PLAYER_CONFIG, type PlayerConfig } from "@/types/player-config";
+import { parsePlayerConfig, DEFAULT_PLAYER_CONFIG } from "@/types/player-config";
 import {
   getVideoPlaybackUrl,
   getVideoPosterUrl,
   getVideoBackgroundPreviewUrl,
 } from "@/lib/video-providers";
 import { getAssetPublicUrl } from "@/lib/asset-storage/r2";
+import type { EmbedBootstrapResolution, EmbedBootstrapPayload } from "@/types/embed-bootstrap";
 
-export interface EmbedBootstrapResolution {
-  authorized: boolean;
-  statusCode: number;
-  error?: string;
-  data?: {
-    videoId: string;
-    title: string;
-    duration: number | null;
-    playbackUrl: string;
-    playback: {
-      type: "hls";
-      url: string;
-    };
-    posterUrl: string | null;
-    backgroundPreviewUrl: string | null;
-    config: PlayerConfig;
-  };
-  metrics: {
-    dbDurationMs: number;
-    totalDurationMs: number;
-  };
-}
+export type { EmbedBootstrapResolution, EmbedBootstrapPayload };
 
 /**
- * Resolves all data required for the public embed player in 1-2 consolidated DB round-trips.
+ * CANONICAL EMBED ACCESS & BOOTSTRAP RESOLVER
+ *
+ * Single canonical authority for public embed playback authorization (LOAD gate).
+ * Resolves all required data in 1 consolidated DB query without external provider calls.
  *
  * Rules:
  * 1. Video must exist by publicId.
  * 2. Account must exist and be active.
  * 3. Video owner user must exist.
  * 4. Owner must have an active, non-expired subscription.
- * 5. Monthly plays usage must be strictly less than the plan limit.
- * 6. Video must be in 'ready' status with a valid playback URL.
+ * 5. Monthly plays usage must be strictly less than the plan limit (read-only check).
+ * 6. Video must be in 'ready' status with a valid playback URL derived locally.
  * 7. NEVER call external provider APIs (Mux / Bunny) during public embed bootstrap.
  */
 export async function resolveEmbedBootstrap(
@@ -64,13 +47,16 @@ export async function resolveEmbedBootstrap(
   const startTime = performance.now();
 
   if (!publicId || typeof publicId !== "string" || !publicId.trim()) {
+    const totalDurationMs = Math.round(performance.now() - startTime);
     return {
       authorized: false,
       statusCode: 400,
       error: "Identificador de vídeo inválido.",
       metrics: {
         dbDurationMs: 0,
-        totalDurationMs: Math.round(performance.now() - startTime),
+        accessDurationMs: 0,
+        payloadDurationMs: 0,
+        totalDurationMs,
       },
     };
   }
@@ -149,76 +135,102 @@ export async function resolveEmbedBootstrap(
 
   const dbDurationMs = Math.round(performance.now() - dbStartTime);
 
+  const accessStartTime = performance.now();
+
   // 1. Check if video exists
   if (!row || !row.videoId) {
+    const accessDurationMs = Math.round(performance.now() - accessStartTime);
+    const totalDurationMs = Math.round(performance.now() - startTime);
     return {
       authorized: false,
       statusCode: 404,
       error: "Vídeo não encontrado.",
       metrics: {
         dbDurationMs,
-        totalDurationMs: Math.round(performance.now() - startTime),
+        accessDurationMs,
+        payloadDurationMs: 0,
+        totalDurationMs,
       },
     };
   }
 
   // 2. Check if account is active
   if (!row.accountStatus || !isAccountActive({ status: row.accountStatus as Account["status"] })) {
+    const accessDurationMs = Math.round(performance.now() - accessStartTime);
+    const totalDurationMs = Math.round(performance.now() - startTime);
     return {
       authorized: false,
       statusCode: 403,
       error: "Este vídeo está temporariamente indisponível.",
       metrics: {
         dbDurationMs,
-        totalDurationMs: Math.round(performance.now() - startTime),
+        accessDurationMs,
+        payloadDurationMs: 0,
+        totalDurationMs,
       },
     };
   }
 
   // 3. Check if owner user exists
   if (!row.ownerUserId) {
+    const accessDurationMs = Math.round(performance.now() - accessStartTime);
+    const totalDurationMs = Math.round(performance.now() - startTime);
     return {
       authorized: false,
       statusCode: 404,
       error: "Proprietário do vídeo não encontrado.",
       metrics: {
         dbDurationMs,
-        totalDurationMs: Math.round(performance.now() - startTime),
+        accessDurationMs,
+        payloadDurationMs: 0,
+        totalDurationMs,
       },
     };
   }
 
   // 4. Check if owner has active and valid subscription
   if (!row.planCode || row.subscriptionStatus !== "active") {
+    const accessDurationMs = Math.round(performance.now() - accessStartTime);
+    const totalDurationMs = Math.round(performance.now() - startTime);
     return {
       authorized: false,
       statusCode: 403,
       error: "Este vídeo está temporariamente indisponível.",
       metrics: {
         dbDurationMs,
-        totalDurationMs: Math.round(performance.now() - startTime),
+        accessDurationMs,
+        payloadDurationMs: 0,
+        totalDurationMs,
       },
     };
   }
 
   const activePlan: PlanDefinition = getPlanByCode(row.planCode) || PRO_PLAN;
 
-  // 5. Check monthly plays quota
+  // 5. Check monthly plays quota (read-only, no lock / reservation)
   const maxPlays = activePlan.limits.maxPlaysPerMonth;
   const currentPlays = Number(row.playsThisMonth ?? 0);
   if (currentPlays >= maxPlays) {
+    const accessDurationMs = Math.round(performance.now() - accessStartTime);
+    const totalDurationMs = Math.round(performance.now() - startTime);
     return {
       authorized: false,
       statusCode: 403,
       error: "Este vídeo está temporariamente indisponível.",
       metrics: {
         dbDurationMs,
-        totalDurationMs: Math.round(performance.now() - startTime),
+        accessDurationMs,
+        payloadDurationMs: 0,
+        totalDurationMs,
       },
     };
   }
 
-  // 6. Check video ready status (NO EXTERNAL PROVIDER CALLS)
+  const accessDurationMs = Math.round(performance.now() - accessStartTime);
+
+  const payloadStartTime = performance.now();
+
+  // 6. Check video ready status (NO EXTERNAL PROVIDER CALLS — local derivation only)
   const syntheticVideo: Video = {
     id: row.videoId,
     publicId: row.publicId,
@@ -247,13 +259,17 @@ export async function resolveEmbedBootstrap(
 
   const playbackUrl = getVideoPlaybackUrl(syntheticVideo);
   if (row.status !== "ready" || !playbackUrl) {
+    const payloadDurationMs = Math.round(performance.now() - payloadStartTime);
+    const totalDurationMs = Math.round(performance.now() - startTime);
     return {
       authorized: false,
       statusCode: 404,
       error: "Vídeo em processamento ou indisponível para reprodução.",
       metrics: {
         dbDurationMs,
-        totalDurationMs: Math.round(performance.now() - startTime),
+        accessDurationMs,
+        payloadDurationMs,
+        totalDurationMs,
       },
     };
   }
@@ -286,6 +302,7 @@ export async function resolveEmbedBootstrap(
     }
   }
 
+  const payloadDurationMs = Math.round(performance.now() - payloadStartTime);
   const totalDurationMs = Math.round(performance.now() - startTime);
 
   return {
@@ -306,6 +323,8 @@ export async function resolveEmbedBootstrap(
     },
     metrics: {
       dbDurationMs,
+      accessDurationMs,
+      payloadDurationMs,
       totalDurationMs,
     },
   };

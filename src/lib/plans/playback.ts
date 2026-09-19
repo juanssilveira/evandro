@@ -1,153 +1,7 @@
 import { db } from "@/db";
-import { videos, accounts, accountMembers, monthlyUsage } from "@/db/schema";
+import { videos, accountMembers } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { getVideoPlaybackUrl } from "@/lib/video-providers";
-import { isAccountActive } from "@/lib/accounts/status";
-import {
-  getActivePlanForUser,
-  getCurrentPeriodKey,
-  type ActivePlanContext,
-} from "./access";
-
-export interface PlaybackEntitlementResult {
-  authorized: boolean;
-  videoId?: string;
-  accountId?: string;
-  ownerUserId?: string;
-  activePlan?: ActivePlanContext;
-  error?: string;
-  statusCode?: number;
-}
-
-/**
- * Verifies current monthly usage against plan limits for read-only bootstrap checks.
- * Does NOT reserve quota, increment counters, create playSessions, or acquire locks.
- */
-export async function canLoadPlayback(
-  ownerUserId: string,
-  activePlan: ActivePlanContext
-): Promise<boolean> {
-  const periodKey = getCurrentPeriodKey();
-  const maxPlays = activePlan.plan.limits.maxPlaysPerMonth;
-
-  const [usage] = await db
-    .select({ plays: monthlyUsage.plays })
-    .from(monthlyUsage)
-    .where(
-      and(
-        eq(monthlyUsage.userId, ownerUserId),
-        eq(monthlyUsage.periodKey, periodKey)
-      )
-    )
-    .limit(1);
-
-  const currentPlays = usage?.plays ?? 0;
-  return currentPlays < maxPlays;
-}
-
-/**
- * BOOTSTRAP ENTITLEMENT
- * Resolves video identity, verifies active subscription, and verifies available monthly limits.
- * If authorized, enables public bootstrap endpoint to return playbackUrl and metadata.
- * Does NOT register plays or modify data.
- */
-export async function resolvePlaybackEntitlement(
-  publicId: string
-): Promise<PlaybackEntitlementResult> {
-  if (!publicId || typeof publicId !== "string" || !publicId.trim()) {
-    return {
-      authorized: false,
-      error: "Identificador de vídeo inválido.",
-      statusCode: 400,
-    };
-  }
-
-  // 1. Minimum query by publicId ONLY (id and accountId)
-  const [minVideo] = await db
-    .select({
-      id: videos.id,
-      accountId: videos.accountId,
-    })
-    .from(videos)
-    .where(eq(videos.publicId, publicId.trim()))
-    .limit(1);
-
-  if (!minVideo) {
-    return {
-      authorized: false,
-      error: "Vídeo não encontrado.",
-      statusCode: 404,
-    };
-  }
-
-  // 2. Check if account is active
-  const [account] = await db
-    .select({
-      id: accounts.id,
-      status: accounts.status,
-    })
-    .from(accounts)
-    .where(eq(accounts.id, minVideo.accountId))
-    .limit(1);
-
-  if (!account || !isAccountActive(account)) {
-    return {
-      authorized: false,
-      error: "Este vídeo está temporariamente indisponível.",
-      statusCode: 403,
-    };
-  }
-
-  // 3. Resolve account owner userId
-  const [ownerMember] = await db
-    .select({ userId: accountMembers.userId })
-    .from(accountMembers)
-    .where(
-      and(
-        eq(accountMembers.accountId, minVideo.accountId),
-        eq(accountMembers.role, "owner")
-      )
-    )
-    .limit(1);
-
-  if (!ownerMember) {
-    return {
-      authorized: false,
-      error: "Proprietário do vídeo não encontrado.",
-      statusCode: 404,
-    };
-  }
-
-  const ownerUserId = ownerMember.userId;
-
-  // 4. Verify owner has active plan (status === 'active' and unexpired)
-  const activePlan = await getActivePlanForUser(ownerUserId);
-  if (!activePlan) {
-    return {
-      authorized: false,
-      error: "Este vídeo está temporariamente indisponível.",
-      statusCode: 403,
-    };
-  }
-
-  // 5. Verify monthly play limits (read-only, no reservation or locks)
-  const hasQuota = await canLoadPlayback(ownerUserId, activePlan);
-  if (!hasQuota) {
-    return {
-      authorized: false,
-      error: "Este vídeo está temporariamente indisponível.",
-      statusCode: 403,
-    };
-  }
-
-  return {
-    authorized: true,
-    videoId: minVideo.id,
-    accountId: minVideo.accountId,
-    ownerUserId,
-    activePlan,
-  };
-}
+import { getCurrentPeriodKey } from "./access";
 
 export interface RecordPlaybackInput {
   publicId: string;
@@ -163,8 +17,16 @@ export interface RecordPlaybackResult {
 }
 
 /**
+ * CANONICAL FIRST PLAY TRACKING AUTHORITY (Async, Non-blocking)
+ *
  * Records a play session in background and increments monthly_usage.plays.
- * Does NOT verify active plan or quota, does NOT block playback, and does NOT return playbackUrl.
+ *
+ * Architectural principles:
+ * 1. LOAD gate (access, quota, limits, media prep) is strictly handled by resolveEmbedBootstrap().
+ * 2. PLAY tracking is asynchronous and NEVER blocks video.play() or HLS attachment.
+ * 3. Tracking failure does not interrupt active playback.
+ * 4. Idempotent per (videoId, playSessionId).
+ * 5. Editor preview exemption: authenticated account members skip tracking / quota consumption.
  */
 export async function recordPlaybackSession(
   input: RecordPlaybackInput
@@ -282,57 +144,4 @@ export async function recordPlaybackSession(
       error: "Falha ao registrar sessão de reprodução.",
     };
   }
-}
-
-export interface ActivatePlaybackInput {
-  publicId: string;
-  playSessionId: string;
-  isEditorAdmin?: boolean;
-  adminUserId?: string;
-}
-
-export interface ActivatePlaybackResult {
-  authorized: boolean;
-  playbackUrl?: string;
-  error?: string;
-  statusCode?: number;
-}
-
-/**
- * Backward compatibility helper for legacy callers.
- * Records playback in background and returns playbackUrl if video exists.
- */
-export async function validateAndActivatePlayback(
-  input: ActivatePlaybackInput
-): Promise<ActivatePlaybackResult> {
-  const recordResult = await recordPlaybackSession(input);
-  if (!recordResult.success) {
-    return {
-      authorized: false,
-      error: recordResult.error || "Falha ao registrar reprodução.",
-      statusCode: 500,
-    };
-  }
-
-  const [video] = await db
-    .select()
-    .from(videos)
-    .where(eq(videos.publicId, input.publicId.trim()))
-    .limit(1);
-
-  const playbackUrl = video ? getVideoPlaybackUrl(video) : null;
-
-  if (!video || !playbackUrl) {
-    return {
-      authorized: false,
-      error: "Vídeo não encontrado ou indisponível.",
-      statusCode: 404,
-    };
-  }
-
-  return {
-    authorized: true,
-    playbackUrl,
-    statusCode: 200,
-  };
 }

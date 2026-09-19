@@ -24,7 +24,8 @@ export async function GET(
 
     const resolution = await resolveEmbedBootstrap(publicId);
 
-    const serverTiming = `ep-db;dur=${resolution.metrics.dbDurationMs}, ep-bootstrap;dur=${resolution.metrics.totalDurationMs}`;
+    const { dbDurationMs, accessDurationMs, payloadDurationMs, totalDurationMs } = resolution.metrics;
+    const serverTiming = `ep-db;dur=${dbDurationMs}, ep-access;dur=${accessDurationMs}, ep-payload;dur=${payloadDurationMs}, ep-bootstrap;dur=${totalDurationMs}`;
 
     if (!resolution.authorized || !resolution.data) {
       return NextResponse.json(

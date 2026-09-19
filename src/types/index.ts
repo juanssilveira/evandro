@@ -2,3 +2,5 @@
 export type HealthResponse = {
   status: "ok";
 };
+
+export * from "./embed-bootstrap";

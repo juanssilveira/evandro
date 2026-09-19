@@ -6,6 +6,7 @@ import { EvandroPlayer } from "../evandro-player";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type PlayerConfig, DEFAULT_PLAYER_CONFIG, parsePlayerConfig } from "@/types/player-config";
+import type { EmbedBootstrapPayload } from "@/types/embed-bootstrap";
 import { markPerformance } from "./performance-timing";
 import type { PlayerEngine } from "../engine/player-engine";
 
@@ -34,19 +35,7 @@ interface EmbedState {
   errorMessage: string | null;
 }
 
-interface BootstrapResponsePayload {
-  videoId?: string;
-  title?: string;
-  duration?: number | null;
-  playbackUrl?: string | null;
-  playback?: {
-    type?: string;
-    url?: string;
-  };
-  posterUrl?: string | null;
-  backgroundPreviewUrl?: string | null;
-  config?: unknown;
-}
+type BootstrapResponsePayload = EmbedBootstrapPayload;
 
 interface BootstrapError {
   status?: number;
@@ -178,6 +167,11 @@ export function EmbedPlayer({
               throw err;
             }
             return response.json() as Promise<BootstrapResponsePayload>;
+          }).catch((err) => {
+            if (typeof window !== "undefined" && window.__EVANDRO_PLAYER_BOOTSTRAP__?.map[cacheKey] === jsonPromise) {
+              delete window.__EVANDRO_PLAYER_BOOTSTRAP__.map[cacheKey];
+            }
+            throw err;
           });
 
           if (typeof window !== "undefined" && window.__EVANDRO_PLAYER_BOOTSTRAP__) {

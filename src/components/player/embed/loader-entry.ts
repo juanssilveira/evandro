@@ -9,6 +9,7 @@ import type { PlayerEngine } from "../engine/player-engine";
 import type { EngineSourceOptions } from "../engine/types";
 import type { EvandroPlayerEngineModule } from "../engine/player-engine-entry";
 import type { PlayerConfig } from "@/types/player-config";
+import type { EmbedBootstrapPayload } from "@/types/embed-bootstrap";
 import {
   resolveStartupVisualFromConfig,
   applyStartupVisualSurface,
@@ -38,46 +39,7 @@ if (typeof performance !== "undefined" && performance.mark) {
   }
 }
 
-export interface BootstrapVideoData {
-  videoId: string;
-  title: string;
-  duration: number | null;
-  playbackUrl?: string | null;
-  playback?: {
-    type: string;
-    url: string;
-  };
-  posterUrl: string | null;
-  backgroundPreviewUrl: string | null;
-  config?: {
-    appearance?: {
-      aspectRatio?: string;
-      borderRadius?: number;
-      thumbnail?: {
-        enabled?: boolean;
-        source?: "provider" | "custom";
-        customUrl?: string | null;
-        customKey?: string | null;
-        customAspectRatio?: string | null;
-        showPlayButton?: boolean;
-      };
-      pauseThumbnail?: {
-        enabled?: boolean;
-        customUrl?: string | null;
-        customKey?: string | null;
-        customAspectRatio?: string | null;
-        showPlayButton?: boolean;
-      };
-    };
-    playback?: {
-      backgroundAutoplay?: boolean;
-      persistentResume?: boolean;
-    };
-    development?: {
-      debug?: boolean;
-    };
-  };
-}
+export type BootstrapVideoData = EmbedBootstrapPayload;
 
 export interface PlayerMountContext {
   mediaElement: HTMLVideoElement;
@@ -279,6 +241,13 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
       }
 
       return json;
+    })
+    .catch((err) => {
+      // Spec 053: Evict rejected promise so subsequent attempts / retry can execute a fresh request
+      if (win?.__EVANDRO_PLAYER_BOOTSTRAP__?.map[cacheKey] === promise) {
+        delete win.__EVANDRO_PLAYER_BOOTSTRAP__.map[cacheKey];
+      }
+      throw err;
     });
 
   if (win?.__EVANDRO_PLAYER_BOOTSTRAP__) {
