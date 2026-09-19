@@ -430,30 +430,14 @@ export function EvandroPlayer({
       mediaStateManager.onFirstFrame();
 
       setHasFirstFrameRendered(true);
+      setHasRevealedVideo(true);
 
-      if (isBackgroundAutoplay) {
-        // In BG ON: smoothly crossfade preview out and video in (140ms)
-        setHasRevealedVideo(true);
-        if (displayPreviewSrc) {
-          setIsTransitioningPreviewOut(true);
-          setTimeout(() => {
-            setIsTransitioningPreviewOut(false);
-          }, 140);
-        }
-      } else if (!isThumbEnabled) {
-        // In BG OFF + Thumb OFF: video reveals directly on first frame (140ms fade-in)
-        setHasRevealedVideo(true);
-      } else if (hasStartedPlayingForeground) {
-        // User already played before first frame arrived: reveal video and transition thumbnail out
-        setHasRevealedVideo(true);
-        if (displayPreviewSrc) {
-          setIsTransitioningPreviewOut(true);
-          setTimeout(() => {
-            setIsTransitioningPreviewOut(false);
-          }, 140);
-        }
+      if (isBackgroundAutoplay && displayPreviewSrc) {
+        setIsTransitioningPreviewOut(true);
+        setTimeout(() => {
+          setIsTransitioningPreviewOut(false);
+        }, 140);
       }
-      // In BG OFF + Thumb ON: thumbnail stays visible and video stays hidden until user Play
 
       let clickToFrame: number | undefined;
       if (userPlayClickTimestampRef.current != null) {

@@ -366,19 +366,12 @@ export class PlayerEngine implements IPlayerEngine {
         }
       });
 
-      const isBg = this._sourceOptions?.backgroundAutoplay;
-      const thumbConfig = this._sourceOptions?.config?.appearance?.thumbnail;
-      const thumbEnabled = this._sourceOptions?.thumbnailEnabled ?? thumbConfig?.enabled ?? true;
+      // Always reveal video immediately upon first frame load (smoothing transition from black container)
+      this.revealVideo();
 
-      if (isBg) {
-        // In BG ON: crossfade preview out and video in (140ms)
-        this.revealVideo();
+      if (this._sourceOptions?.backgroundAutoplay) {
         this.releaseStartupVisual(videoId);
-      } else if (!thumbEnabled) {
-        // In BG OFF + Thumb OFF: video reveals directly on first frame (140ms fade-in)
-        this.revealVideo();
       }
-      // In BG OFF + Thumb ON: thumbnail stays visible and video stays hidden until user Play
     });
   }
 
