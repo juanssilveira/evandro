@@ -197,12 +197,14 @@ export const playerConfigSchema = z.object({
     .object({
       autoplay: z.boolean().default(false),
       backgroundAutoplay: z.boolean().default(false),
+      persistentResume: z.boolean().default(true),
       defaultPlaybackRate: z.number().min(0.25).max(4).default(1),
       defaultVolume: z.number().min(0).max(1).default(1),
     })
     .default({
       autoplay: false,
       backgroundAutoplay: false,
+      persistentResume: true,
       defaultPlaybackRate: 1,
       defaultVolume: 1,
     }),
@@ -301,6 +303,7 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
   playback: {
     autoplay: false,
     backgroundAutoplay: false,
+    persistentResume: true,
     defaultPlaybackRate: 1,
     defaultVolume: 1,
   },

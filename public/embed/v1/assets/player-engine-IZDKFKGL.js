@@ -1,1 +1,0 @@
-import{c as i,d as n}from"./chunk-chunk-F4FIEWTQ.js";import"./chunk-chunk-ULUW2HTD.js";function r(e){return new n(e)}if(typeof window<"u"){let e=window;e.__EVANDRO_PLAYER_ENGINE__={create:r,PlayerEngine:n,ready:!0},window.dispatchEvent(new CustomEvent("evandro-player:engine-loaded"))}export{n as PlayerEngine,r as createPlayerEngine,i as findMaxLevelForHeight};

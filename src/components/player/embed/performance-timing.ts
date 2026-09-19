@@ -33,6 +33,7 @@ export type PerformanceMarkName =
   | "ep:first-frame"
   | "ep:main:first-frame"
   | "ep:startup-visual:release"
+  | "ep:resume:ready"
   | "ep:user-play"
   | "ep:user-play-first-frame";
 

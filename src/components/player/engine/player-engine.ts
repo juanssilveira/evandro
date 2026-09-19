@@ -21,6 +21,7 @@ import {
   applyStartupVisualSurface,
   releaseStartupVisualSurface,
 } from "./startup-visual-resolver";
+import { clearSavedResume } from "@/lib/player/resume-storage";
 import type {
   EngineFirstFrameListener,
   EngineSourceOptions,
@@ -93,12 +94,16 @@ export class PlayerEngine implements IPlayerEngine {
     hasError: false,
     errorMessage: null,
     startupVisualState: "available",
+    resumeState: "none",
+    requestedResumeTime: null,
+    resolvedResumeTime: null,
   };
 
   private _firstFrameListeners = new Set<EngineFirstFrameListener>();
   private _stateListeners = new Set<EngineStateListener>();
   private _cancelFirstFrameCallback: (() => void) | null = null;
   private _visualAbortController: AbortController | null = null;
+  private _resumeCleanup: (() => void) | null = null;
 
   // Background window looping ceiling (~8 seconds)
   private readonly BACKGROUND_WINDOW_SECONDS = 8;
@@ -131,6 +136,15 @@ export class PlayerEngine implements IPlayerEngine {
     this._startupVisualElement = element;
     if (this._sourceOptions && !this._isDestroyed) {
       if (
+        this._state.resumeState === "preparing" ||
+        this._state.resumeState === "ready"
+      ) {
+        applyStartupVisualSurface(this._startupVisualElement, {
+          type: "none",
+          url: null,
+          fallbackUrl: null,
+        });
+      } else if (
         this._startupVisualState === "visible" ||
         this._startupVisualState === "loading" ||
         this._startupVisualState === "pending_release"
@@ -173,7 +187,9 @@ export class PlayerEngine implements IPlayerEngine {
     const v = this._video;
 
     v.addEventListener("play", () => this.updateState({ isPlaying: true }));
-    v.addEventListener("pause", () => this.updateState({ isPlaying: false, isBuffering: false }));
+    v.addEventListener("pause", () =>
+      this.updateState({ isPlaying: false, isBuffering: false })
+    );
     v.addEventListener("waiting", () => this.updateState({ isBuffering: true }));
     v.addEventListener("canplay", () => this.updateState({ isBuffering: false }));
 
@@ -197,6 +213,7 @@ export class PlayerEngine implements IPlayerEngine {
 
     v.addEventListener("ended", () => {
       this.updateState({ isPlaying: false, isEnded: true, isBuffering: false });
+      clearSavedResume(this._state.videoId);
     });
 
     v.addEventListener("volumechange", () => {
@@ -266,9 +283,10 @@ export class PlayerEngine implements IPlayerEngine {
     if (this._state.experience !== "background_autoplay") return;
 
     const v = this._video;
-    const maxWindow = v.duration && v.duration < this.BACKGROUND_WINDOW_SECONDS
-      ? v.duration - 0.2
-      : this.BACKGROUND_WINDOW_SECONDS;
+    const maxWindow =
+      v.duration && v.duration < this.BACKGROUND_WINDOW_SECONDS
+        ? v.duration - 0.2
+        : this.BACKGROUND_WINDOW_SECONDS;
 
     if (v.currentTime >= maxWindow && !v.paused) {
       v.currentTime = 0;
@@ -286,9 +304,23 @@ export class PlayerEngine implements IPlayerEngine {
     this._userForegroundRequested = false;
     this._hasRevealedVideo = false;
 
+    if (this._resumeCleanup) {
+      this._resumeCleanup();
+      this._resumeCleanup = null;
+    }
+
     const videoId = options.videoId;
     const playbackUrl = options.playbackUrl;
-    const isBg = Boolean(options.backgroundAutoplay);
+
+    const persistentResumeEnabled =
+      options.config?.playback?.persistentResume ?? true;
+    const isResumeEligible = Boolean(
+      persistentResumeEnabled &&
+        options.resumePosition &&
+        options.resumePosition >= 1
+    );
+    const resumePos = isResumeEligible ? options.resumePosition! : null;
+    const isBg = isResumeEligible ? false : Boolean(options.backgroundAutoplay);
 
     this.updateState({
       videoId,
@@ -302,22 +334,40 @@ export class PlayerEngine implements IPlayerEngine {
       isEnded: false,
       hasError: false,
       errorMessage: null,
-      startupVisualState: "available",
+      startupVisualState: isResumeEligible ? "released" : "available",
+      resumeState: isResumeEligible ? "preparing" : "none",
+      requestedResumeTime: resumePos,
+      resolvedResumeTime: null,
     });
 
-    // 1. Setup Startup Visual immediately
-    this.setupStartupVisual(options, currentGen);
+    // 1. Setup Startup Visuals or Black Surface for Resume
+    if (isResumeEligible) {
+      this._startupVisualState = "released";
+      if (this._startupVisualElement) {
+        applyStartupVisualSurface(this._startupVisualElement, {
+          type: "none",
+          url: null,
+          fallbackUrl: null,
+        });
+      }
+      this.setupResumeDetection(videoId, currentGen, resumePos!);
+    } else {
+      this.setupStartupVisual(options, currentGen);
+      this.setupFirstFrameDetection(videoId, currentGen);
+    }
 
-    // 2. Setup First Frame listener
-    this.setupFirstFrameDetection(videoId, currentGen);
-
-    // 3. Configure Video Element base attributes
+    // 2. Configure Video Element base attributes
     this._video.playsInline = true;
     this._video.preload = "auto";
-    // Never use native <video poster>
     this._video.removeAttribute("poster");
 
-    if (isBg) {
+    if (isResumeEligible) {
+      const vol = options.defaultVolume ?? 1;
+      this._video.volume = vol;
+      this._video.muted = vol === 0;
+      this._video.playbackRate = options.defaultPlaybackRate ?? 1;
+      this._video.autoplay = false;
+    } else if (isBg) {
       this._video.muted = true;
       this._video.autoplay = true;
     } else {
@@ -327,14 +377,78 @@ export class PlayerEngine implements IPlayerEngine {
       this._video.playbackRate = options.defaultPlaybackRate ?? 1;
     }
 
-    // 4. Attach Media Source
-    await this.attachMedia(playbackUrl, isBg, currentGen);
+    // 3. Attach Media Source with early seek if resume
+    await this.attachMedia(playbackUrl, isBg, currentGen, resumePos);
+  }
+
+  /**
+   * Resume-specific frame and seek readiness detection.
+   * Confirms frame is available at the restored position before marking ready.
+   */
+  private setupResumeDetection(
+    videoId: string,
+    gen: number,
+    targetResumeTime: number
+  ): void {
+    if (this._cancelFirstFrameCallback) {
+      this._cancelFirstFrameCallback();
+      this._cancelFirstFrameCallback = null;
+    }
+
+    this._video.style.opacity = "0";
+
+    const v = this._video;
+
+    const onSeekedOrFrameReady = () => {
+      if (gen !== this._generation || this._isDestroyed) return;
+      if (this._state.resumeState !== "preparing") return;
+
+      const curr = v.currentTime;
+      if (curr >= 0.5 || Math.abs(curr - targetResumeTime) <= 2.5) {
+        try {
+          v.pause();
+        } catch {
+          // ignore
+        }
+
+        markPerformance("ep:first-frame", videoId);
+        markPerformance("ep:resume:ready", videoId);
+
+        this.updateState({
+          resumeState: "ready",
+          resolvedResumeTime: curr,
+          hasFirstFrame: true,
+        });
+
+        this._firstFrameListeners.forEach((fn) => {
+          try {
+            fn(performance.now());
+          } catch {
+            // ignore
+          }
+        });
+
+        this.revealVideo();
+        cleanup();
+      }
+    };
+
+    const cleanup = () => {
+      v.removeEventListener("seeked", onSeekedOrFrameReady);
+      v.removeEventListener("canplay", onSeekedOrFrameReady);
+      v.removeEventListener("timeupdate", onSeekedOrFrameReady);
+      this._resumeCleanup = null;
+    };
+
+    v.addEventListener("seeked", onSeekedOrFrameReady);
+    v.addEventListener("canplay", onSeekedOrFrameReady);
+    v.addEventListener("timeupdate", onSeekedOrFrameReady);
+
+    this._resumeCleanup = cleanup;
   }
 
   /**
    * Authoritative startup visual setup and image presentation.
-   * Background Preview / Thumbnails are applied immediately to the surface without blocking on onload/decode.
-   * Eliminates broken-image glyphs via CSS background-image surface styling.
    */
   private setupStartupVisual(options: EngineSourceOptions, gen: number): void {
     this._visualAbortController?.abort();
@@ -373,23 +487,26 @@ export class PlayerEngine implements IPlayerEngine {
       markPerformance("ep:visual:thumbnail:start", options.videoId);
     }
 
-    // Apply or adopt Background Preview / Thumbnail immediately to startup surface (no onload/decode gate)
     if (this._startupVisualElement) {
       applyStartupVisualSurface(this._startupVisualElement, visual);
     }
 
-    const nextVisualState = this._userForegroundRequested ? "pending_release" : "visible";
+    const nextVisualState = this._userForegroundRequested
+      ? "pending_release"
+      : "visible";
     this._startupVisualState = nextVisualState;
     this.updateState({ startupVisualState: nextVisualState });
 
-    // Non-blocking auxiliary Image for readiness performance marks and confirmed error fallback
     const img = new Image();
     img.alt = "";
     (img as HTMLImageElement & { fetchPriority?: string }).fetchPriority = "high";
 
     const onImageLoaded = () => {
       if (ac.signal.aborted || gen !== this._generation || this._isDestroyed) return;
-      if (this._startupVisualState === "released" || this._startupVisualState === "pending_release") {
+      if (
+        this._startupVisualState === "released" ||
+        this._startupVisualState === "pending_release"
+      ) {
         return;
       }
       if (options.backgroundAutoplay && this._state.hasFirstFrame) {
@@ -416,12 +533,15 @@ export class PlayerEngine implements IPlayerEngine {
       if (ac.signal.aborted || gen !== this._generation || this._isDestroyed) return;
       if ((this._startupVisualState as string) === "released") return;
 
-      // Confirmed fallback for custom thumbnail failure -> provider poster if available
       if (visual.type === "custom") {
         markPerformance("ep:visual:custom-thumbnail:failed", options.videoId);
         if (visual.fallbackUrl) {
           markPerformance("ep:visual:fallback-provider:applied", options.videoId);
-          if (this._startupVisualElement && gen === this._generation && (this._startupVisualState as string) !== "released") {
+          if (
+            this._startupVisualElement &&
+            gen === this._generation &&
+            (this._startupVisualState as string) !== "released"
+          ) {
             applyStartupVisualSurface(this._startupVisualElement, {
               type: "provider",
               url: visual.fallbackUrl,
@@ -433,8 +553,11 @@ export class PlayerEngine implements IPlayerEngine {
         }
       }
 
-      // If Background Preview or Provider Thumbnail fails: maintain black surface, never insert broken img
-      if (this._startupVisualElement && gen === this._generation && (this._startupVisualState as string) !== "released") {
+      if (
+        this._startupVisualElement &&
+        gen === this._generation &&
+        (this._startupVisualState as string) !== "released"
+      ) {
         applyStartupVisualSurface(this._startupVisualElement, {
           type: "none",
           url: null,
@@ -452,7 +575,6 @@ export class PlayerEngine implements IPlayerEngine {
       this._cancelFirstFrameCallback = null;
     }
 
-    // Initialize video opacity to 0 before first frame
     this._video.style.opacity = "0";
 
     this._cancelFirstFrameCallback = onFirstVideoFrame(this._video, (frameTime) => {
@@ -464,7 +586,6 @@ export class PlayerEngine implements IPlayerEngine {
 
       this.updateState({ hasFirstFrame: true });
 
-      // Notify all first frame subscribers
       this._firstFrameListeners.forEach((fn) => {
         try {
           fn(frameTime);
@@ -473,17 +594,13 @@ export class PlayerEngine implements IPlayerEngine {
         }
       });
 
-      // Reveal main video
       this.revealVideo();
 
       const isBg = Boolean(this._sourceOptions?.backgroundAutoplay);
       const thumbConfig = this._sourceOptions?.config?.appearance?.thumbnail;
-      const thumbEnabled = this._sourceOptions?.thumbnailEnabled ?? thumbConfig?.enabled ?? true;
+      const thumbEnabled =
+        this._sourceOptions?.thumbnailEnabled ?? thumbConfig?.enabled ?? true;
 
-      // Authoritative Release Rules:
-      // 1. Background Autoplay ON -> release immediately on first frame
-      // 2. Thumbnail OFF -> release immediately on first frame
-      // 3. USER PLAYBACK WINS: if user requested foreground playback -> release immediately on first frame
       if (isBg || !thumbEnabled || this._userForegroundRequested) {
         this.releaseStartupVisual(videoId);
       }
@@ -514,7 +631,12 @@ export class PlayerEngine implements IPlayerEngine {
     }
   }
 
-  private async attachMedia(mediaSrc: string, isBg: boolean, gen: number): Promise<void> {
+  private async attachMedia(
+    mediaSrc: string,
+    isBg: boolean,
+    gen: number,
+    resumePos: number | null
+  ): Promise<void> {
     if (this._hls) {
       this._hls.destroy();
       this._hls = null;
@@ -528,7 +650,19 @@ export class PlayerEngine implements IPlayerEngine {
       markPerformance("ep:manifest:start", this._state.videoId);
       this._video.src = mediaSrc;
 
-      if (isBg) {
+      if (resumePos) {
+        const onLoadedMeta = () => {
+          if (gen !== this._generation || this._isDestroyed) return;
+          try {
+            this._video.currentTime = resumePos;
+          } catch {
+            // ignore
+          }
+        };
+        this._video.addEventListener("loadedmetadata", onLoadedMeta, {
+          once: true,
+        });
+      } else if (isBg) {
         this._video.play().catch(() => {});
       }
       return;
@@ -544,6 +678,10 @@ export class PlayerEngine implements IPlayerEngine {
           markPerformance("ep:manifest:start", this._state.videoId);
 
           const hlsOptions = createStartupHlsConfig(mediaSrc);
+          if (resumePos) {
+            hlsOptions.startPosition = resumePos;
+          }
+
           const hls = new HlsClass(hlsOptions);
           this._hls = hls as unknown as Hls;
 
@@ -563,7 +701,16 @@ export class PlayerEngine implements IPlayerEngine {
               }
             }
 
-            if (isBg) {
+            if (resumePos) {
+              try {
+                this._video.pause();
+                if (Math.abs(this._video.currentTime - resumePos) > 1.5) {
+                  this._video.currentTime = resumePos;
+                }
+              } catch {
+                // ignore
+              }
+            } else if (isBg) {
               this._video.play().catch(() => {});
             }
           });
@@ -583,33 +730,39 @@ export class PlayerEngine implements IPlayerEngine {
             markPerformanceOnce("ep:first-frag:buffered", this._state.videoId);
           });
 
-          hls.on(HlsClass.Events.ERROR, (_event: unknown, errorData: { fatal?: boolean; type?: string }) => {
-            if (gen !== this._generation || this._isDestroyed) return;
+          hls.on(
+            HlsClass.Events.ERROR,
+            (_event: unknown, errorData: { fatal?: boolean; type?: string }) => {
+              if (gen !== this._generation || this._isDestroyed) return;
 
-            if (errorData.fatal) {
-              console.error("[PlayerEngine HLS Fatal Error]", errorData);
-              switch (errorData.type) {
-                case HlsClass.ErrorTypes.NETWORK_ERROR:
-                  hls.startLoad();
-                  break;
-                case HlsClass.ErrorTypes.MEDIA_ERROR:
-                  hls.recoverMediaError();
-                  break;
-                default:
-                  hls.destroy();
-                  this.updateState({
-                    hasError: true,
-                    errorMessage: "Erro na transmissão do vídeo.",
-                  });
-                  break;
+              if (errorData.fatal) {
+                console.error("[PlayerEngine HLS Fatal Error]", errorData);
+                switch (errorData.type) {
+                  case HlsClass.ErrorTypes.NETWORK_ERROR:
+                    hls.startLoad();
+                    break;
+                  case HlsClass.ErrorTypes.MEDIA_ERROR:
+                    hls.recoverMediaError();
+                    break;
+                  default:
+                    hls.destroy();
+                    this.updateState({
+                      hasError: true,
+                      errorMessage: "Erro na transmissão do vídeo.",
+                    });
+                    break;
+                }
               }
             }
-          });
+          );
 
           return;
         }
       } catch (err) {
-        console.warn("[PlayerEngine] Dynamic HLS load error, falling back to native:", err);
+        console.warn(
+          "[PlayerEngine] Dynamic HLS load error, falling back to native:",
+          err
+        );
       }
     }
 
@@ -617,7 +770,19 @@ export class PlayerEngine implements IPlayerEngine {
     if (gen === this._generation) {
       markPerformance("ep:manifest:start", this._state.videoId);
       this._video.src = mediaSrc;
-      if (isBg) {
+      if (resumePos) {
+        const onLoadedMeta = () => {
+          if (gen !== this._generation || this._isDestroyed) return;
+          try {
+            this._video.currentTime = resumePos;
+          } catch {
+            // ignore
+          }
+        };
+        this._video.addEventListener("loadedmetadata", onLoadedMeta, {
+          once: true,
+        });
+      } else if (isBg) {
         this._video.play().catch(() => {});
       }
     }
@@ -625,7 +790,7 @@ export class PlayerEngine implements IPlayerEngine {
 
   /**
    * USER PLAYBACK WINS: Transitions seamlessly from Background Autoplay or Standby
-   * to Foreground Playback with audio.
+   * to Foreground Playback with audio from 0.
    */
   public async startForeground(targetVolume: number = 1): Promise<void> {
     if (this._isDestroyed) return;
@@ -635,9 +800,9 @@ export class PlayerEngine implements IPlayerEngine {
       experience: "foreground",
       playbackInitiator: "user",
       userForegroundRequested: true,
+      resumeState: "resolved",
     });
 
-    // Release quality cap on Hls.js
     if (this._hls) {
       this._hls.autoLevelCapping = -1;
     }
@@ -655,9 +820,6 @@ export class PlayerEngine implements IPlayerEngine {
       }
     }
 
-    // USER PLAYBACK WINS:
-    // If first frame already exists, release startup visuals immediately.
-    // If first frame is still warming, mark startup visual as pending_release.
     if (this._state.hasFirstFrame) {
       this.revealVideo();
       this.releaseStartupVisual(this._state.videoId);
@@ -675,6 +837,88 @@ export class PlayerEngine implements IPlayerEngine {
     }
   }
 
+  /**
+   * Persistent Resume Action: Continuar assistindo.
+   * Retains the prepared currentTime, resolves the resume gate, and starts foreground playback.
+   */
+  public async continueResume(targetVolume?: number): Promise<void> {
+    if (this._isDestroyed) return;
+
+    this._userForegroundRequested = true;
+    this.updateState({
+      resumeState: "resolved",
+      experience: "foreground",
+      playbackInitiator: "user",
+      userForegroundRequested: true,
+    });
+
+    if (this._hls) {
+      this._hls.autoLevelCapping = -1;
+    }
+
+    const v = this._video;
+    const vol =
+      targetVolume !== undefined
+        ? targetVolume
+        : (this._sourceOptions?.defaultVolume ?? 1);
+    v.volume = vol;
+    v.muted = vol === 0;
+
+    this.revealVideo();
+    this.releaseStartupVisual(this._state.videoId);
+
+    try {
+      await v.play();
+    } catch (err) {
+      console.warn("[PlayerEngine] continueResume play() rejected:", err);
+    }
+  }
+
+  /**
+   * Persistent Resume Action: Assistir do início.
+   * Purges old resume storage, resets currentTime to 0, resolves gate, and starts foreground playback.
+   */
+  public async restartFromBeginning(targetVolume?: number): Promise<void> {
+    if (this._isDestroyed) return;
+
+    this._userForegroundRequested = true;
+    this.updateState({
+      resumeState: "resolved",
+      experience: "foreground",
+      playbackInitiator: "user",
+      userForegroundRequested: true,
+    });
+
+    if (this._hls) {
+      this._hls.autoLevelCapping = -1;
+    }
+
+    clearSavedResume(this._state.videoId);
+
+    const v = this._video;
+    const vol =
+      targetVolume !== undefined
+        ? targetVolume
+        : (this._sourceOptions?.defaultVolume ?? 1);
+    v.volume = vol;
+    v.muted = vol === 0;
+
+    try {
+      v.currentTime = 0;
+    } catch {
+      // ignore
+    }
+
+    this.revealVideo();
+    this.releaseStartupVisual(this._state.videoId);
+
+    try {
+      await v.play();
+    } catch (err) {
+      console.warn("[PlayerEngine] restartFromBeginning play() rejected:", err);
+    }
+  }
+
   public async play(initiator: PlaybackInitiator = "user"): Promise<void> {
     if (this._isDestroyed) return;
 
@@ -684,6 +928,7 @@ export class PlayerEngine implements IPlayerEngine {
         experience: "foreground",
         playbackInitiator: "user",
         userForegroundRequested: true,
+        resumeState: "resolved",
       });
     }
 
@@ -717,7 +962,10 @@ export class PlayerEngine implements IPlayerEngine {
   public seek(time: number): void {
     if (this._isDestroyed) return;
     try {
-      this._video.currentTime = Math.max(0, Math.min(this._video.duration || Infinity, time));
+      this._video.currentTime = Math.max(
+        0,
+        Math.min(this._video.duration || Infinity, time)
+      );
     } catch {
       // ignore
     }
@@ -744,6 +992,9 @@ export class PlayerEngine implements IPlayerEngine {
     if (this._isDestroyed) return;
     const prevBg = Boolean(this._sourceOptions?.config?.playback?.backgroundAutoplay);
     const nextBg = Boolean(config.playback?.backgroundAutoplay);
+    const prevResume =
+      this._sourceOptions?.config?.playback?.persistentResume ?? true;
+    const nextResume = config.playback?.persistentResume ?? true;
 
     if (this._sourceOptions) {
       this._sourceOptions = {
@@ -752,6 +1003,15 @@ export class PlayerEngine implements IPlayerEngine {
         backgroundAutoplay: nextBg,
         thumbnailEnabled: config.appearance?.thumbnail?.enabled ?? true,
       };
+    }
+
+    if (
+      prevResume &&
+      !nextResume &&
+      (this._state.resumeState === "preparing" ||
+        this._state.resumeState === "ready")
+    ) {
+      this.updateState({ resumeState: "none" });
     }
 
     // Live background autoplay toggle in editor
@@ -789,6 +1049,11 @@ export class PlayerEngine implements IPlayerEngine {
 
     this._visualAbortController?.abort();
     this._visualAbortController = null;
+
+    if (this._resumeCleanup) {
+      this._resumeCleanup();
+      this._resumeCleanup = null;
+    }
 
     if (this._cancelFirstFrameCallback) {
       this._cancelFirstFrameCallback();

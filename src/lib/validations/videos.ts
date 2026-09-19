@@ -58,6 +58,7 @@ export const updatePlayerConfigActionSchema = z.object({
       .object({
         autoplay: z.boolean().optional(),
         backgroundAutoplay: z.boolean().optional(),
+        persistentResume: z.boolean().optional(),
         defaultPlaybackRate: z.number().min(0.25).max(4).optional(),
         defaultVolume: z.number().min(0).max(1).optional(),
       })

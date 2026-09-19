@@ -10,11 +10,13 @@ export type PlaybackExperience = "background_autoplay" | "foreground" | "idle";
 export type PlaybackInitiator = "user" | "autoplay" | "system";
 export type StartupVisualState = "available" | "loading" | "visible" | "pending_release" | "released";
 export type StartupVisualType = "preview" | "thumbnail" | "none";
+export type ResumeState = "none" | "preparing" | "ready" | "resolved";
 
 export interface EngineSourceOptions {
   videoId: string;
   playbackUrl: string;
   backgroundAutoplay: boolean;
+  resumePosition?: number | null;
   thumbnailEnabled?: boolean;
   posterUrl?: string | null;
   backgroundPreviewUrl?: string | null;
@@ -44,6 +46,9 @@ export interface PlayerEngineState {
   hasError: boolean;
   errorMessage: string | null;
   startupVisualState: StartupVisualState;
+  resumeState: ResumeState;
+  requestedResumeTime: number | null;
+  resolvedResumeTime: number | null;
 }
 
 export interface PlayerEngineOptions {
@@ -62,6 +67,8 @@ export interface IPlayerEngine {
   readonly hls: Hls | null;
   loadSource(options: EngineSourceOptions): Promise<void>;
   startForeground(volume?: number): Promise<void>;
+  continueResume(volume?: number): Promise<void>;
+  restartFromBeginning(volume?: number): Promise<void>;
   play(initiator?: PlaybackInitiator): Promise<void>;
   pause(): void;
   seek(time: number): void;

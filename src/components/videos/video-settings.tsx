@@ -22,6 +22,7 @@ import {
   MousePointerClick,
   Keyboard,
   Sparkles,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -820,6 +821,46 @@ export function VideoSettings({
         {/* Tab 2: Reprodução */}
         {activeTab === "playback" && (
           <>
+            {/* Persistent Resume Toggle */}
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 py-3 px-3.5 sm:py-3.5 sm:px-4">
+              <div className="flex items-start gap-3">
+                <div className="size-8 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0 mt-0.5">
+                  <History className="size-4" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor={`persistent-resume-switch-${videoId}`}
+                    className="text-xs font-semibold text-foreground cursor-pointer block leading-none"
+                  >
+                    Retomar reprodução
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xl">
+                    Ao retornar, o espectador pode continuar de onde parou ou assistir novamente desde o início.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                {isPending && pendingField === "persistentResume" && (
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                )}
+                <Switch
+                  id={`persistent-resume-switch-${videoId}`}
+                  checked={config.playback.persistentResume ?? true}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    handleConfigUpdate(
+                      {
+                        playback: {
+                          persistentResume: checked,
+                        },
+                      },
+                      "persistentResume"
+                    )
+                  }
+                />
+              </div>
+            </div>
+
             {/* Background Autoplay Toggle */}
             <div className="flex items-start justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 py-3 px-3.5 sm:py-3.5 sm:px-4">
               <div className="flex items-start gap-3">

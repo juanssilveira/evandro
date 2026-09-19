@@ -13,6 +13,7 @@ import {
   resolveStartupVisualFromConfig,
   applyStartupVisualSurface,
 } from "../engine/startup-visual-resolver";
+import { getSavedResume } from "@/lib/player/resume-storage";
 
 declare const __EVANDRO_PLAYER_API_BASE__: string;
 declare const __EVANDRO_PLAYER_ENGINE_FILENAME__: string;
@@ -70,6 +71,7 @@ export interface BootstrapVideoData {
     };
     playback?: {
       backgroundAutoplay?: boolean;
+      persistentResume?: boolean;
     };
     development?: {
       debug?: boolean;
@@ -259,15 +261,21 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
       }
 
       // Canonical Startup Visual Preload (no wait, instant fire)
-      const visual = resolveStartupVisualFromConfig({
-        config: json.config,
-        posterUrl: json.posterUrl,
-        backgroundPreviewUrl: json.backgroundPreviewUrl,
-        apiBase: API_BASE,
-      });
+      // Do NOT preload visual assets if a valid resume position exists locally
+      const savedResume = getSavedResume(videoId);
+      const persistentResumeEnabled = json.config?.playback?.persistentResume ?? true;
 
-      if (visual.url) {
-        preloadVisualAsset(visual.url);
+      if (!savedResume || !persistentResumeEnabled) {
+        const visual = resolveStartupVisualFromConfig({
+          config: json.config,
+          posterUrl: json.posterUrl,
+          backgroundPreviewUrl: json.backgroundPreviewUrl,
+          apiBase: API_BASE,
+        });
+
+        if (visual.url) {
+          preloadVisualAsset(visual.url);
+        }
       }
 
       return json;
@@ -489,6 +497,7 @@ export class EvandroPlayerElement extends HTMLElement {
     // 2. Early Media Initialization & Startup Visual Priming:
     // Tiny Loader primes the visual surface immediately when bootstrap resolves, before waiting for Engine or Core.
     if (videoId) {
+      const savedResume = getSavedResume(videoId);
       const bootstrapPromise = startEarlyBootstrap(API_BASE, videoId);
 
       bootstrapPromise
@@ -496,14 +505,26 @@ export class EvandroPlayerElement extends HTMLElement {
           if (!this.isConnected || !this._startupVisualElement || !bootstrapData) return;
           if (this._engine && this._engine.state.startupVisualState === "released") return;
 
-          const visual = resolveStartupVisualFromConfig({
-            config: bootstrapData.config,
-            posterUrl: bootstrapData.posterUrl,
-            backgroundPreviewUrl: bootstrapData.backgroundPreviewUrl,
-            apiBase: API_BASE,
-          });
+          const persistentResumeEnabled =
+            bootstrapData.config?.playback?.persistentResume ?? true;
+          const isResumeEligible = Boolean(savedResume && persistentResumeEnabled);
 
-          applyStartupVisualSurface(this._startupVisualElement, visual);
+          if (!isResumeEligible) {
+            const visual = resolveStartupVisualFromConfig({
+              config: bootstrapData.config,
+              posterUrl: bootstrapData.posterUrl,
+              backgroundPreviewUrl: bootstrapData.backgroundPreviewUrl,
+              apiBase: API_BASE,
+            });
+
+            applyStartupVisualSurface(this._startupVisualElement, visual);
+          } else {
+            applyStartupVisualSurface(this._startupVisualElement, {
+              type: "none",
+              url: null,
+              fallbackUrl: null,
+            });
+          }
         })
         .catch(() => {});
 
@@ -511,12 +532,18 @@ export class EvandroPlayerElement extends HTMLElement {
         .then(([bootstrapData, engine]) => {
           if (!this.isConnected || !engine || !bootstrapData) return;
 
+          const persistentResumeEnabled =
+            bootstrapData.config?.playback?.persistentResume ?? true;
+          const resumePosition =
+            persistentResumeEnabled && savedResume ? savedResume.position : null;
+
           const playbackUrl = bootstrapData.playback?.url || bootstrapData.playbackUrl;
           if (playbackUrl) {
             const engineOptions: EngineSourceOptions = {
               videoId: bootstrapData.videoId || videoId,
               playbackUrl,
               backgroundAutoplay: Boolean(bootstrapData.config?.playback?.backgroundAutoplay),
+              resumePosition,
               thumbnailEnabled: bootstrapData.config?.appearance?.thumbnail?.enabled ?? true,
               posterUrl: bootstrapData.posterUrl,
               backgroundPreviewUrl: bootstrapData.backgroundPreviewUrl,
@@ -569,17 +596,30 @@ export class EvandroPlayerElement extends HTMLElement {
     if (oldValue !== newValue && this._shadowRoot) {
       const videoId = newValue || "";
       if (videoId) {
+        const savedResume = getSavedResume(videoId);
         startEarlyBootstrap(API_BASE, videoId)
           .then((data) => {
             if (!this.isConnected || !data) return;
+            const persistentResumeEnabled =
+              data.config?.playback?.persistentResume ?? true;
+            const isResumeEligible = Boolean(savedResume && persistentResumeEnabled);
+
             if (this._startupVisualElement && (!this._engine || this._engine.state.startupVisualState !== "released")) {
-              const visual = resolveStartupVisualFromConfig({
-                config: data.config,
-                posterUrl: data.posterUrl,
-                backgroundPreviewUrl: data.backgroundPreviewUrl,
-                apiBase: API_BASE,
-              });
-              applyStartupVisualSurface(this._startupVisualElement, visual);
+              if (!isResumeEligible) {
+                const visual = resolveStartupVisualFromConfig({
+                  config: data.config,
+                  posterUrl: data.posterUrl,
+                  backgroundPreviewUrl: data.backgroundPreviewUrl,
+                  apiBase: API_BASE,
+                });
+                applyStartupVisualSurface(this._startupVisualElement, visual);
+              } else {
+                applyStartupVisualSurface(this._startupVisualElement, {
+                  type: "none",
+                  url: null,
+                  fallbackUrl: null,
+                });
+              }
             }
 
             const playbackUrl = data.playback?.url || data.playbackUrl;
@@ -588,6 +628,7 @@ export class EvandroPlayerElement extends HTMLElement {
                 videoId: data.videoId || videoId,
                 playbackUrl,
                 backgroundAutoplay: Boolean(data.config?.playback?.backgroundAutoplay),
+                resumePosition: isResumeEligible && savedResume ? savedResume.position : null,
                 thumbnailEnabled: data.config?.appearance?.thumbnail?.enabled ?? true,
                 posterUrl: data.posterUrl,
                 backgroundPreviewUrl: data.backgroundPreviewUrl,

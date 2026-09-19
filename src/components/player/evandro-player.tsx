@@ -36,6 +36,12 @@ import {
 } from "./embed/performance-timing";
 import { PlayerEngine } from "./engine/player-engine";
 import { resolveStartupVisualFromConfig } from "./engine/startup-visual-resolver";
+import {
+  getSavedResume,
+  saveResume,
+  clearSavedResume,
+} from "@/lib/player/resume-storage";
+import type { ResumeState } from "./engine/types";
 
 export interface EvandroPlayerProps {
   src?: string;
@@ -206,6 +212,7 @@ export function EvandroPlayer({
         ...config.playback,
         autoplay: false,
         backgroundAutoplay: config.playback?.backgroundAutoplay ?? false,
+        persistentResume: config.playback?.persistentResume ?? true,
       },
       controls: {
         ...config.controls,
@@ -276,6 +283,12 @@ export function EvandroPlayer({
   const [hasError, setHasError] = useState(false);
   const [pauseThumbError, setPauseThumbError] = useState(false);
 
+  // Resume state
+  const [resumeState, setResumeState] = useState<ResumeState>("none");
+  const [requestedResumeTime, setRequestedResumeTime] = useState<number | null>(null);
+  const [resolvedResumeTime, setResolvedResumeTime] = useState<number | null>(null);
+  const [resumeDecisionMade, setResumeDecisionMade] = useState(false);
+
   // UI state
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -321,10 +334,17 @@ export function EvandroPlayer({
     if (!externalEngine) {
       // Editor / Standalone mode: React manages loadSource on internal engine
       if (resolvedSrc) {
+        const saved = !isEditor ? getSavedResume(videoId) : null;
+        const persistentResumeEnabled =
+          effectiveConfig.playback?.persistentResume ?? true;
+        const resumePosition =
+          !isEditor && persistentResumeEnabled && saved ? saved.position : null;
+
         activeEngine.loadSource({
           videoId,
           playbackUrl: resolvedSrc,
           backgroundAutoplay: Boolean(effectiveConfig.playback?.backgroundAutoplay),
+          resumePosition,
           thumbnailEnabled: effectiveConfig.appearance?.thumbnail?.enabled ?? true,
           posterUrl,
           backgroundPreviewUrl,
@@ -347,6 +367,7 @@ export function EvandroPlayer({
     posterUrl,
     backgroundPreviewUrl,
     apiBase,
+    isEditor,
   ]);
 
   // Subscribe to authoritative PlayerEngine state
@@ -375,6 +396,9 @@ export function EvandroPlayer({
       );
       setIsEnded(state.isEnded);
       setHasError(state.hasError);
+      setResumeState(state.resumeState);
+      setRequestedResumeTime(state.requestedResumeTime);
+      setResolvedResumeTime(state.resolvedResumeTime);
 
       if (state.isBuffering) {
         mediaStateManager.onWaiting();
@@ -449,11 +473,97 @@ export function EvandroPlayer({
     };
   }, [isPlaying, isDraggingSeek, activeEngine]);
 
+  // Persistent Resume Storage: Throttled save during foreground playback
+  const resumeTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isEditor || !effectiveConfig.playback?.persistentResume) return;
+
+    if (
+      isPlaying &&
+      hasStartedForeground &&
+      activeEngine?.state.experience === "foreground" &&
+      currentTime >= 1
+    ) {
+      if (!resumeTimerRef.current) {
+        resumeTimerRef.current = setTimeout(() => {
+          saveResume(videoId, currentTime, duration);
+          resumeTimerRef.current = null;
+        }, 1500);
+      }
+    }
+
+    return () => {
+      if (resumeTimerRef.current) {
+        clearTimeout(resumeTimerRef.current);
+        resumeTimerRef.current = null;
+      }
+    };
+  }, [
+    isPlaying,
+    hasStartedForeground,
+    activeEngine?.state.experience,
+    currentTime,
+    duration,
+    videoId,
+    isEditor,
+    effectiveConfig.playback?.persistentResume,
+  ]);
+
+  // Immediate flush on pause / visibility hidden / pagehide
+  useEffect(() => {
+    if (isEditor || !effectiveConfig.playback?.persistentResume) return;
+
+    const flush = () => {
+      const v = activeEngine?.video;
+      if (
+        v &&
+        v.currentTime >= 1 &&
+        hasStartedForeground &&
+        activeEngine?.state.experience === "foreground"
+      ) {
+        saveResume(videoId, v.currentTime, v.duration || duration);
+      }
+    };
+
+    const handleVis = () => {
+      if (document.hidden) flush();
+    };
+
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", handleVis);
+
+    return () => {
+      flush();
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", handleVis);
+    };
+  }, [
+    activeEngine,
+    videoId,
+    duration,
+    hasStartedForeground,
+    isEditor,
+    effectiveConfig.playback?.persistentResume,
+  ]);
+
+  // Resume Gate State
+  const isResumeActive = Boolean(
+    resumeState === "ready" &&
+      !resumeDecisionMade &&
+      (effectiveConfig.playback?.persistentResume ?? true)
+  );
+
+  const isResumePreparing = Boolean(
+    resumeState === "preparing" &&
+      (effectiveConfig.playback?.persistentResume ?? true)
+  );
+
   // Dynamic experience mode
   const isEmbedded = Boolean(mediaElement || externalEngine);
   const playbackMode: PlaybackMode =
     activeEngine?.state.experience === "background_autoplay" ||
-    (effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground)
+    (effectiveConfig.playback?.backgroundAutoplay && !userActivatedForeground && !isResumeActive && !isResumePreparing)
       ? "background_autoplay"
       : "foreground";
 
@@ -467,19 +577,34 @@ export function EvandroPlayer({
 
   const initialVisual = useMemo(() => {
     if (isEmbedded) return null;
+    const saved = !isEditor ? getSavedResume(videoId) : null;
+    const persistentResumeEnabled =
+      effectiveConfig.playback?.persistentResume ?? true;
+    if (saved && persistentResumeEnabled && !isEditor) {
+      return null;
+    }
     return resolveStartupVisualFromConfig({
       config: effectiveConfig,
       posterUrl,
       backgroundPreviewUrl,
       apiBase,
     });
-  }, [isEmbedded, effectiveConfig, posterUrl, backgroundPreviewUrl, apiBase]);
+  }, [
+    isEmbedded,
+    effectiveConfig,
+    posterUrl,
+    backgroundPreviewUrl,
+    apiBase,
+    isEditor,
+    videoId,
+  ]);
 
   const isStartupReady =
     effectiveConfig.appearance?.thumbnail?.enabled === false ||
     !isEmbedded ||
     hasFirstFrame ||
-    (activeEngine?.state.startupVisualState !== "available" && activeEngine?.state.startupVisualState !== undefined);
+    (activeEngine?.state.startupVisualState !== "available" &&
+      activeEngine?.state.startupVisualState !== undefined);
 
   // Autohide controls logic
   const showControlsTemporarily = useCallback(() => {
@@ -495,7 +620,7 @@ export function EvandroPlayer({
   }, [isPlaying, showSettings, isDraggingSeek, isDraggingVolume]);
 
   const handleMouseMove = () => {
-    if (playbackMode === "background_autoplay") return;
+    if (playbackMode === "background_autoplay" || isResumeActive || isResumePreparing) return;
     showControlsTemporarily();
   };
 
@@ -552,9 +677,40 @@ export function EvandroPlayer({
     await activeEngine.startForeground(targetVol);
   }, [activeEngine, videoId, mediaStateManager, effectiveConfig, activateSession]);
 
+  // Resume Actions
+  const handleContinueResume = useCallback(async () => {
+    if (!activeEngine) return;
+    setResumeDecisionMade(true);
+    activateSession();
+    mediaStateManager.onPlayRequested();
+    const targetVol =
+      lastVolumeRef.current > 0
+        ? lastVolumeRef.current
+        : (effectiveConfig.playback?.defaultVolume ?? 1);
+    await activeEngine.continueResume(targetVol);
+  }, [activeEngine, activateSession, mediaStateManager, effectiveConfig]);
+
+  const handleRestartFromBeginning = useCallback(async () => {
+    if (!activeEngine) return;
+    setResumeDecisionMade(true);
+    activateSession();
+    mediaStateManager.onPlayRequested();
+    clearSavedResume(videoId);
+    const targetVol =
+      lastVolumeRef.current > 0
+        ? lastVolumeRef.current
+        : (effectiveConfig.playback?.defaultVolume ?? 1);
+    await activeEngine.restartFromBeginning(targetVol);
+  }, [activeEngine, activateSession, mediaStateManager, videoId, effectiveConfig]);
+
   // Play / Pause toggle
   const togglePlay = useCallback(() => {
     if (!activeEngine) return;
+    if (isResumeActive) {
+      handleContinueResume();
+      return;
+    }
+    if (isResumePreparing) return;
 
     if (playbackMode === "background_autoplay" || !userActivatedForeground) {
       activateForegroundPlayback();
@@ -583,6 +739,9 @@ export function EvandroPlayer({
     }
   }, [
     activeEngine,
+    isResumeActive,
+    isResumePreparing,
+    handleContinueResume,
     playbackMode,
     userActivatedForeground,
     isPlaying,
@@ -726,6 +885,7 @@ export function EvandroPlayer({
 
   const handleContainerDoubleClick = (e: React.MouseEvent) => {
     if (!fullscreenConfig.enabled || !fullscreenConfig.doubleClick) return;
+    if (isResumeActive || isResumePreparing) return;
 
     const target = e.target as HTMLElement | null;
     if (!target) return;
@@ -738,7 +898,8 @@ export function EvandroPlayer({
       target.closest("[role='slider']") ||
       target.closest("[data-no-fullscreen]") ||
       target.closest(".group\\/track") ||
-      target.closest(".group\\/volume")
+      target.closest(".group\\/volume") ||
+      target.closest(".group\\/resumeoverlay")
     ) {
       return;
     }
@@ -764,6 +925,18 @@ export function EvandroPlayer({
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA"
       ) {
+        return;
+      }
+
+      if (isResumeActive) {
+        if (e.code === "Space" || e.key === "Enter") {
+          e.preventDefault();
+          handleContinueResume();
+        }
+        return;
+      }
+
+      if (isResumePreparing) {
         return;
       }
 
@@ -797,7 +970,17 @@ export function EvandroPlayer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeEngine, duration, showControlsTemporarily, toggleMute, togglePlay, toggleFullscreen]);
+  }, [
+    activeEngine,
+    duration,
+    showControlsTemporarily,
+    toggleMute,
+    togglePlay,
+    toggleFullscreen,
+    isResumeActive,
+    isResumePreparing,
+    handleContinueResume,
+  ]);
 
   // Calculated Progress percentages
   const realProgressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -808,7 +991,10 @@ export function EvandroPlayer({
   // Fake progress bar calculation
   const isFakeProgressEnabled = Boolean(effectiveConfig.progress?.fake?.enabled);
   const fakeProgress =
-    isFakeProgressEnabled && playbackMode !== "background_autoplay"
+    isFakeProgressEnabled &&
+    playbackMode !== "background_autoplay" &&
+    !isResumeActive &&
+    !isResumePreparing
       ? calculateFakeProgress({ currentTime, duration })
       : 0;
   const fakeProgressPercent = fakeProgress * 100;
@@ -883,16 +1069,19 @@ export function EvandroPlayer({
       )}
 
       {/* Central Tap / Click-to-Toggle-Play Backdrop */}
-      {playbackMode !== "background_autoplay" && !hasError && (
-        <div
-          aria-hidden="true"
-          onClick={togglePlay}
-          className="absolute inset-0 z-1 cursor-pointer"
-        />
-      )}
+      {playbackMode !== "background_autoplay" &&
+        !hasError &&
+        !isResumeActive &&
+        !isResumePreparing && (
+          <div
+            aria-hidden="true"
+            onClick={togglePlay}
+            className="absolute inset-0 z-1 cursor-pointer"
+          />
+        )}
 
       {/* Loading Buffering Indicator */}
-      {isLoading && !hasError && (
+      {isLoading && !hasError && !isResumeActive && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 bg-black/20">
           <div className="flex size-14 items-center justify-center rounded-full bg-black/60 backdrop-blur-md shadow-lg">
             <Loader2 className="size-8 animate-spin" style={{ color: "var(--player-accent)" }} />
@@ -927,240 +1116,333 @@ export function EvandroPlayer({
         </div>
       )}
 
-      {/* Background Autoplay Active Overlay */}
-      {playbackMode === "background_autoplay" && !hasError && (
+      {/* Persistent Resume Decision Gate Overlay */}
+      {isResumeActive && !hasError && (
         <div
-          onClick={activateForegroundPlayback}
+          data-no-fullscreen="true"
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
           style={{
-            background: "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
+            background:
+              "linear-gradient(180deg, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0.45) 50%, rgba(0, 0, 0, 0.7) 100%)",
           }}
-          className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
+          className="absolute inset-0 flex items-center justify-center z-25 p-3.5 @min-[400px]:p-5 group/resumeoverlay"
         >
-          <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
-            {/* Main CTA Card */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                activateForegroundPlayback();
-              }}
-              className={cn(
-                "relative flex flex-col items-center justify-center text-center",
-                "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
-                "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
-                "border border-white/15 select-none cursor-pointer max-w-full",
-                "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
-              )}
-            >
-              {/* Concentric animated sound waves */}
-              <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
-                <span
-                  aria-hidden="true"
-                  className="ep-sound-wave-1 absolute inset-0 rounded-full pointer-events-none"
-                  style={{ backgroundColor: "var(--player-accent)" }}
-                />
-                <span
-                  aria-hidden="true"
-                  className="ep-sound-wave-2 absolute inset-0 rounded-full pointer-events-none"
-                  style={{ backgroundColor: "var(--player-accent)" }}
-                />
-                <span
-                  aria-hidden="true"
-                  className="ep-sound-wave-3 absolute inset-0 rounded-full pointer-events-none"
-                  style={{ backgroundColor: "var(--player-accent)" }}
-                />
+          <div
+            className={cn(
+              "relative flex flex-col items-center justify-center text-center",
+              "px-5 py-4 @min-[400px]:px-7 @min-[400px]:py-5.5 rounded-2xl",
+              "bg-zinc-950/90 text-white backdrop-blur-md shadow-2xl",
+              "border border-white/15 select-none max-w-[calc(100%-24px)] @min-[400px]:max-w-[420px] w-full"
+            )}
+          >
+            {/* Title */}
+            <h3 className="text-sm @min-[380px]:text-base @min-[480px]:text-lg font-semibold text-white leading-tight">
+              Continuar assistindo?
+            </h3>
 
-                {/* Center Audio Icon Badge */}
-                <div
-                  className="relative z-1 flex items-center justify-center size-9 @min-[400px]:size-10 rounded-full shadow-lg"
-                  style={{
-                    backgroundColor: "var(--player-accent)",
-                    color: "var(--player-accent-foreground)",
-                  }}
-                >
-                  <VolumeX className="size-4.5 @min-[400px]:size-5 fill-current shrink-0" />
-                </div>
-              </div>
-
-              {/* Subtitle */}
-              <span className="text-[10.5px] @min-[360px]:text-[11px] @min-[420px]:text-xs font-medium text-zinc-300 leading-tight">
-                Seu vídeo já começou
+            {/* Subtitle with stopped position */}
+            <p className="text-[11px] @min-[380px]:text-xs text-zinc-300 font-medium mt-1 leading-relaxed">
+              Você parou em{" "}
+              <span className="font-mono font-semibold text-white">
+                {formatTime(
+                  resolvedResumeTime ??
+                    requestedResumeTime ??
+                    currentTime
+                )}
               </span>
+            </p>
 
-              {/* Main Action Text */}
-              <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug mt-0.5 max-w-[220px] @min-[360px]:max-w-[260px] @min-[420px]:max-w-none">
-                Clique para ativar o som
-              </span>
-            </button>
+            {/* Action Buttons */}
+            <div className="flex flex-col @min-[380px]:flex-row items-stretch @min-[380px]:items-center justify-center gap-2 @min-[380px]:gap-2.5 mt-4 w-full">
+              {/* Primary Action: Continuar assistindo */}
+              <button
+                type="button"
+                onClick={handleContinueResume}
+                style={{
+                  backgroundColor: "var(--player-accent)",
+                  color: "var(--player-accent-foreground)",
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-xs @min-[400px]:text-sm shadow-lg hover:brightness-110 active:brightness-95 transition-all cursor-pointer select-none"
+              >
+                <Play className="size-3.5 @min-[400px]:size-4 fill-current shrink-0 ml-0.5" />
+                <span>Continuar assistindo</span>
+              </button>
+
+              {/* Secondary Action: Assistir do início */}
+              <button
+                type="button"
+                onClick={handleRestartFromBeginning}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-xs @min-[400px]:text-sm bg-white/10 hover:bg-white/20 active:bg-white/15 text-white border border-white/15 transition-all cursor-pointer select-none"
+              >
+                <RotateCcw className="size-3.5 @min-[400px]:size-4 shrink-0" />
+                <span>Assistir do início</span>
+              </button>
+            </div>
           </div>
-
-          <style>{`
-            @keyframes ep-sound-wave {
-              0% {
-                transform: scale(0.85);
-                opacity: 0.6;
-              }
-              50% {
-                opacity: 0.25;
-              }
-              100% {
-                transform: scale(1.9);
-                opacity: 0;
-              }
-            }
-            .ep-sound-wave-1 {
-              animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
-              animation-delay: 0s;
-            }
-            .ep-sound-wave-2 {
-              animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
-              animation-delay: 0.7s;
-            }
-            .ep-sound-wave-3 {
-              animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
-              animation-delay: 1.4s;
-            }
-            @media (prefers-reduced-motion: reduce) {
-              .ep-sound-wave-1,
-              .ep-sound-wave-2,
-              .ep-sound-wave-3 {
-                display: none !important;
-                animation: none !important;
-              }
-            }
-          `}</style>
         </div>
       )}
+
+      {/* Background Autoplay Active Overlay */}
+      {playbackMode === "background_autoplay" &&
+        !hasError &&
+        !isResumeActive &&
+        !isResumePreparing && (
+          <div
+            onClick={activateForegroundPlayback}
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
+            }}
+            className="absolute inset-0 flex items-center justify-center z-15 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/bgoverlay"
+          >
+            <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
+              {/* Main CTA Card */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  activateForegroundPlayback();
+                }}
+                className={cn(
+                  "relative flex flex-col items-center justify-center text-center",
+                  "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
+                  "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
+                  "border border-white/15 select-none cursor-pointer max-w-full",
+                  "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
+                )}
+              >
+                {/* Concentric animated sound waves */}
+                <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
+                  <span
+                    aria-hidden="true"
+                    className="ep-sound-wave-1 absolute inset-0 rounded-full pointer-events-none"
+                    style={{ backgroundColor: "var(--player-accent)" }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="ep-sound-wave-2 absolute inset-0 rounded-full pointer-events-none"
+                    style={{ backgroundColor: "var(--player-accent)" }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="ep-sound-wave-3 absolute inset-0 rounded-full pointer-events-none"
+                    style={{ backgroundColor: "var(--player-accent)" }}
+                  />
+
+                  {/* Center Audio Icon Badge */}
+                  <div
+                    className="relative z-1 flex items-center justify-center size-9 @min-[400px]:size-10 rounded-full shadow-lg"
+                    style={{
+                      backgroundColor: "var(--player-accent)",
+                      color: "var(--player-accent-foreground)",
+                    }}
+                  >
+                    <VolumeX className="size-4.5 @min-[400px]:size-5 fill-current shrink-0" />
+                  </div>
+                </div>
+
+                {/* Subtitle */}
+                <span className="text-[10.5px] @min-[360px]:text-[11px] @min-[420px]:text-xs font-medium text-zinc-300 leading-tight">
+                  Seu vídeo já começou
+                </span>
+
+                {/* Main Action Text */}
+                <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug mt-0.5 max-w-[220px] @min-[360px]:max-w-[260px] @min-[420px]:max-w-none">
+                  Clique para ativar o som
+                </span>
+              </button>
+            </div>
+
+            <style>{`
+              @keyframes ep-sound-wave {
+                0% {
+                  transform: scale(0.85);
+                  opacity: 0.6;
+                }
+                50% {
+                  opacity: 0.25;
+                }
+                100% {
+                  transform: scale(1.9);
+                  opacity: 0;
+                }
+              }
+              .ep-sound-wave-1 {
+                animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+                animation-delay: 0s;
+              }
+              .ep-sound-wave-2 {
+                animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+                animation-delay: 0.7s;
+              }
+              .ep-sound-wave-3 {
+                animation: ep-sound-wave 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+                animation-delay: 1.4s;
+              }
+              @media (prefers-reduced-motion: reduce) {
+                .ep-sound-wave-1,
+                .ep-sound-wave-2,
+                .ep-sound-wave-3 {
+                  display: none !important;
+                  animation: none !important;
+                }
+              }
+            `}</style>
+          </div>
+        )}
 
       {/* Big Play Button Overlay on Initial Start (Before first play) */}
-      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !userActivatedForeground && !hasStartedForeground && showStartupPlayButton && isStartupReady && (
-        <div
-          onClick={togglePlay}
-          className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-opacity bg-black/20"
-        >
-          <PlayerPlayButton />
-        </div>
-      )}
+      {!isPlaying &&
+        !isLoading &&
+        !hasError &&
+        !isResumeActive &&
+        !isResumePreparing &&
+        playbackMode !== "background_autoplay" &&
+        !userActivatedForeground &&
+        !hasStartedForeground &&
+        showStartupPlayButton &&
+        isStartupReady && (
+          <div
+            onClick={togglePlay}
+            className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-opacity bg-black/20"
+          >
+            <PlayerPlayButton />
+          </div>
+        )}
 
       {/* Pause Overlay (Custom Pause Thumbnail OR "Continue assistindo" Card) */}
-      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && hasStartedForeground && !isEnded && (
-        <>
-          {isPauseThumbActive && pauseConfig?.customUrl ? (
-            <div
-              onClick={togglePlay}
-              className="absolute inset-0 z-12 cursor-pointer transition-opacity duration-110 ease-out flex items-center justify-center overflow-hidden bg-black/40"
-            >
-              <img
-                src={pauseConfig.customUrl}
-                alt="Thumbnail de pausa"
-                onError={() => setPauseThumbError(true)}
-                className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
-              />
-              {(pauseConfig?.showPlayButton ?? false) && (
-                <PlayerPlayButton />
-              )}
-            </div>
-          ) : (
-            <div
-              onClick={togglePlay}
-              style={{
-                background: "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
-              }}
-              className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/pauseoverlay"
-            >
-              <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    togglePlay();
-                  }}
-                  className={cn(
-                    "relative flex flex-col items-center justify-center text-center",
-                    "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
-                    "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
-                    "border border-white/15 select-none cursor-pointer max-w-full",
-                    "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
-                  )}
-                >
-                  {/* Play Icon with subtle breathing halo */}
-                  <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
-                    <span
-                      aria-hidden="true"
-                      className="ep-play-halo absolute inset-0 rounded-full pointer-events-none"
-                      style={{
-                        backgroundColor: "var(--player-accent)",
-                      }}
-                    />
-
-                    <div
-                      className="relative z-1 flex items-center justify-center size-9 @min-[400px]:size-10 rounded-full shadow-lg"
-                      style={{
-                        backgroundColor: "var(--player-accent)",
-                        color: "var(--player-accent-foreground)",
-                      }}
-                    >
-                      <Play className="size-4.5 @min-[400px]:size-5 ml-0.5 fill-current shrink-0" />
-                    </div>
-                  </div>
-
-                  {/* Main Text */}
-                  <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug">
-                    Continue assistindo
-                  </span>
-
-                  {/* Microcopy */}
-                  <span className="text-[10px] @min-[360px]:text-[10.5px] @min-[420px]:text-[11px] font-medium text-zinc-300 leading-tight mt-0.5">
-                    Clique para continuar
-                  </span>
-                </button>
+      {!isPlaying &&
+        !isLoading &&
+        !hasError &&
+        !isResumeActive &&
+        !isResumePreparing &&
+        playbackMode !== "background_autoplay" &&
+        hasStartedForeground &&
+        !isEnded && (
+          <>
+            {isPauseThumbActive && pauseConfig?.customUrl ? (
+              <div
+                onClick={togglePlay}
+                className="absolute inset-0 z-12 cursor-pointer transition-opacity duration-110 ease-out flex items-center justify-center overflow-hidden bg-black/40"
+              >
+                <img
+                  src={pauseConfig.customUrl}
+                  alt="Thumbnail de pausa"
+                  onError={() => setPauseThumbError(true)}
+                  className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+                />
+                {(pauseConfig?.showPlayButton ?? false) && (
+                  <PlayerPlayButton />
+                )}
               </div>
+            ) : (
+              <div
+                onClick={togglePlay}
+                style={{
+                  background:
+                    "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
+                }}
+                className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/pauseoverlay"
+              >
+                <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePlay();
+                    }}
+                    className={cn(
+                      "relative flex flex-col items-center justify-center text-center",
+                      "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
+                      "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
+                      "border border-white/15 select-none cursor-pointer max-w-full",
+                      "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
+                    )}
+                  >
+                    {/* Play Icon with subtle breathing halo */}
+                    <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
+                      <span
+                        aria-hidden="true"
+                        className="ep-play-halo absolute inset-0 rounded-full pointer-events-none"
+                        style={{
+                          backgroundColor: "var(--player-accent)",
+                        }}
+                      />
 
-              <style>{`
-                @keyframes ep-play-halo {
-                  0%, 100% {
-                    transform: scale(0.95);
-                    opacity: 0.45;
+                      <div
+                        className="relative z-1 flex items-center justify-center size-9 @min-[400px]:size-10 rounded-full shadow-lg"
+                        style={{
+                          backgroundColor: "var(--player-accent)",
+                          color: "var(--player-accent-foreground)",
+                        }}
+                      >
+                        <Play className="size-4.5 @min-[400px]:size-5 ml-0.5 fill-current shrink-0" />
+                      </div>
+                    </div>
+
+                    {/* Main Text */}
+                    <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug">
+                      Continue assistindo
+                    </span>
+
+                    {/* Microcopy */}
+                    <span className="text-[10px] @min-[360px]:text-[10.5px] @min-[420px]:text-[11px] font-medium text-zinc-300 leading-tight mt-0.5">
+                      Clique para continuar
+                    </span>
+                  </button>
+                </div>
+
+                <style>{`
+                  @keyframes ep-play-halo {
+                    0%, 100% {
+                      transform: scale(0.95);
+                      opacity: 0.45;
+                    }
+                    50% {
+                      transform: scale(1.3);
+                      opacity: 0;
+                    }
                   }
-                  50% {
-                    transform: scale(1.3);
-                    opacity: 0;
-                  }
-                }
-                .ep-play-halo {
-                  animation: ep-play-halo 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-                }
-                @media (prefers-reduced-motion: reduce) {
                   .ep-play-halo {
-                    display: none !important;
-                    animation: none !important;
+                    animation: ep-play-halo 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
                   }
-                }
-              `}</style>
-            </div>
-          )}
-        </>
-      )}
+                  @media (prefers-reduced-motion: reduce) {
+                    .ep-play-halo {
+                      display: none !important;
+                      animation: none !important;
+                    }
+                  }
+                `}</style>
+              </div>
+            )}
+          </>
+        )}
 
       {/* Top Title Bar */}
-      {title && (effectiveConfig.appearance?.showTitle ?? true) && playbackMode !== "background_autoplay" && (
-        <div
-          style={{
-            background: "linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0) 100%)",
-          }}
-          className={cn(
-            "absolute top-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 z-20 pointer-events-none transition-opacity duration-300",
-            controlsVisible ? "opacity-100" : "opacity-0"
-          )}
-        >
-          <h2 className="text-xs @min-[480px]:text-sm font-medium text-white/90 truncate drop-shadow">
-            {title}
-          </h2>
-        </div>
-      )}
+      {title &&
+        (effectiveConfig.appearance?.showTitle ?? true) &&
+        playbackMode !== "background_autoplay" &&
+        !isResumeActive &&
+        !isResumePreparing && (
+          <div
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0) 100%)",
+            }}
+            className={cn(
+              "absolute top-0 inset-x-0 p-2.5 @min-[380px]:p-3 @min-[520px]:p-4 z-20 pointer-events-none transition-opacity duration-300",
+              controlsVisible ? "opacity-100" : "opacity-0"
+            )}
+          >
+            <h2 className="text-xs @min-[480px]:text-sm font-medium text-white/90 truncate drop-shadow">
+              {title}
+            </h2>
+          </div>
+        )}
 
       {/* Standalone Fake Progress Bar */}
-      {isFakeProgressEnabled && (
+      {isFakeProgressEnabled && !isResumeActive && !isResumePreparing && (
         <div
           aria-hidden="true"
           className="absolute inset-x-0 bottom-0 z-15 pointer-events-none overflow-hidden select-none"
@@ -1181,207 +1463,211 @@ export function EvandroPlayer({
       )}
 
       {/* Bottom Adaptive Controls Overlay */}
-      {!isControlsHidden && playbackMode !== "background_autoplay" && (
-        <div
-          data-no-fullscreen="true"
-          onClick={(e) => e.stopPropagation()}
-          onDoubleClick={(e) => e.stopPropagation()}
-          style={{
-            background: "linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0) 100%)",
-          }}
-          className={cn(
-            "absolute bottom-0 inset-x-0 p-2 @min-[380px]:p-3 @min-[520px]:p-4 z-20 transition-opacity duration-300 flex flex-col gap-1.5 @min-[380px]:gap-2.5",
-            controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
-          )}
-        >
-          {/* Seek Bar */}
+      {!isControlsHidden &&
+        playbackMode !== "background_autoplay" &&
+        !isResumeActive &&
+        !isResumePreparing && (
           <div
-            ref={progressTrackRef}
-            onMouseDown={handleSeekMouseDown}
-            className="relative group/track w-full h-3 flex items-center cursor-pointer py-1 select-none"
+            data-no-fullscreen="true"
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            style={{
+              background:
+                "linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0) 100%)",
+            }}
+            className={cn(
+              "absolute bottom-0 inset-x-0 p-2 @min-[380px]:p-3 @min-[520px]:p-4 z-20 transition-opacity duration-300 flex flex-col gap-1.5 @min-[380px]:gap-2.5",
+              controlsVisible || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
+            )}
           >
-            {/* Background track */}
-            <div className="relative w-full h-1 group-hover/track:h-1.5 bg-white/25 rounded-full overflow-hidden transition-all">
-              {/* Buffered progress */}
+            {/* Seek Bar */}
+            <div
+              ref={progressTrackRef}
+              onMouseDown={handleSeekMouseDown}
+              className="relative group/track w-full h-3 flex items-center cursor-pointer py-1 select-none"
+            >
+              {/* Background track */}
+              <div className="relative w-full h-1 group-hover/track:h-1.5 bg-white/25 rounded-full overflow-hidden transition-all">
+                {/* Buffered progress */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 bg-white/30 rounded-full"
+                  style={{ width: `${bufferedPercent}%` }}
+                />
+                {/* Played progress */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 rounded-full"
+                  style={{
+                    width: `${realProgressPercent}%`,
+                    backgroundColor: "var(--player-accent, #7C3AED)",
+                  }}
+                />
+              </div>
+
+              {/* Scrubber thumb */}
               <div
-                className="absolute left-0 top-0 bottom-0 bg-white/30 rounded-full"
-                style={{ width: `${bufferedPercent}%` }}
-              />
-              {/* Played progress */}
-              <div
-                className="absolute left-0 top-0 bottom-0 rounded-full"
+                className="absolute size-3.5 rounded-full bg-white shadow-md opacity-0 group-hover/track:opacity-100 pointer-events-none border transition-opacity"
                 style={{
-                  width: `${realProgressPercent}%`,
-                  backgroundColor: "var(--player-accent, #7C3AED)",
+                  left: `${realProgressPercent}%`,
+                  transform: "translateX(-50%)",
+                  borderColor: "var(--player-accent, #7C3AED)",
                 }}
               />
             </div>
 
-            {/* Scrubber thumb */}
-            <div
-              className="absolute size-3.5 rounded-full bg-white shadow-md opacity-0 group-hover/track:opacity-100 pointer-events-none border transition-opacity"
-              style={{
-                left: `${realProgressPercent}%`,
-                transform: "translateX(-50%)",
-                borderColor: "var(--player-accent, #7C3AED)",
-              }}
-            />
-          </div>
-
-          {/* Control Buttons & Indicators Row */}
-          <div className="flex items-center justify-between gap-1 @min-[340px]:gap-1.5 @min-[400px]:gap-2 text-white flex-nowrap min-w-0">
-            {/* Left: Play/Pause, Volume, Time */}
-            <div className="flex items-center gap-1 @min-[340px]:gap-1.5 @min-[440px]:gap-2.5 min-w-0 shrink">
-              {/* Play/Pause Button */}
-              <button
-                type="button"
-                onClick={togglePlay}
-                className="p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
-                title={isPlaying ? "Pausar (Space)" : "Reproduzir (Space)"}
-                aria-label={isPlaying ? "Pausar" : "Reproduzir"}
-              >
-                {isPlaying ? (
-                  <Pause className="size-4 @min-[380px]:size-5 fill-white/90" />
-                ) : (
-                  <Play className="size-4 @min-[380px]:size-5 fill-white/90" />
-                )}
-              </button>
-
-              {/* Volume & Expandable Slider */}
-              <div
-                className="flex items-center group/volume shrink-0 relative"
-                onMouseEnter={() => setIsVolumeHovered(true)}
-                onMouseLeave={() => setIsVolumeHovered(false)}
-              >
+            {/* Control Buttons & Indicators Row */}
+            <div className="flex items-center justify-between gap-1 @min-[340px]:gap-1.5 @min-[400px]:gap-2 text-white flex-nowrap min-w-0">
+              {/* Left: Play/Pause, Volume, Time */}
+              <div className="flex items-center gap-1 @min-[340px]:gap-1.5 @min-[440px]:gap-2.5 min-w-0 shrink">
+                {/* Play/Pause Button */}
                 <button
                   type="button"
-                  onClick={toggleMute}
+                  onClick={togglePlay}
                   className="p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
-                  title={isMuted || effectiveVolume === 0 ? "Ativar som (M)" : "Silenciar (M)"}
-                  aria-label={isMuted || effectiveVolume === 0 ? "Ativar som" : "Silenciar"}
+                  title={isPlaying ? "Pausar (Space)" : "Reproduzir (Space)"}
+                  aria-label={isPlaying ? "Pausar" : "Reproduzir"}
                 >
-                  {isMuted || effectiveVolume === 0 ? (
-                    <VolumeX className="size-4 @min-[380px]:size-5 text-white/80" />
-                  ) : effectiveVolume < 0.5 ? (
-                    <Volume1 className="size-4 @min-[380px]:size-5 text-white/90" />
+                  {isPlaying ? (
+                    <Pause className="size-4 @min-[380px]:size-5 fill-white/90" />
                   ) : (
-                    <Volume2 className="size-4 @min-[380px]:size-5 text-white/90" />
+                    <Play className="size-4 @min-[380px]:size-5 fill-white/90" />
                   )}
                 </button>
 
+                {/* Volume & Expandable Slider */}
                 <div
-                  className={cn(
-                    "h-6 flex items-center transition-[width,opacity,margin] duration-200 ease-out overflow-hidden",
-                    isVolumeOpen
-                      ? "w-11 @min-[380px]:w-14 @min-[480px]:w-16 opacity-100 ml-1 mr-1 pointer-events-auto"
-                      : "w-0 opacity-0 m-0 pointer-events-none"
-                  )}
+                  className="flex items-center group/volume shrink-0 relative"
+                  onMouseEnter={() => setIsVolumeHovered(true)}
+                  onMouseLeave={() => setIsVolumeHovered(false)}
                 >
-                  <div
-                    ref={volumeTrackRef}
-                    onMouseDown={handleVolumeMouseDown}
-                    className="relative w-full h-3 flex items-center cursor-pointer select-none group/voltrack"
-                    role="slider"
-                    aria-label="Volume"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(effectiveVolume * 100)}
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    className="p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 text-white/90 hover:text-white transition-colors focus:outline-none cursor-pointer shrink-0"
+                    title={isMuted || effectiveVolume === 0 ? "Ativar som (M)" : "Silenciar (M)"}
+                    aria-label={isMuted || effectiveVolume === 0 ? "Ativar som" : "Silenciar"}
                   >
-                    {/* Background Track */}
-                    <div className="relative w-full h-1 bg-white/25 rounded-full overflow-hidden">
-                      {/* Filled Track */}
+                    {isMuted || effectiveVolume === 0 ? (
+                      <VolumeX className="size-4 @min-[380px]:size-5 text-white/80" />
+                    ) : effectiveVolume < 0.5 ? (
+                      <Volume1 className="size-4 @min-[380px]:size-5 text-white/90" />
+                    ) : (
+                      <Volume2 className="size-4 @min-[380px]:size-5 text-white/90" />
+                    )}
+                  </button>
+
+                  <div
+                    className={cn(
+                      "h-6 flex items-center transition-[width,opacity,margin] duration-200 ease-out overflow-hidden",
+                      isVolumeOpen
+                        ? "w-11 @min-[380px]:w-14 @min-[480px]:w-16 opacity-100 ml-1 mr-1 pointer-events-auto"
+                        : "w-0 opacity-0 m-0 pointer-events-none"
+                    )}
+                  >
+                    <div
+                      ref={volumeTrackRef}
+                      onMouseDown={handleVolumeMouseDown}
+                      className="relative w-full h-3 flex items-center cursor-pointer select-none group/voltrack"
+                      role="slider"
+                      aria-label="Volume"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(effectiveVolume * 100)}
+                    >
+                      {/* Background Track */}
+                      <div className="relative w-full h-1 bg-white/25 rounded-full overflow-hidden">
+                        {/* Filled Track */}
+                        <div
+                          className="absolute left-0 top-0 bottom-0 rounded-full"
+                          style={{
+                            width: `${effectiveVolume * 100}%`,
+                            backgroundColor: "var(--player-accent, #7C3AED)",
+                          }}
+                        />
+                      </div>
+
+                      {/* Volume Thumb */}
                       <div
-                        className="absolute left-0 top-0 bottom-0 rounded-full"
+                        className="absolute size-2.5 @min-[380px]:size-3 rounded-full bg-white shadow-sm pointer-events-none border transition-transform"
                         style={{
-                          width: `${effectiveVolume * 100}%`,
-                          backgroundColor: "var(--player-accent, #7C3AED)",
+                          left: `${effectiveVolume * 100}%`,
+                          transform: "translateX(-50%)",
+                          borderColor: "var(--player-accent, #7C3AED)",
                         }}
                       />
                     </div>
-
-                    {/* Volume Thumb */}
-                    <div
-                      className="absolute size-2.5 @min-[380px]:size-3 rounded-full bg-white shadow-sm pointer-events-none border transition-transform"
-                      style={{
-                        left: `${effectiveVolume * 100}%`,
-                        transform: "translateX(-50%)",
-                        borderColor: "var(--player-accent, #7C3AED)",
-                      }}
-                    />
                   </div>
+                </div>
+
+                {/* Time Display */}
+                <div className="text-[10px] @min-[340px]:text-[11px] @min-[440px]:text-xs font-mono text-zinc-300 tabular-nums whitespace-nowrap shrink-0">
+                  <span>{formatTime(currentTime)}</span>
+                  <span className="text-zinc-500 mx-0.5 @min-[340px]:mx-1">/</span>
+                  <span className="hidden @min-[290px]:inline">{formatTime(duration)}</span>
                 </div>
               </div>
 
-              {/* Time Display */}
-              <div className="text-[10px] @min-[340px]:text-[11px] @min-[440px]:text-xs font-mono text-zinc-300 tabular-nums whitespace-nowrap shrink-0">
-                <span>{formatTime(currentTime)}</span>
-                <span className="text-zinc-500 mx-0.5 @min-[340px]:mx-1">/</span>
-                <span className="hidden @min-[290px]:inline">{formatTime(duration)}</span>
-              </div>
-            </div>
+              {/* Right: Playback Speed & Fullscreen */}
+              <div className="flex items-center gap-0.5 @min-[340px]:gap-1 @min-[380px]:gap-1.5 shrink-0">
+                {/* Settings / Speed Popup */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(!showSettings)}
+                    className={cn(
+                      "p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 transition-colors focus:outline-none cursor-pointer",
+                      showSettings ? "bg-white/20 text-white" : "text-white/80 hover:text-white"
+                    )}
+                    title="Velocidade de reprodução"
+                    aria-label="Velocidade de reprodução"
+                  >
+                    <Gauge className="size-4 @min-[380px]:size-5" />
+                  </button>
 
-            {/* Right: Playback Speed & Fullscreen */}
-            <div className="flex items-center gap-0.5 @min-[340px]:gap-1 @min-[380px]:gap-1.5 shrink-0">
-              {/* Settings / Speed Popup */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowSettings(!showSettings)}
-                  className={cn(
-                    "p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 transition-colors focus:outline-none cursor-pointer",
-                    showSettings ? "bg-white/20 text-white" : "text-white/80 hover:text-white"
-                  )}
-                  title="Velocidade de reprodução"
-                  aria-label="Velocidade de reprodução"
-                >
-                  <Gauge className="size-4 @min-[380px]:size-5" />
-                </button>
-
-                {showSettings && (
-                  <div className="absolute right-0 bottom-full mb-2 bg-zinc-900/95 border border-white/15 backdrop-blur-md rounded-lg shadow-xl py-1.5 px-1 min-w-[120px] z-30 font-sans">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 px-2.5 py-1">
-                      Velocidade
+                  {showSettings && (
+                    <div className="absolute right-0 bottom-full mb-2 bg-zinc-900/95 border border-white/15 backdrop-blur-md rounded-lg shadow-xl py-1.5 px-1 min-w-[120px] z-30 font-sans">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 px-2.5 py-1">
+                        Velocidade
+                      </div>
+                      {PLAYBACK_RATES.map((rate) => (
+                        <button
+                          key={rate}
+                          type="button"
+                          onClick={() => handleRateChange(rate)}
+                          className={cn(
+                            "w-full flex items-center justify-between px-2.5 py-1 text-xs rounded-md text-left transition-colors cursor-pointer",
+                            playbackRate === rate
+                              ? "bg-white/15 text-white font-medium"
+                              : "text-zinc-300 hover:bg-white/10 hover:text-white"
+                          )}
+                        >
+                          <span>{rate === 1 ? "Normal" : `${rate}x`}</span>
+                          {playbackRate === rate && <Check className="size-3 text-white" />}
+                        </button>
+                      ))}
                     </div>
-                    {PLAYBACK_RATES.map((rate) => (
-                      <button
-                        key={rate}
-                        type="button"
-                        onClick={() => handleRateChange(rate)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-1 text-xs rounded-md text-left transition-colors cursor-pointer",
-                          playbackRate === rate
-                            ? "bg-white/15 text-white font-medium"
-                            : "text-zinc-300 hover:bg-white/10 hover:text-white"
-                        )}
-                      >
-                        <span>{rate === 1 ? "Normal" : `${rate}x`}</span>
-                        {playbackRate === rate && <Check className="size-3 text-white" />}
-                      </button>
-                    ))}
-                  </div>
+                  )}
+                </div>
+
+                {/* Fullscreen Button */}
+                {fullscreenConfig.enabled && fullscreenConfig.button && (
+                  <button
+                    type="button"
+                    onClick={() => toggleFullscreen("button")}
+                    className="p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 text-white/80 hover:text-white transition-colors focus:outline-none cursor-pointer"
+                    title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
+                    aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+                  >
+                    {isFullscreen ? (
+                      <Minimize className="size-4 @min-[380px]:size-5" />
+                    ) : (
+                      <Maximize className="size-4 @min-[380px]:size-5" />
+                    )}
+                  </button>
                 )}
               </div>
-
-              {/* Fullscreen Button */}
-              {fullscreenConfig.enabled && fullscreenConfig.button && (
-                <button
-                  type="button"
-                  onClick={() => toggleFullscreen("button")}
-                  className="p-1 @min-[340px]:p-1.5 rounded-md hover:bg-white/15 text-white/80 hover:text-white transition-colors focus:outline-none cursor-pointer"
-                  title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
-                  aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
-                >
-                  {isFullscreen ? (
-                    <Minimize className="size-4 @min-[380px]:size-5" />
-                  ) : (
-                    <Maximize className="size-4 @min-[380px]:size-5" />
-                  )}
-                </button>
-              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }
