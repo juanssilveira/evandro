@@ -60,6 +60,10 @@ export async function updatePlayerConfig(
         ...current.appearance.thumbnail,
         ...(patch.appearance?.thumbnail || {}),
       },
+      pauseThumbnail: {
+        ...current.appearance.pauseThumbnail,
+        ...(patch.appearance?.pauseThumbnail || {}),
+      },
     },
     playback: {
       ...current.playback,

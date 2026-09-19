@@ -36,6 +36,18 @@ export const updatePlayerConfigActionSchema = z.object({
         thumbnail: z
           .object({
             enabled: z.boolean().optional(),
+            source: z.enum(["provider", "custom"]).optional(),
+            customUrl: z.string().nullable().optional(),
+            customKey: z.string().nullable().optional(),
+            customAspectRatio: z.enum(["16:9", "9:16", "1:1"]).nullable().optional(),
+          })
+          .optional(),
+        pauseThumbnail: z
+          .object({
+            enabled: z.boolean().optional(),
+            customUrl: z.string().nullable().optional(),
+            customKey: z.string().nullable().optional(),
+            customAspectRatio: z.enum(["16:9", "9:16", "1:1"]).nullable().optional(),
           })
           .optional(),
       })
@@ -105,3 +117,19 @@ export const deleteVideoSchema = z.object({
 });
 
 export type DeleteVideoInput = z.infer<typeof deleteVideoSchema>;
+
+export const uploadPlayerThumbnailSchema = z.object({
+  videoId: z.string().uuid("ID de vídeo inválido"),
+  kind: z.enum(["startup", "pause"]),
+  aspectRatio: z.enum(["16:9", "9:16", "1:1"]),
+});
+
+export type UploadPlayerThumbnailInput = z.infer<typeof uploadPlayerThumbnailSchema>;
+
+export const removePlayerThumbnailSchema = z.object({
+  videoId: z.string().uuid("ID de vídeo inválido"),
+  kind: z.enum(["startup", "pause"]),
+});
+
+export type RemovePlayerThumbnailInput = z.infer<typeof removePlayerThumbnailSchema>;
+

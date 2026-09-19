@@ -216,8 +216,11 @@ export function EvandroPlayer({
   const pendingForegroundActivationRef = useRef(false);
   const [hasStartedPlayingForeground, setHasStartedPlayingForeground] = useState(false);
   const [hasFirstFrameRendered, setHasFirstFrameRendered] = useState(false);
+  const [hasRevealedVideo, setHasRevealedVideo] = useState(false);
   const [isTransitioningPreviewOut, setIsTransitioningPreviewOut] = useState(false);
   const [previewError, setPreviewError] = useState(false);
+  const [customThumbError, setCustomThumbError] = useState(false);
+  const [pauseThumbError, setPauseThumbError] = useState(false);
   const [isEnded, setIsEnded] = useState(false);
 
   if (src !== prevSrc) {
@@ -225,7 +228,10 @@ export function EvandroPlayer({
     setUserActivatedForeground(false);
     setHasStartedPlayingForeground(false);
     setHasFirstFrameRendered(false);
+    setHasRevealedVideo(false);
     setPreviewError(false);
+    setCustomThumbError(false);
+    setPauseThumbError(false);
     setIsEnded(false);
   }
 
@@ -234,7 +240,10 @@ export function EvandroPlayer({
     setUserActivatedForeground(false);
     setHasStartedPlayingForeground(false);
     setHasFirstFrameRendered(false);
+    setHasRevealedVideo(false);
     setPreviewError(false);
+    setCustomThumbError(false);
+    setPauseThumbError(false);
     setIsEnded(false);
   }
 
@@ -248,22 +257,44 @@ export function EvandroPlayer({
   );
 
   // Strict Startup Visual Policy (for editor / standalone fallback)
-  const isThumbEnabled = effectiveConfig.appearance?.thumbnail?.enabled ?? true;
-  const candidateBgPreview = previewError ? null : backgroundPreviewUrl;
-  const displayPreviewSrc = isBackgroundAutoplay
-    ? candidateBgPreview
-    : isThumbEnabled
-    ? posterUrl || null
-    : null;
+  const thumbConfig = effectiveConfig.appearance?.thumbnail;
+  const isThumbEnabled = thumbConfig?.enabled ?? true;
+  const isCustomStartup = thumbConfig?.source === "custom" && Boolean(thumbConfig?.customUrl);
+  const customStartupUrl = thumbConfig?.customUrl;
+  const candidateBgPreview = previewError ? null : (backgroundPreviewUrl || null);
+
+  let displayPreviewSrc: string | null = null;
+  if (isBackgroundAutoplay) {
+    displayPreviewSrc = candidateBgPreview;
+  } else if (isThumbEnabled) {
+    if (isCustomStartup && customStartupUrl && !customThumbError) {
+      displayPreviewSrc = customStartupUrl;
+    } else {
+      displayPreviewSrc = posterUrl || null;
+    }
+  }
 
   const playbackMode: PlaybackMode = isBackgroundAutoplay ? "background_autoplay" : "foreground";
 
   // Immediate media attachment: Video is ALWAYS attached and prebuffered immediately
   const isMediaAttached = Boolean(resolvedSrc);
 
-  // Derived Preview / Poster Layer renders until REAL first video frame renders (zero black flash)
+  // Derived Preview / Poster Layer:
+  // In BG ON: visible until first video frame renders
+  // In BG OFF + Thumb ON: remains visible until user Play AND first video frame renders (no black flash, no premature removal)
+  // In BG OFF + Thumb OFF: never visible
   const isPreviewVisible = Boolean(
-    !mediaElement && displayPreviewSrc && !hasFirstFrameRendered
+    !mediaElement &&
+      displayPreviewSrc &&
+      (isBackgroundAutoplay
+        ? !hasFirstFrameRendered
+        : !hasStartedPlayingForeground || !hasFirstFrameRendered)
+  );
+
+  // Pause Thumbnail Active state
+  const pauseConfig = effectiveConfig.appearance?.pauseThumbnail;
+  const isPauseThumbActive = Boolean(
+    pauseConfig?.enabled && pauseConfig?.customUrl && !pauseThumbError
   );
 
   const initialVolume = effectiveConfig.playback?.defaultVolume ?? 1;
@@ -369,6 +400,22 @@ export function EvandroPlayer({
     playbackControllerRef.current?.updateConfig(effectiveConfig);
   }, [effectiveConfig]);
 
+  // Prefetch Pause Thumbnail after foreground playback starts
+  useEffect(() => {
+    if (
+      hasStartedPlayingForeground &&
+      effectiveConfig.appearance?.pauseThumbnail?.enabled &&
+      effectiveConfig.appearance?.pauseThumbnail?.customUrl
+    ) {
+      const img = new Image();
+      img.src = effectiveConfig.appearance.pauseThumbnail.customUrl;
+    }
+  }, [
+    hasStartedPlayingForeground,
+    effectiveConfig.appearance?.pauseThumbnail?.enabled,
+    effectiveConfig.appearance?.pauseThumbnail?.customUrl,
+  ]);
+
   // First frame detection & click-to-frame performance tracking
   useEffect(() => {
     const video = videoRef.current;
@@ -376,18 +423,34 @@ export function EvandroPlayer({
 
     const cleanup = onFirstVideoFrame(video, (frameTime) => {
       markPerformance("ep:first-frame", videoId);
+      markPerformance("ep:visual:main-reveal", videoId);
       mediaStateManager.onFirstFrame();
 
-      // Real first frame boundary reached: smoothly fade out poster preview
-      if (displayPreviewSrc) {
-        setIsTransitioningPreviewOut(true);
-        setTimeout(() => {
-          setHasFirstFrameRendered(true);
-          setIsTransitioningPreviewOut(false);
-        }, 180);
-      } else {
-        setHasFirstFrameRendered(true);
+      setHasFirstFrameRendered(true);
+
+      if (isBackgroundAutoplay) {
+        // In BG ON: smoothly crossfade preview out and video in (140ms)
+        setHasRevealedVideo(true);
+        if (displayPreviewSrc) {
+          setIsTransitioningPreviewOut(true);
+          setTimeout(() => {
+            setIsTransitioningPreviewOut(false);
+          }, 140);
+        }
+      } else if (!isThumbEnabled) {
+        // In BG OFF + Thumb OFF: video reveals directly on first frame (140ms fade-in)
+        setHasRevealedVideo(true);
+      } else if (hasStartedPlayingForeground) {
+        // User already played before first frame arrived: reveal video and transition thumbnail out
+        setHasRevealedVideo(true);
+        if (displayPreviewSrc) {
+          setIsTransitioningPreviewOut(true);
+          setTimeout(() => {
+            setIsTransitioningPreviewOut(false);
+          }, 140);
+        }
       }
+      // In BG OFF + Thumb ON: thumbnail stays visible and video stays hidden until user Play
 
       let clickToFrame: number | undefined;
       if (userPlayClickTimestampRef.current != null) {
@@ -436,7 +499,15 @@ export function EvandroPlayer({
     });
 
     return cleanup;
-  }, [videoId, effectiveDebug, displayPreviewSrc, mediaStateManager]);
+  }, [
+    videoId,
+    effectiveDebug,
+    displayPreviewSrc,
+    mediaStateManager,
+    isBackgroundAutoplay,
+    isThumbEnabled,
+    hasStartedPlayingForeground,
+  ]);
 
   // Media source attachment (Native Safari HLS bypass + Dynamic HLS Light for MSE)
   const attachMediaSource = useCallback(async (mediaSrc: string) => {
@@ -785,6 +856,17 @@ export function EvandroPlayer({
     mediaStateManager.onPlayRequested();
 
     setUserActivatedForeground(true);
+    setHasStartedPlayingForeground(true);
+
+    if (hasFirstFrameRendered) {
+      setHasRevealedVideo(true);
+      if (displayPreviewSrc) {
+        setIsTransitioningPreviewOut(true);
+        setTimeout(() => {
+          setIsTransitioningPreviewOut(false);
+        }, 140);
+      }
+    }
 
     const targetVol = lastVolumeRef.current > 0 ? lastVolumeRef.current : defaultVolume;
     const targetRate = defaultPlaybackRate;
@@ -827,6 +909,8 @@ export function EvandroPlayer({
     videoId,
     mediaStateManager,
     engine,
+    displayPreviewSrc,
+    hasFirstFrameRendered,
   ]);
 
   // Play / Pause toggle
@@ -1256,7 +1340,7 @@ export function EvandroPlayer({
         <div
           aria-hidden="true"
           className={cn(
-            "absolute inset-0 z-5 pointer-events-none overflow-hidden transition-opacity duration-200 ease-out",
+            "absolute inset-0 z-5 pointer-events-none overflow-hidden transition-opacity duration-140 ease-out",
             isTransitioningPreviewOut ? "opacity-0" : "opacity-100"
           )}
         >
@@ -1265,11 +1349,13 @@ export function EvandroPlayer({
             alt=""
             fetchPriority="high"
             onError={() => {
-              if (!previewError && candidateBgPreview) {
+              if (!customThumbError && isCustomStartup) {
+                setCustomThumbError(true);
+              } else if (!previewError && candidateBgPreview) {
                 setPreviewError(true);
               }
             }}
-            className="w-full h-full object-contain pointer-events-none select-none"
+            className="w-full h-full object-cover pointer-events-none select-none"
           />
         </div>
       )}
@@ -1295,7 +1381,10 @@ export function EvandroPlayer({
           onPause={handlePause}
           onEnded={handleEnded}
           onError={handleError}
-          className="w-full h-full object-contain cursor-pointer"
+          className={cn(
+            "w-full h-full object-contain cursor-pointer transition-opacity duration-140 ease-out",
+            hasRevealedVideo ? "opacity-100" : "opacity-0"
+          )}
         />
       )}
 
@@ -1465,85 +1554,101 @@ export function EvandroPlayer({
         </div>
       )}
 
-      {/* "Continue assistindo" CTA Overlay on Pause (After video has already started and is not ended) */}
+      {/* Pause Overlay (Custom Pause Thumbnail OR "Continue assistindo" Card) */}
       {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && hasStartedPlayingForeground && !isEnded && (
-        <div
-          onClick={togglePlay}
-          style={{
-            background: "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
-          }}
-          className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/pauseoverlay"
-        >
-          <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePlay();
-              }}
-              className={cn(
-                "relative flex flex-col items-center justify-center text-center",
-                "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
-                "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
-                "border border-white/15 select-none cursor-pointer max-w-full",
-                "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
-              )}
+        <>
+          {isPauseThumbActive && pauseConfig?.customUrl ? (
+            <div
+              onClick={togglePlay}
+              className="absolute inset-0 z-12 cursor-pointer transition-opacity duration-110 ease-out flex items-center justify-center overflow-hidden bg-black/40"
             >
-              {/* Play Icon with subtle breathing halo */}
-              <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
-                <span
-                  aria-hidden="true"
-                  className="ep-play-halo absolute inset-0 rounded-full pointer-events-none"
-                  style={{
-                    backgroundColor: "var(--player-accent)",
+              <img
+                src={pauseConfig.customUrl}
+                alt="Thumbnail de pausa"
+                onError={() => setPauseThumbError(true)}
+                className="w-full h-full object-cover select-none pointer-events-none"
+              />
+            </div>
+          ) : (
+            <div
+              onClick={togglePlay}
+              style={{
+                background: "linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%)",
+              }}
+              className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer transition-colors p-3.5 @min-[400px]:p-4 group/pauseoverlay"
+            >
+              <div className="relative flex items-center justify-center max-w-[calc(100%-24px)] @min-[400px]:max-w-[calc(100%-32px)] pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePlay();
                   }}
-                />
-
-                <div
-                  className="relative z-1 flex items-center justify-center size-9 @min-[400px]:size-10 rounded-full shadow-lg"
-                  style={{
-                    backgroundColor: "var(--player-accent)",
-                    color: "var(--player-accent-foreground)",
-                  }}
+                  className={cn(
+                    "relative flex flex-col items-center justify-center text-center",
+                    "px-5 py-3.5 @min-[400px]:px-6 @min-[400px]:py-4 rounded-2xl",
+                    "bg-zinc-950/85 text-white backdrop-blur-md shadow-2xl",
+                    "border border-white/15 select-none cursor-pointer max-w-full",
+                    "transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:border-white/25 hover:bg-zinc-950/90"
+                  )}
                 >
-                  <Play className="size-4.5 @min-[400px]:size-5 ml-0.5 fill-current shrink-0" />
-                </div>
+                  {/* Play Icon with subtle breathing halo */}
+                  <div className="relative flex items-center justify-center size-9 @min-[400px]:size-10 mb-2 shrink-0">
+                    <span
+                      aria-hidden="true"
+                      className="ep-play-halo absolute inset-0 rounded-full pointer-events-none"
+                      style={{
+                        backgroundColor: "var(--player-accent)",
+                      }}
+                    />
+
+                    <div
+                      className="relative z-1 flex items-center justify-center size-9 @min-[400px]:size-10 rounded-full shadow-lg"
+                      style={{
+                        backgroundColor: "var(--player-accent)",
+                        color: "var(--player-accent-foreground)",
+                      }}
+                    >
+                      <Play className="size-4.5 @min-[400px]:size-5 ml-0.5 fill-current shrink-0" />
+                    </div>
+                  </div>
+
+                  {/* Main Text */}
+                  <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug">
+                    Continue assistindo
+                  </span>
+
+                  {/* Microcopy */}
+                  <span className="text-[10px] @min-[360px]:text-[10.5px] @min-[420px]:text-[11px] font-medium text-zinc-300 leading-tight mt-0.5">
+                    Clique para continuar
+                  </span>
+                </button>
               </div>
 
-              {/* Main Text */}
-              <span className="text-xs @min-[360px]:text-[13px] @min-[420px]:text-sm font-semibold text-white leading-snug">
-                Continue assistindo
-              </span>
-
-              {/* Microcopy */}
-              <span className="text-[10px] @min-[360px]:text-[10.5px] @min-[420px]:text-[11px] font-medium text-zinc-300 leading-tight mt-0.5">
-                Clique para continuar
-              </span>
-            </button>
-          </div>
-
-          <style>{`
-            @keyframes ep-play-halo {
-              0%, 100% {
-                transform: scale(0.95);
-                opacity: 0.45;
-              }
-              50% {
-                transform: scale(1.3);
-                opacity: 0;
-              }
-            }
-            .ep-play-halo {
-              animation: ep-play-halo 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-            }
-            @media (prefers-reduced-motion: reduce) {
-              .ep-play-halo {
-                display: none !important;
-                animation: none !important;
-              }
-            }
-          `}</style>
-        </div>
+              <style>{`
+                @keyframes ep-play-halo {
+                  0%, 100% {
+                    transform: scale(0.95);
+                    opacity: 0.45;
+                  }
+                  50% {
+                    transform: scale(1.3);
+                    opacity: 0;
+                  }
+                }
+                .ep-play-halo {
+                  animation: ep-play-halo 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                }
+                @media (prefers-reduced-motion: reduce) {
+                  .ep-play-halo {
+                    display: none !important;
+                    animation: none !important;
+                  }
+                }
+              `}</style>
+            </div>
+          )}
+        </>
       )}
 
       {/* Top Title Bar */}

@@ -1,10 +1,11 @@
 import { db } from "@/db";
-import { videos, folders, type Video, type Folder } from "@/db/schema";
+import { videos, folders, videoPlayerSettings, type Video, type Folder } from "@/db/schema";
 import { eq, desc, and, sql, isNull } from "drizzle-orm";
 import { generateAndStoreBackgroundPreview } from "@/lib/background-preview";
 import { deleteAssetObject } from "@/lib/asset-storage/r2";
 import type { CreateUploadInput } from "@/lib/validations/videos";
 import { PRO_PLAN } from "@/lib/plans/catalog";
+import { parsePlayerConfig } from "@/types/player-config";
 import {
   getDefaultVideoProviderName,
   getVideoProvider,
@@ -320,7 +321,35 @@ export async function deleteVideo(
     };
   }
 
-  // 2. Delegate provider asset cleanup to provider adapter (idempotent)
+  // 2. Extract player config before deletion for R2 asset cleanup
+  try {
+    const [settingsRow] = await db
+      .select({ config: videoPlayerSettings.config })
+      .from(videoPlayerSettings)
+      .where(eq(videoPlayerSettings.videoId, videoId))
+      .limit(1);
+
+    if (settingsRow?.config) {
+      const config = parsePlayerConfig(settingsRow.config);
+      const startupKey = config.appearance?.thumbnail?.customKey;
+      const pauseKey = config.appearance?.pauseThumbnail?.customKey;
+
+      if (startupKey) {
+        await deleteAssetObject(startupKey).catch((err) =>
+          console.error(`[R2 Asset Cleanup] Error deleting startup thumb key ${startupKey}:`, err)
+        );
+      }
+      if (pauseKey) {
+        await deleteAssetObject(pauseKey).catch((err) =>
+          console.error(`[R2 Asset Cleanup] Error deleting pause thumb key ${pauseKey}:`, err)
+        );
+      }
+    }
+  } catch (error) {
+    console.error(`[Player Config Cleanup] Error fetching settings for ${video.id}:`, error);
+  }
+
+  // 3. Delegate provider asset cleanup to provider adapter (idempotent)
   try {
     const provider = getVideoProvider(video.provider || "mux");
     await provider.deleteVideo(video);
@@ -328,7 +357,7 @@ export async function deleteVideo(
     console.error(`[Video Provider Cleanup] Error deleting provider asset for ${video.id}:`, error);
   }
 
-  // 3. If derived background preview asset exists in R2, delete it (idempotent)
+  // 4. If derived background preview asset exists in R2, delete it (idempotent)
   if (video.backgroundPreviewKey) {
     try {
       await deleteAssetObject(video.backgroundPreviewKey);
@@ -340,7 +369,7 @@ export async function deleteVideo(
     }
   }
 
-  // 4. Delete database record (cascades to videoPlayerSettings and playSessions)
+  // 5. Delete database record (cascades to videoPlayerSettings and playSessions)
   await db
     .delete(videos)
     .where(and(eq(videos.id, videoId), eq(videos.accountId, accountId)));

@@ -50,6 +50,16 @@ export interface BootstrapVideoData {
       borderRadius?: number;
       thumbnail?: {
         enabled?: boolean;
+        source?: "provider" | "custom";
+        customUrl?: string | null;
+        customKey?: string | null;
+        customAspectRatio?: string | null;
+      };
+      pauseThumbnail?: {
+        enabled?: boolean;
+        customUrl?: string | null;
+        customKey?: string | null;
+        customAspectRatio?: string | null;
       };
     };
     playback?: {
@@ -244,15 +254,21 @@ function startEarlyBootstrap(apiBase: string, videoId: string): Promise<Bootstra
 
       // Strict Startup Visual Policy Preload:
       // 1. Background Autoplay ON: preload preview only (no poster fallback)
-      // 2. BG OFF + Thumbnail ON: preload poster only (no preview)
+      // 2. BG OFF + Thumbnail ON: preload custom thumbnail (if custom) or poster (if provider)
       // 3. BG OFF + Thumbnail OFF: 0 visual preloads
+      // 4. Pause Thumbnail: STRICTLY NEVER preloaded in startup path
       const isBg = Boolean(json.config?.playback?.backgroundAutoplay);
-      const isThumbEnabled = json.config?.appearance?.thumbnail?.enabled ?? true;
+      const thumbConfig = json.config?.appearance?.thumbnail;
+      const isThumbEnabled = thumbConfig?.enabled ?? true;
 
       if (isBg && json.backgroundPreviewUrl) {
         preloadVisualAsset(json.backgroundPreviewUrl);
-      } else if (!isBg && isThumbEnabled && json.posterUrl) {
-        preloadVisualAsset(json.posterUrl);
+      } else if (!isBg && isThumbEnabled) {
+        if (thumbConfig?.source === "custom" && thumbConfig?.customUrl) {
+          preloadVisualAsset(thumbConfig.customUrl);
+        } else if (json.posterUrl) {
+          preloadVisualAsset(json.posterUrl);
+        }
       }
 
       return json;

@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { PlayerThumbnailUploader } from "./player-thumbnail-uploader";
 import {
   PlayCircle,
   Play,
@@ -173,6 +174,10 @@ export function VideoSettings({
         thumbnail: {
           ...config.appearance?.thumbnail,
           ...(patch.appearance?.thumbnail || {}),
+        },
+        pauseThumbnail: {
+          ...config.appearance?.pauseThumbnail,
+          ...(patch.appearance?.pauseThumbnail || {}),
         },
       },
       playback: {
@@ -751,42 +756,29 @@ export function VideoSettings({
               </div>
             </div>
 
-            {/* Show Thumbnail Toggle */}
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 py-3 px-3.5 sm:py-3 sm:px-4">
-              <div className="space-y-1">
-                <Label
-                  htmlFor={`show-thumbnail-switch-${videoId}`}
-                  className="text-xs font-semibold text-foreground cursor-pointer block"
-                >
-                  Exibir thumbnail
-                </Label>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Mostra a imagem de capa enquanto o vídeo aguarda o play.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {isPending && pendingField === "thumbnailEnabled" && (
-                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                )}
-                <Switch
-                  id={`show-thumbnail-switch-${videoId}`}
-                  checked={config.appearance?.thumbnail?.enabled ?? true}
-                  disabled={isPending}
-                  onCheckedChange={(checked) =>
-                    handleConfigUpdate(
-                      {
-                        appearance: {
-                          thumbnail: {
-                            enabled: checked,
-                          },
-                        },
-                      },
-                      "thumbnailEnabled"
-                    )
-                  }
-                />
-              </div>
-            </div>
+            {/* Startup Thumbnail Section */}
+            <PlayerThumbnailUploader
+              videoId={videoId}
+              kind="startup"
+              currentAspectRatio={currentAspectRatio}
+              config={config}
+              isPending={isPending}
+              onConfigChange={onConfigChange}
+              onConfigUpdate={handleConfigUpdate}
+              pendingField={pendingField}
+            />
+
+            {/* Pause Thumbnail Section */}
+            <PlayerThumbnailUploader
+              videoId={videoId}
+              kind="pause"
+              currentAspectRatio={currentAspectRatio}
+              config={config}
+              isPending={isPending}
+              onConfigChange={onConfigChange}
+              onConfigUpdate={handleConfigUpdate}
+              pendingField={pendingField}
+            />
 
             {/* Show Video Title Toggle */}
             <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/20 py-3 px-3.5 sm:py-3 sm:px-4">

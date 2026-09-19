@@ -258,7 +258,13 @@ export class PlayerEngine implements IPlayerEngine {
     await this.attachMedia(playbackUrl, isBg, currentGen);
   }
 
+  private _sourceOptions: EngineSourceOptions | null = null;
+  private _hasRevealedVideo = false;
+
   private setupStartupVisual(options: EngineSourceOptions, gen: number): void {
+    this._sourceOptions = options;
+    this._hasRevealedVideo = false;
+
     if (!this._startupVisualElement) return;
 
     this._visualAbortController?.abort();
@@ -269,9 +275,11 @@ export class PlayerEngine implements IPlayerEngine {
     container.innerHTML = "";
     container.style.display = "flex";
     container.style.opacity = "1";
+    container.style.transition = "";
 
     const isBg = Boolean(options.backgroundAutoplay);
-    const thumbEnabled = options.thumbnailEnabled ?? options.config?.appearance?.thumbnail?.enabled ?? true;
+    const thumbConfig = options.config?.appearance?.thumbnail;
+    const thumbEnabled = options.thumbnailEnabled ?? thumbConfig?.enabled ?? true;
 
     let targetUrl: string | null = null;
     let visualType: "preview" | "thumbnail" | "none" = "none";
@@ -283,7 +291,11 @@ export class PlayerEngine implements IPlayerEngine {
         markPerformance("ep:visual:preview:start", options.videoId);
       }
     } else if (thumbEnabled) {
-      if (options.posterUrl) {
+      if (thumbConfig?.source === "custom" && thumbConfig?.customUrl) {
+        targetUrl = thumbConfig.customUrl;
+        visualType = "thumbnail";
+        markPerformance("ep:visual:custom-thumbnail:start", options.videoId);
+      } else if (options.posterUrl) {
         targetUrl = options.posterUrl;
         visualType = "thumbnail";
         markPerformance("ep:visual:thumbnail:start", options.videoId);
@@ -296,13 +308,13 @@ export class PlayerEngine implements IPlayerEngine {
 
     const img = document.createElement("img");
     img.alt = "";
-    img.style.cssText = "width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;";
+    img.style.cssText = "width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;";
     (img as HTMLImageElement & { fetchPriority?: string }).fetchPriority = "high";
 
     img.onload = () => {
       if (ac.signal.aborted || gen !== this._generation) return;
-      // Arbitration: if main frame already won, NEVER show visual asset
-      if (this._state.hasFirstFrame) return;
+      // In BG ON, if main frame already won, do not append preview
+      if (isBg && this._state.hasFirstFrame) return;
 
       if (visualType === "preview") {
         markPerformance("ep:visual:preview:ready", options.videoId);
@@ -315,7 +327,12 @@ export class PlayerEngine implements IPlayerEngine {
 
     img.onerror = () => {
       if (ac.signal.aborted || gen !== this._generation) return;
-      // Do not use forbidden fallbacks
+      // Fallback: if custom thumbnail failed, try provider poster if available
+      if (visualType === "thumbnail" && targetUrl !== options.posterUrl && options.posterUrl) {
+        targetUrl = options.posterUrl;
+        img.src = options.posterUrl;
+        return;
+      }
       img.remove();
     };
 
@@ -328,11 +345,15 @@ export class PlayerEngine implements IPlayerEngine {
       this._cancelFirstFrameCallback = null;
     }
 
+    // Initialize video opacity to 0 before first frame
+    this._video.style.opacity = "0";
+
     this._cancelFirstFrameCallback = onFirstVideoFrame(this._video, (frameTime) => {
       if (gen !== this._generation || this._isDestroyed) return;
 
       markPerformance("ep:first-frame", videoId);
       markPerformance("ep:main:first-frame", videoId);
+      markPerformance("ep:visual:main-reveal", videoId);
 
       this.updateState({ hasFirstFrame: true });
 
@@ -345,9 +366,27 @@ export class PlayerEngine implements IPlayerEngine {
         }
       });
 
-      // Smooth takeover: crossfade and release startup visual
-      this.releaseStartupVisual(videoId);
+      const isBg = this._sourceOptions?.backgroundAutoplay;
+      const thumbConfig = this._sourceOptions?.config?.appearance?.thumbnail;
+      const thumbEnabled = this._sourceOptions?.thumbnailEnabled ?? thumbConfig?.enabled ?? true;
+
+      if (isBg) {
+        // In BG ON: crossfade preview out and video in (140ms)
+        this.revealVideo();
+        this.releaseStartupVisual(videoId);
+      } else if (!thumbEnabled) {
+        // In BG OFF + Thumb OFF: video reveals directly on first frame (140ms fade-in)
+        this.revealVideo();
+      }
+      // In BG OFF + Thumb ON: thumbnail stays visible and video stays hidden until user Play
     });
+  }
+
+  private revealVideo(): void {
+    if (this._hasRevealedVideo) return;
+    this._hasRevealedVideo = true;
+    this._video.style.transition = "opacity 140ms ease-out";
+    this._video.style.opacity = "1";
   }
 
   private releaseStartupVisual(videoId: string): void {
@@ -356,15 +395,15 @@ export class PlayerEngine implements IPlayerEngine {
     markPerformanceOnce("ep:startup-visual:release", videoId);
 
     const el = this._startupVisualElement;
-    el.style.transition = "opacity 150ms ease-out";
+    el.style.transition = "opacity 140ms ease-out";
     el.style.opacity = "0";
 
     setTimeout(() => {
-      if (this._state.hasFirstFrame && el) {
+      if (el) {
         el.innerHTML = "";
         el.style.display = "none";
       }
-    }, 160);
+    }, 150);
   }
 
   private async attachMedia(mediaSrc: string, isBg: boolean, gen: number): Promise<void> {
@@ -502,6 +541,11 @@ export class PlayerEngine implements IPlayerEngine {
       }
     }
 
+    if (this._state.hasFirstFrame) {
+      this.revealVideo();
+      this.releaseStartupVisual(this._state.videoId);
+    }
+
     try {
       await v.play();
     } catch {
@@ -511,6 +555,12 @@ export class PlayerEngine implements IPlayerEngine {
 
   public async play(): Promise<void> {
     if (this._isDestroyed) return;
+
+    if (this._state.hasFirstFrame) {
+      this.revealVideo();
+      this.releaseStartupVisual(this._state.videoId);
+    }
+
     try {
       await this._video.play();
     } catch (err) {
