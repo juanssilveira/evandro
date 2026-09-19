@@ -1411,6 +1411,15 @@ export function EvandroPlayer({
         />
       )}
 
+      {/* Central Tap / Click-to-Toggle-Play Backdrop (Handles body clicks in both Embed & Standalone modes) */}
+      {playbackMode !== "background_autoplay" && !hasError && (
+        <div
+          aria-hidden="true"
+          onClick={togglePlay}
+          className="absolute inset-0 z-1 cursor-pointer"
+        />
+      )}
+
       {/* Loading Buffering Indicator (Delayed trigger via MediaLoadingStateManager) */}
       {isLoading && !hasError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 bg-black/20">
@@ -1716,6 +1725,7 @@ export function EvandroPlayer({
       {!isControlsHidden && playbackMode !== "background_autoplay" && (
         <div
           data-no-fullscreen="true"
+          onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
           style={{
             background: "linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0) 100%)",
