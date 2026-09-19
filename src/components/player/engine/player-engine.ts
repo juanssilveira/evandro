@@ -303,6 +303,7 @@ export class PlayerEngine implements IPlayerEngine {
     }
 
     if (!targetUrl || visualType === "none") {
+      container.style.display = "none";
       return;
     }
 
@@ -369,7 +370,12 @@ export class PlayerEngine implements IPlayerEngine {
       // Always reveal video immediately upon first frame load (smoothing transition from black container)
       this.revealVideo();
 
-      if (this._sourceOptions?.backgroundAutoplay) {
+      const isBg = this._sourceOptions?.backgroundAutoplay;
+      const thumbConfig = this._sourceOptions?.config?.appearance?.thumbnail;
+      const thumbEnabled = this._sourceOptions?.thumbnailEnabled ?? thumbConfig?.enabled ?? true;
+
+      // In BG ON or when thumbnails are disabled, release startup visual immediately on first frame
+      if (isBg || !thumbEnabled) {
         this.releaseStartupVisual(videoId);
       }
     });
