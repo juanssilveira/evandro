@@ -214,6 +214,7 @@ export function EvandroPlayer({
   const [prevPlaybackKey, setPrevPlaybackKey] = useState(playbackKey);
   const [userActivatedForeground, setUserActivatedForeground] = useState(false);
   const pendingForegroundActivationRef = useRef(false);
+  const [isPlayPending, setIsPlayPending] = useState(false);
   const [hasStartedPlayingForeground, setHasStartedPlayingForeground] = useState(false);
   const [hasFirstFrameRendered, setHasFirstFrameRendered] = useState(false);
   const [hasRevealedVideo, setHasRevealedVideo] = useState(false);
@@ -226,6 +227,7 @@ export function EvandroPlayer({
   if (src !== prevSrc) {
     setPrevSrc(src);
     setUserActivatedForeground(false);
+    setIsPlayPending(false);
     setHasStartedPlayingForeground(false);
     setHasFirstFrameRendered(false);
     setHasRevealedVideo(false);
@@ -238,6 +240,7 @@ export function EvandroPlayer({
   if (playbackKey !== prevPlaybackKey) {
     setPrevPlaybackKey(playbackKey);
     setUserActivatedForeground(false);
+    setIsPlayPending(false);
     setHasStartedPlayingForeground(false);
     setHasFirstFrameRendered(false);
     setHasRevealedVideo(false);
@@ -288,7 +291,7 @@ export function EvandroPlayer({
       displayPreviewSrc &&
       (isBackgroundAutoplay
         ? !hasFirstFrameRendered
-        : !hasStartedPlayingForeground || !hasFirstFrameRendered)
+        : !userActivatedForeground || !hasFirstFrameRendered)
   );
 
   // Pause Thumbnail Active state
@@ -672,11 +675,21 @@ export function EvandroPlayer({
   useEffect(() => {
     if (!mediaElement) return;
     const v = mediaElement;
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-    const onEnded = () => setIsEnded(true);
+    const onPlay = () => {
+      setIsPlaying(true);
+      setIsPlayPending(false);
+    };
+    const onPause = () => {
+      setIsPlaying(false);
+      setIsPlayPending(false);
+    };
+    const onEnded = () => {
+      setIsEnded(true);
+      setIsPlayPending(false);
+    };
     const onPlaying = () => {
       setIsPlaying(true);
+      setIsPlayPending(false);
       setHasStartedPlayingForeground(true);
     };
     const onTime = () => {
@@ -856,7 +869,7 @@ export function EvandroPlayer({
     mediaStateManager.onPlayRequested();
 
     setUserActivatedForeground(true);
-    setHasStartedPlayingForeground(true);
+    setIsPlayPending(true);
 
     if (hasFirstFrameRendered) {
       setHasRevealedVideo(true);
@@ -944,7 +957,10 @@ export function EvandroPlayer({
     if (playbackControllerRef.current) {
       activateSession();
       if (video.paused || video.ended) {
+        setIsPlayPending(true);
         mediaStateManager.onPlayRequested();
+      } else {
+        setIsPlayPending(false);
       }
       playbackControllerRef.current.handleUserPlayToggle(lastVolumeRef.current);
       return;
@@ -952,9 +968,13 @@ export function EvandroPlayer({
 
     if (video.paused || video.ended) {
       activateSession();
+      setIsPlayPending(true);
       mediaStateManager.onPlayRequested();
-      video.play().catch(() => {});
+      video.play().catch(() => {
+        setIsPlayPending(false);
+      });
     } else {
+      setIsPlayPending(false);
       video.pause();
     }
   }, [
@@ -1250,18 +1270,21 @@ export function EvandroPlayer({
     mediaStateManager.onPlaying();
     setIsPlaying(true);
     setIsEnded(false);
+    setIsPlayPending(false);
     setHasStartedPlayingForeground(true);
   };
 
   const handlePause = () => {
     mediaStateManager.onPause();
     setIsPlaying(false);
+    setIsPlayPending(false);
   };
 
   const handleEnded = () => {
     mediaStateManager.onEnded();
     setIsPlaying(false);
     setIsEnded(true);
+    setIsPlayPending(false);
     setControlsVisible(true);
   };
 
@@ -1537,7 +1560,7 @@ export function EvandroPlayer({
       )}
 
       {/* Big Play Button Overlay on Initial Start (Before first play) */}
-      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !hasStartedPlayingForeground && (
+      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && !userActivatedForeground && (
         <div
           onClick={togglePlay}
           className="absolute inset-0 flex items-center justify-center z-12 cursor-pointer bg-black/20 transition-opacity"
@@ -1555,7 +1578,7 @@ export function EvandroPlayer({
       )}
 
       {/* Pause Overlay (Custom Pause Thumbnail OR "Continue assistindo" Card) */}
-      {!isPlaying && !isLoading && !hasError && playbackMode !== "background_autoplay" && hasStartedPlayingForeground && !isEnded && (
+      {!isPlaying && !isPlayPending && !isLoading && !hasError && playbackMode !== "background_autoplay" && hasStartedPlayingForeground && !isEnded && (
         <>
           {isPauseThumbActive && pauseConfig?.customUrl ? (
             <div
